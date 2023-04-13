@@ -12,6 +12,8 @@ import (
 	"github.com/mailru/activerecord/internal/pkg/ds"
 	"github.com/mailru/activerecord/internal/pkg/testutil"
 	"github.com/mailru/activerecord/pkg/octopus"
+	"gotest.tools/assert"
+	"gotest.tools/assert/cmp"
 )
 
 type args struct {
@@ -38,7 +40,7 @@ func TestArGen_addRecordPackage(t *testing.T) {
 		return
 	}
 
-	emptyRP := ds.NewRecordPacakge()
+	emptyRP := ds.NewRecordPackage()
 
 	type args struct {
 		pkgName string
@@ -352,7 +354,7 @@ func TestArGen_preparePackage(t *testing.T) {
 		linkedObjects map[string]string
 	}
 
-	rpFoo := ds.NewRecordPacakge()
+	rpFoo := ds.NewRecordPackage()
 	rpFoo.Backends = []string{"octopus"}
 	rpFoo.Server = ds.ServerDeclaration{Host: "127.0.0.1", Port: "11011"}
 	rpFoo.Namespace = ds.NamespaceDeclaration{Num: 0, PackageName: "foo", PublicName: "Foo"}
@@ -397,7 +399,7 @@ func TestArGen_preparePackage(t *testing.T) {
 		return
 	}
 
-	rpBar := ds.NewRecordPacakge()
+	rpBar := ds.NewRecordPackage()
 	rpBar.Backends = []string{"octopus"}
 	rpBar.Namespace = ds.NamespaceDeclaration{Num: 1, PackageName: "bar", PublicName: "Bar"}
 
@@ -691,14 +693,16 @@ type TriggersFoo struct {
 							Unique:  true,
 						},
 						{Name: "Field1Part",
-							Num:      1,
+							Num:      0,
 							Selector: "SelectByField1",
 							Fields:   []int{0},
 							FieldsMap: map[string]ds.IndexField{
 								"Field1": {IndField: 0, Order: 0},
 							},
 							Primary: false,
-							Unique:  false},
+							Unique:  false,
+							Partial: true,
+						},
 					},
 					IndexMap:      map[string]int{"Field1Field2": 0, "Field1Part": 1},
 					SelectorMap:   map[string]int{"SelectByField1": 1, "SelectByField1Field2": 0},
@@ -744,9 +748,7 @@ type TriggersFoo struct {
 			}
 
 			for key, pkg := range a.packagesParsed {
-				if !reflect.DeepEqual(pkg, tt.want[key]) {
-					t.Errorf("ArGen.parse() %s = %+v, want %+v", key, pkg, tt.want[key])
-				}
+				assert.Check(t, cmp.DeepEqual(tt.want[key], pkg), "Invalid response, test `%s`", key)
 			}
 		})
 	}

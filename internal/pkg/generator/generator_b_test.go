@@ -97,7 +97,7 @@ func TestGenerate(t *testing.T) {
 				return
 			}
 
-			// Testing in backand specific tests
+			// Testing in backend specific tests
 			for iGotRet := range gotRet {
 				gotRet[iGotRet].Data = []byte{}
 			}

@@ -33,12 +33,12 @@ func ParseIndexPartTag(field *ast.Field, ind *ds.IndexDeclaration, indexMap map[
 			exInd = indexes[exIndNum]
 			ind.Num = exInd.Num
 		case "fieldnum":
-			fnum, err := strconv.ParseInt(kv[1], 10, 64)
+			fNum, err := strconv.ParseInt(kv[1], 10, 64)
 			if err != nil {
 				return &arerror.ErrParseTypeIndexTagDecl{IndexType: "indexpart", Name: ind.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrParseTagValueInvalid}
 			}
 
-			fieldnum = fnum
+			fieldnum = fNum
 		default:
 			return &arerror.ErrParseTypeIndexTagDecl{IndexType: "indexpart", Name: ind.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrParseTagUnknown}
 		}
@@ -74,7 +74,9 @@ func ParseIndexPart(dst *ds.RecordPackage, fields []*ast.Field) error {
 			Name:      field.Names[0].Name,
 			Fields:    []int{},
 			FieldsMap: map[string]ds.IndexField{},
-			Selector:  "SelectBy" + field.Names[0].Name}
+			Selector:  "SelectBy" + field.Names[0].Name,
+			Partial:   true,
+		}
 
 		if err := checkBoolType(field.Type); err != nil {
 			return &arerror.ErrParseTypeIndexDecl{IndexType: "indexpart", Name: ind.Name, Err: arerror.ErrTypeNotBool}
@@ -121,14 +123,14 @@ func ParseIndexTag(field *ast.Field, ind *ds.IndexDeclaration, fieldsMap map[str
 					ind.Fields = append(ind.Fields, fldNum)
 				}
 			}
-		case OrderdescTag:
+		case OrderDescTag:
 			for _, fn := range strings.Split(kv[1], ",") {
 				if _, ex := fieldsMap[fn]; !ex {
 					return &arerror.ErrParseTypeIndexTagDecl{IndexType: "index", Name: ind.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrFieldNotExist}
-				} else if indfield, ex := ind.FieldsMap[fn]; !ex {
+				} else if indField, ex := ind.FieldsMap[fn]; !ex {
 					return &arerror.ErrParseTypeIndexTagDecl{IndexType: "index", Name: ind.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrFieldNotExist}
 				} else {
-					indfield.Order = ds.IndexOrderDesc
+					indField.Order = ds.IndexOrderDesc
 				}
 			}
 		default:

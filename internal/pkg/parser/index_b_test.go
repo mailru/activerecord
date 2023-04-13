@@ -2,11 +2,12 @@ package parser_test
 
 import (
 	"go/ast"
-	"reflect"
 	"testing"
 
 	"github.com/mailru/activerecord/internal/pkg/ds"
 	"github.com/mailru/activerecord/internal/pkg/parser"
+	"gotest.tools/assert"
+	"gotest.tools/assert/cmp"
 )
 
 func TestParseIndexPart(t *testing.T) {
@@ -15,7 +16,7 @@ func TestParseIndexPart(t *testing.T) {
 		fields []*ast.Field
 	}
 
-	wantRp := ds.NewRecordPacakge()
+	wantRp := ds.NewRecordPackage()
 	wantRp.Fields = []ds.FieldDeclaration{
 		{Name: "Field1", Format: "int"},
 		{Name: "Field2", Format: "int"},
@@ -35,18 +36,19 @@ func TestParseIndexPart(t *testing.T) {
 		},
 		{
 			Name:     "Field1Part",
-			Num:      1,
+			Num:      0,
 			Selector: "SelectByField1",
 			Fields:   []int{0},
 			FieldsMap: map[string]ds.IndexField{
 				"Field1": {IndField: 0, Order: 0},
 			},
+			Partial: true,
 		},
 	}
 	wantRp.IndexMap = map[string]int{"Field1Field2": 0, "Field1Part": 1}
 	wantRp.SelectorMap = map[string]int{"SelectByField1": 1, "SelectByField1Field2": 0}
 
-	rp := ds.NewRecordPacakge()
+	rp := ds.NewRecordPackage()
 
 	err := rp.AddField(ds.FieldDeclaration{
 		Name:       "Field1",
@@ -112,9 +114,7 @@ func TestParseIndexPart(t *testing.T) {
 				return
 			}
 
-			if !reflect.DeepEqual(tt.args.dst, tt.want) {
-				t.Errorf("ParseIndexPart() = %+v, want %+v", tt.args.dst, tt.want)
-			}
+			assert.Check(t, cmp.DeepEqual(tt.want, tt.args.dst), "Invalid response, test `%s`", tt.name)
 		})
 	}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 // Описание приложения. Информация необходимая для разметки артефактов
-// Остаёт в сгенерированных файлах, что бы было понятно какой версией сгенерированны файлы
+// Остаётся в сгенерированных файлах, что бы было понятно какой версией сгенерированы файлы
 type AppInfo struct {
 	appName      string
 	version      string
@@ -63,7 +63,7 @@ type NamespaceDeclaration struct {
 }
 
 // Структура для описания конфигурации сервера
-// Может быть указан путь к конфигурации `Conf` или параматры подключения напрямую
+// Может быть указан путь к конфигурации `Conf` или параметры подключения напрямую
 type ServerDeclaration struct {
 	Timeout          int64
 	Host, Port, Conf string
@@ -81,7 +81,7 @@ type RecordPackage struct {
 	SelectorMap     map[string]int                   // Список селекторов, используется для контроля дублей
 	Backends        []string                         // Список бекендов для которых надо сгенерировать пакеты (сейчас допустим один и только один)
 	SerializerMap   map[string]SerializerDeclaration // Список сериализаторов используемых в этой сущности
-	Imports         []ImportDeclaration              // Список необходимых дополнительных импортов, формируется из дериктивы import
+	Imports         []ImportDeclaration              // Список необходимых дополнительных импортов, формируется из директивы import
 	ImportMap       map[string]int                   // Обратный индекс от имен по импортам
 	ImportPkgMap    map[string]int                   // Обратный индекс от пакетов к импортам
 	TriggerMap      map[string]TriggerDeclaration    // Список триггеров используемых в сущности
@@ -89,7 +89,7 @@ type RecordPackage struct {
 }
 
 // Конструктор для RecordPackage, инициализирует ссылочные типы
-func NewRecordPacakge() *RecordPackage {
+func NewRecordPackage() *RecordPackage {
 	return &RecordPackage{
 		Server:          ServerDeclaration{},
 		Namespace:       NamespaceDeclaration{},
@@ -126,13 +126,14 @@ type IndexField struct {
 // Тип для описания индекса
 type IndexDeclaration struct {
 	Name      string                // Имя индекса
-	Num       uint8                 // номер индекса, используется для частичных индексов
-	Selector  string                // название функции селектора
-	Fields    []int                 // список номеров полей участвующих в индексе (последовательность имеет значение)
+	Num       uint8                 // Номер индекса в описании спейса
+	Selector  string                // Название функции селектора
+	Fields    []int                 // Список номеров полей участвующих в индексе (последовательность имеет значение)
 	FieldsMap map[string]IndexField // Обратный индекс по именам полей (используется для выявления дублей)
-	Primary   bool                  // признак того, что индекс является первичным ключом
-	Unique    bool                  // прихнак того, что индекс являетяс уникальным
+	Primary   bool                  // Признак того, что индекс является первичным ключом
+	Unique    bool                  // Признак того, что индекс является уникальным
 	Type      string                // Тип индекса, для индексов по одному полю простой тип, для составных индексов собственный тип
+	Partial   bool                  // Признак того, что индекс частичный
 }
 
 // Тип описывающий поле в сущности
@@ -142,11 +143,11 @@ type FieldDeclaration struct {
 	PrimaryKey bool           // участвует ли поле в первичном ключе (при изменении таких полей необходимо делать delete + insert вместо update)
 	Mutators   []FieldMutator // список мутаторов (атомарных действий на уровне БД)
 	Size       int64          // Размер поля, используется только для строковых значений
-	Serializer []string       // Сериализаторф для поля
+	Serializer []string       // Сериализатора для поля
 	ObjectLink string         // является ли поле ссылкой на другую сущность
 }
 
-// Метод возвращающий имя сериализоватора, если он установлен, иначе пустую строку
+// Метод возвращающий имя сериализатора, если он установлен, иначе пустую строку
 func (f *FieldDeclaration) SerializerName() string {
 	if len(f.Serializer) > 0 {
 		return f.Serializer[0]
@@ -155,8 +156,8 @@ func (f *FieldDeclaration) SerializerName() string {
 	return ""
 }
 
-// Парамтеры передаваемые при сериализации. Используется, когда на уровне декларирования
-// известно, что сериализоатор/десериализатор требует дополнительных константных значений
+// Параметры передаваемые при сериализации. Используется, когда на уровне декларирования
+// известно, что сериализатор/десериализатор требует дополнительных константных значений
 func (f *FieldDeclaration) SerializerParams() string {
 	if len(f.Serializer) > 1 {
 		return `"` + strings.Join(f.Serializer[1:], `", "`) + `", `
@@ -170,11 +171,11 @@ type FieldMutator string
 
 const (
 	IncMutator      FieldMutator = "inc"       // инкремент (только для числовых типов)
-	DecMutator      FieldMutator = "dec"       // дектиремн (только для числовых типов)
+	DecMutator      FieldMutator = "dec"       // декремент (только для числовых типов)
 	SetBitMutator   FieldMutator = "set_bit"   // установка бита (только для целочисленных типов)
 	ClearBitMutator FieldMutator = "clear_bit" // снятие бита (только для целочисленных типов)
-	AndMutator      FieldMutator = "and"       // дизюнкция (только для целочисленных типов)
-	OrMutator       FieldMutator = "or"        // конюнкция (только для целочисленных типов)
+	AndMutator      FieldMutator = "and"       // дизъюнкция (только для целочисленных типов)
+	OrMutator       FieldMutator = "or"        // конъюнкция (только для целочисленных типов)
 	XorMutator      FieldMutator = "xor"       // xor (только для целочисленных типов)
 )
 
@@ -205,7 +206,7 @@ type FieldObject struct {
 	Name       string // Имя
 	Key        string // Название поля во внешней сущности
 	ObjectName string // Название внешней сущности
-	Field      string // Имя поля в текужей сущности
+	Field      string // Имя поля в текущей сущности
 	Unique     bool   // Признак связки true => один к одному, false => один ко многим
 }
 
@@ -219,13 +220,13 @@ type SerializerDeclaration struct {
 	Unmarshaler string // Имя функции анмаршаллера
 }
 
-// Структура описывающая дополнитеьный импорты
+// Структура описывающая дополнительный импорты
 type ImportDeclaration struct {
 	Path       string // Путь к пакету
 	ImportName string // Симлинк для пакета при импорте
 }
 
-// Структура описывающая тригеры
+// Структура описывающая триггеры
 type TriggerDeclaration struct {
 	Name       string          // Имя
 	Pkg        string          // Пакет для импорта

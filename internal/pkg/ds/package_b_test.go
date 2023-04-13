@@ -8,7 +8,7 @@ import (
 )
 
 func TestRecordPackage_FindImport(t *testing.T) {
-	rc := ds.NewRecordPacakge()
+	rc := ds.NewRecordPackage()
 
 	imp, err := rc.AddImport("go/ast")
 	if err != nil {
@@ -63,7 +63,7 @@ func TestRecordPackage_FindImport(t *testing.T) {
 }
 
 func TestRecordPackage_AddImport(t *testing.T) {
-	rc := ds.NewRecordPacakge()
+	rc := ds.NewRecordPackage()
 
 	type want struct {
 		importDeclaration ds.ImportDeclaration
@@ -173,7 +173,7 @@ func TestRecordPackage_AddImport(t *testing.T) {
 }
 
 func TestRecordPackage_FindImportByPkg(t *testing.T) {
-	rc := ds.NewRecordPacakge()
+	rc := ds.NewRecordPackage()
 
 	imp, err := rc.AddImport("go/ast")
 	if err != nil {
@@ -232,7 +232,7 @@ func TestRecordClass_AddField(t *testing.T) {
 		f ds.FieldDeclaration
 	}
 
-	rc := ds.NewRecordPacakge()
+	rc := ds.NewRecordPackage()
 
 	tests := []struct {
 		name    string
@@ -275,7 +275,7 @@ func TestRecordClass_AddFieldObject(t *testing.T) {
 		f ds.FieldObject
 	}
 
-	rc := ds.NewRecordPacakge()
+	rc := ds.NewRecordPackage()
 
 	tests := []struct {
 		name    string
@@ -317,7 +317,7 @@ func TestRecordClass_AddTrigger(t *testing.T) {
 		f ds.TriggerDeclaration
 	}
 
-	rc := ds.NewRecordPacakge()
+	rc := ds.NewRecordPackage()
 
 	tests := []struct {
 		name    string
@@ -359,7 +359,7 @@ func TestRecordClass_AddSerializer(t *testing.T) {
 		f ds.SerializerDeclaration
 	}
 
-	rc := ds.NewRecordPacakge()
+	rc := ds.NewRecordPackage()
 
 	tests := []struct {
 		name    string
@@ -401,7 +401,7 @@ func TestRecordClass_AddFlag(t *testing.T) {
 		f ds.FlagDeclaration
 	}
 
-	rc := ds.NewRecordPacakge()
+	rc := ds.NewRecordPackage()
 
 	tests := []struct {
 		name    string

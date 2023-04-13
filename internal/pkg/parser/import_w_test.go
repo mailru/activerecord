@@ -9,7 +9,7 @@ import (
 )
 
 func TestParseImport(t *testing.T) {
-	rp := ds.NewRecordPacakge()
+	rp := ds.NewRecordPackage()
 	type args struct {
 		dst        *ds.RecordPackage
 		importSpec *ast.ImportSpec

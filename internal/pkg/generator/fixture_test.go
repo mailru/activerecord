@@ -87,7 +87,7 @@ func TestGenerateFixture(t *testing.T) {
 								Num:         0,
 								PublicName:  "Gift",
 								PackageName: "gift",
-								ModuleName:  "githum.com/foo/bar/baz.git/internal/pkg/model/repository/cmpl/",
+								ModuleName:  "github.com/foo/bar/baz.git/internal/pkg/model/repository/cmpl/",
 							},
 						},
 					},
