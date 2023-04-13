@@ -1,0 +1,254 @@
+package fixture
+
+import (
+    _ "embed"
+    "context"
+    "fmt"
+    "log"
+    "sync"
+
+    "gopkg.in/yaml.v3"
+
+    "github.com/mailru/activerecord/pkg/activerecord"
+    "github.com/mailru/activerecord/pkg/octopus"
+
+{{- range $ind, $imp := .Imports }}
+    {{ if ne $imp.ImportName "" }}{{- $imp.ImportName }} {{ end }}"{{ $imp.Path }}"
+{{- end }}
+{{- range $i, $imp := addImport .FieldList }}
+    "{{ $imp }}"
+{{- end }}
+)
+{{ $serializers := .Serializers -}}
+{{ $PackageName := .ARPkg -}}
+{{ $PublicStructName := .ARPkgTitle -}}
+{{ $fields := .FieldList }}
+{{ $typePK := "" -}}
+{{ $fieldNamePK := "" -}}
+
+{{ range $num, $ind := .Indexes -}}
+{{ $lenfld := len $ind.Fields -}}
+	{{ if $ind.Primary }}
+        {{ if ne $lenfld 1 }}
+        {{ $typePK = print $PackageName "." $ind.Type }}
+        {{ else }}
+        {{- $typePK = $ind.Type -}}
+        {{ end }}
+        {{- $fieldNamePK = $ind.Name -}}
+    {{ end }}
+{{ end }}
+
+
+{{ range $_, $mockOperation := split ",Update,InsertReplace" "," }}
+var {{$PackageName}}{{ $mockOperation }}Once sync.Once
+var {{$PackageName}}{{ $mockOperation }}Store map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}
+
+//go:embed data/{{$PackageName}}{{ if ne $mockOperation "" -}} _{{ $mockOperation | snakeCase }}{{ end }}.yaml
+var {{$PackageName}}{{ $mockOperation }}Source []byte
+
+func init{{$mockOperation}}{{$PublicStructName}}() {
+    {{$PackageName}}{{ $mockOperation }}Once.Do(func() {
+        fixtures := {{$PackageName}}.Unmarshal{{$mockOperation}}Fixtures({{$PackageName}}{{ $mockOperation }}Source)
+
+        {{$PackageName}}{{$mockOperation}}Store = map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}{}
+        for _, f := range fixtures {
+            if _, ok := {{$PackageName}}{{$mockOperation}}Store[f.Primary()]; ok {
+                log.Fatalf("{{$PackageName}} {{ $mockOperation }} fixture with {{$fieldNamePK}} %v is duplicated", f.Primary())
+            }
+            {{$PackageName}}{{ $mockOperation }}Store[f.Primary()] = f
+        }
+    })
+}
+
+func Get{{$mockOperation}}{{$PublicStructName}}By{{$fieldNamePK}}({{$fieldNamePK}} {{$typePK}}) *{{$PackageName}}.{{$PublicStructName}} {
+    init{{$mockOperation}}{{$PublicStructName}}()
+
+    res, ex := {{$PackageName}}{{$mockOperation}}Store[{{$fieldNamePK}}]
+    if !ex {
+        log.Fatalf("{{$PublicStructName}} {{$mockOperation}} fixture with {{$fieldNamePK}} %v not found", {{$fieldNamePK}})
+    }
+
+    ctx := activerecord.Logger().SetLoggerValueToContext(context.Background(), map[string]interface{}{"Get{{$mockOperation}}{{$PublicStructName}}By{{$fieldNamePK}}": {{$fieldNamePK}}, "FixtureStore": "{{$PackageName}}{{$mockOperation}}Store"})
+
+    activerecord.Logger().Debug(ctx, {{$PackageName}}.{{$PublicStructName}}List([]*{{$PackageName}}.{{$PublicStructName}}{res}))
+
+    return res
+}
+{{ end }}
+
+func GetUpdate{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Context, {{ $fieldNamePK }} {{$typePK}}, trigger func(types []octopus.FixtureType) []octopus.FixtureType) (fx octopus.FixtureType, promiseIsUsed func () bool) {
+    obj := GetUpdate{{$PublicStructName}}By{{$fieldNamePK}}({{ $fieldNamePK }})
+
+    wrappedTrigger, promiseIsUsed := octopus.WrapTriggerWithOnUsePromise(trigger)
+
+    return octopus.CreateUpdateFixture(obj.MockUpdate(ctx), wrappedTrigger), promiseIsUsed
+}
+
+{{ range $_, $mockOperation := split "Insert,Replace,InsertOrReplace" "," }}
+func Get{{ $mockOperation }}{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Context, {{ $fieldNamePK }} {{ $typePK }}, trigger func([]octopus.FixtureType) []octopus.FixtureType) (fx octopus.FixtureType, promiseIsUsed func () bool) {
+    obj := GetInsertReplace{{$PublicStructName}}By{{$fieldNamePK}}({{ $fieldNamePK }})
+
+    return Get{{ $mockOperation }}{{$PublicStructName}}FixtureByModel(ctx, obj, trigger)
+}
+
+func Get{{ $mockOperation }}{{$PublicStructName}}FixtureByModel(ctx context.Context, obj *{{ $PackageName }}.{{ $PublicStructName }}, trigger func([]octopus.FixtureType) []octopus.FixtureType)  (fx octopus.FixtureType, promiseIsUsed func () bool){
+     reqData := obj.Mock{{ $mockOperation }}(ctx)
+
+     wrappedTrigger, promiseIsUsed := octopus.WrapTriggerWithOnUsePromise(trigger)
+
+     return octopus.CreateInsertOrReplaceFixture(obj, reqData, wrappedTrigger), promiseIsUsed
+}
+{{ end }}
+
+type {{ $PublicStructName }}BuildableFixture struct {
+    PrimaryKey {{ $typePK }} // {{ $fieldNamePK }}
+    updateOps []{{$PackageName}}.{{ $PublicStructName }}UpdateFixtureOptions
+
+    trigger func([]octopus.FixtureType) []octopus.FixtureType
+}
+
+func Update{{ $PublicStructName }}Fixture({{ $fieldNamePK }} {{ $typePK }}) {{ $PublicStructName }}BuildableFixture {
+    return {{ $PublicStructName }}BuildableFixture{PrimaryKey: {{ $fieldNamePK }} }
+}
+
+{{- range $_, $fstruct := .FieldList}}
+        {{/* Determine real filed type */}}
+    	{{ $rtype := $fstruct.Format -}}
+    	{{ $sname := $fstruct.SerializerName -}}
+    	{{ if ne $sname "" -}}
+    		{{ $serializer := index $serializers $sname -}}
+    		{{ $rtype = $serializer.Type -}}
+    	{{ end -}}
+
+        {{/* без учета первичного ключа */}}
+        {{ if ne $fstruct.Name $fieldNamePK }}
+        func (bf {{ $PublicStructName }}BuildableFixture) WithUpdated{{$fstruct.Name}}(val {{$rtype}}) {{ $PublicStructName }}BuildableFixture {
+            bf.updateOps = append(
+                bf.updateOps,
+                {{$PackageName}}.{{ $PublicStructName }}UpdateFixtureOptions{ {{$fstruct.Name}}: &{{$PackageName}}.{{ $PublicStructName }}{{$fstruct.Name}}UpdateFixtureOption{ Value: val } },
+            )
+
+            return bf
+        }
+        {{ end }}
+{{- end }}
+
+func (bf {{ $PublicStructName }}BuildableFixture) OnUpdate(trigger func([]octopus.FixtureType) []octopus.FixtureType) {{ $PublicStructName }}BuildableFixture {
+    bf.trigger = trigger
+
+    return bf
+}
+
+func (bf {{ $PublicStructName }}BuildableFixture) Build(ctx context.Context) (fx octopus.FixtureType, promiseIsUsed func() bool) {
+    wrappedTrigger, promiseIsUsed := octopus.WrapTriggerWithOnUsePromise(bf.trigger)
+
+    obj := {{$PackageName}}.New(ctx)
+
+    {{ range $num, $ind := .Indexes -}}
+    {{ $lenfld := len $ind.Fields }}
+        {{ if $ind.Primary }}
+            {{ if ne $lenfld 1 }}
+                {{ range $_, $fieldNum := $ind.Fields }}
+                    {{- $ifield := index $fields $fieldNum }}
+                    if err := obj.Set{{ $ifield.Name }}(bf.PrimaryKey.{{ $ifield.Name }}); err != nil {
+                        log.Fatalf("Set{{ $ifield.Name }} error: %v", err)
+                    }
+                {{ end }}
+            {{ else }}
+                if err := obj.Set{{ $fieldNamePK }}(bf.PrimaryKey); err != nil {
+                    log.Fatalf("Set{{ $fieldNamePK }} error: %v", err)
+                }
+            {{ end }}
+        {{ end }}
+    {{ end }}
+
+    obj.BaseField.UpdateOps = []octopus.Ops{}
+
+    {{$PackageName}}.SetFixtureUpdateOptions(obj, bf.updateOps)
+
+    return octopus.CreateUpdateFixture(obj.MockUpdate(ctx), wrappedTrigger), promiseIsUsed
+}
+
+{{ range $num, $ind := .Indexes -}}
+{{ $lenfld := len $ind.Fields }}
+
+type {{ $PublicStructName }}By{{ $ind.Selector }}Mocker struct {
+	{{ if not $ind.Unique }}limiter activerecord.SelectorLimiter{{ end }}
+}
+
+func Get{{ $PublicStructName }}By{{ $ind.Name }}Mocker({{ if not $ind.Unique }}limiter activerecord.SelectorLimiter{{ end }}) {{ $PublicStructName }}By{{ $ind.Selector }}Mocker {
+	return {{ $PublicStructName }}By{{ $ind.Selector }}Mocker{ {{ if not $ind.Unique }}limiter: limiter{{ end }} }
+}
+
+func (m {{ $PublicStructName }}By{{ $ind.Selector }}Mocker) ByFixture{{ $fieldNamePK }}(ctx context.Context, {{ $fieldNamePK }}s ...{{ $typePK }}) octopus.FixtureType {
+	mocks := []octopus.MockEntities{}
+    logger := activerecord.Logger()
+
+	var key *{{ if eq $lenfld 1 }}{{ $ind.Type }}{{ else }}{{ $PackageName }}.{{ $ind.Type }}{{ end }}
+
+	for _, {{ $fieldNamePK }} := range {{ $fieldNamePK }}s {
+		fix := Get{{ $PublicStructName }}By{{$fieldNamePK}}({{ $fieldNamePK }})
+		mocks = append(mocks, fix)
+
+        {{ if eq $lenfld 1 }}
+		if key == nil {
+            {{ $ifld := index $ind.Fields 0 }}
+            {{ $ifield := index $fields $ifld }}
+            ikey := fix.Get{{ $ifield.Name }}()
+			key = &ikey
+        } else if *key != fix.Get{{ $ifield.Name }}() {
+            logger.Fatal(ctx, "Non unique keys in fixture list")
+        }
+        {{ else }}
+		if key == nil {
+			key = &{{ $PackageName }}.{{ $ind.Type }}{ 
+                {{ range $_, $fieldNum := $ind.Fields }}
+                    {{- $ifield := index $fields $fieldNum }}
+                {{ $ifield.Name }}: fix.Get{{ $ifield.Name }}(),
+                {{ end }}
+            } 
+		} else {
+            {{ range $_, $fieldNum := $ind.Fields }}
+                {{- $ifield := index $fields $fieldNum }}
+            if fix.Get{{ $ifield.Name }}() != key.{{ $ifield.Name }} {
+                logger.Fatal(ctx, "Non unique keys in fixture list")
+            }
+            {{ end }}
+		}
+
+        {{ end }}
+	}
+
+	return m.ByKeysMocks(ctx, []{{ if eq $lenfld 1 }}{{ $ind.Type }}{{ else }}{{ $PackageName }}.{{ $ind.Type }}{{ end }}{*key}, mocks)
+}
+
+func (m {{ $PublicStructName }}By{{ $ind.Selector }}Mocker) EmptyByKeys(ctx context.Context, keys ...{{ if eq $lenfld 1 }}{{ $ind.Type }}{{ else }}{{ $PackageName }}.{{ $ind.Type }}{{ end }}) octopus.FixtureType {
+	return m.ByKeysMocks(ctx, keys, []octopus.MockEntities{})
+}
+
+func (m {{ $PublicStructName }}By{{ $ind.Selector }}Mocker) ByFixturePKWithKeys(ctx context.Context, {{ $fieldNamePK }}s []{{ $typePK }}, keys []{{ if eq $lenfld 1 }}{{ $ind.Type }}{{ else }}{{ $PackageName }}.{{ $ind.Type }}{{ end }}) octopus.FixtureType {
+	mocks := []octopus.MockEntities{}
+
+	for _, {{ $fieldNamePK }} := range {{ $fieldNamePK }}s {
+		fix := Get{{ $PublicStructName }}By{{$fieldNamePK}}({{ $fieldNamePK }})
+		mocks = append(mocks, fix)
+	}
+
+	return m.ByKeysMocks(ctx, keys, mocks)
+}
+
+func (m {{ $PublicStructName }}By{{ $ind.Selector }}Mocker) ByKeysMocks(ctx context.Context, keys []{{ if eq $lenfld 1 }}{{ $ind.Type }}{{ else }}{{ $PackageName }}.{{ $ind.Type }}{{ end }}, mocks []octopus.MockEntities) octopus.FixtureType {
+	oft, err := octopus.CreateSelectFixture(
+		func(wsubME []octopus.MockEntities) []byte {
+			return {{ $PackageName }}.New(ctx).Mock{{ $ind.Selector }}sRequest(ctx, keys{{ if not $ind.Unique }}, m.limiter{{ end }})
+		},
+		mocks,
+	)
+	if err != nil {
+		activerecord.Logger().Fatal(ctx, fmt.Sprintf("Error create mock by EmptyByKeys: %s", err))
+	}
+
+	return oft
+}
+
+{{ end }}

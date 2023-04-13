@@ -1,0 +1,139 @@
+package repository
+
+import (
+    "fmt"
+    "github.com/mailru/activerecord/pkg/octopus"
+)
+
+type SpaceMeta struct {
+    PackageName string
+    Unpacker func(ctx context.Context, tuple octopus.TupleData) (any, error)
+    Fields []FieldMeta
+    PK IndexMeta
+    Indexes map[string]IndexMeta
+}
+
+type IndexMeta struct {
+    Name string
+    Unpacker func(packedKeys [][][]byte) (any, error)
+}
+
+type FieldMeta struct {
+    Name string
+    Unpacker func(packedField []byte) (any, error)
+}
+
+type NSPackage map[uint32]SpaceMeta 
+
+{{ $nss := .Namespaces }}
+var NamespacePackages = NSPackage {
+{{ range $_, $ns := $nss -}}
+    {{ $ns.Namespace.Num }}: {
+        PackageName: "{{ $ns.Namespace.PackageName }}",
+        Unpacker: func(ctx context.Context, tuple octopus.TupleData) (any, error) { 
+            obj, err := {{ $ns.Namespace.PackageName }}.TupleToStruct(ctx, tuple)
+            if err != nil {
+                return nil, fmt.Errorf("can't decode tuple: %s", err)
+            }
+
+            return {{ $ns.Namespace.PackageName }}.MarshalFixtures([]*{{ $ns.Namespace.PackageName }}.{{ $ns.Namespace.PublicName }}{obj})
+        },
+        Fields: []FieldMeta{
+            {{- range $_, $field := $ns.Fields }}
+            {
+                Name: "{{ $field.Name }}",
+                Unpacker: func(packedField []byte) (any, error){ return {{ $ns.Namespace.PackageName }}.Unpack{{ $field.Name }}(bytes.NewReader(packedField)) },
+            },
+            {{- end }}
+        },
+        Indexes: map[string]IndexMeta{
+        {{- $pk := index $ns.Indexes 0 }}
+        {{- range $num, $ind := $ns.Indexes }}
+            {{- if $ind.Primary }}{{ $pk = $ind }}{{ end }}
+            "{{ $ind.Num }}.{{ len $ind.Fields }}": {
+                Name: "{{ $ind.Name }}",
+                Unpacker: func(packedKeys [][][]byte) (any, error) { return {{ $ns.Namespace.PackageName }}.UnpackKeyIndex{{ $ind.Name }}(packedKeys)},
+            },
+        {{- end }}
+        },
+        PK: IndexMeta{
+            Name: "{{ $pk.Name }}",
+            Unpacker: func(packedKeys [][][]byte) (any, error) { return {{ $ns.Namespace.PackageName }}.UnpackKeyIndex{{ $pk.Name }}(packedKeys)},
+        },
+    },
+{{ end }}
+}
+
+func (n NSPackage) GetSelectDebugInfo(ns uint32, indexnum uint32, offset uint32, limit uint32, keys [][][]byte) string {
+    spacemeta, ex := n[ns]
+    if !ex {
+        return fmt.Sprintf("unknown space %d, index: %d, offset: %d, limit: %d, Keys: %+v", ns, indexnum, offset, limit, keys)
+    }
+
+    ind, ex := spacemeta.Indexes[fmt.Sprintf("%d.%d", indexnum, len(keys[0]))]
+    if !ex {
+        return fmt.Sprintf("space %d (%s), unknown index: %d (%d.%d), offset: %d, limit: %d, Keys: %+v", ns, spacemeta.PackageName, indexnum, indexnum, len(keys[0]), offset, limit, keys)
+    }
+
+    unpackedKeys, err := ind.Unpacker(keys)
+    if err != nil {
+    	return fmt.Sprintf("Space: %d (%s), index: %d (%s), offset: %d, limit: %d, Keys: %+v (error unpack: %s)", ns, spacemeta.PackageName, indexnum, ind.Name, offset, limit, keys, err)
+    }
+
+	return fmt.Sprintf("Space: %d (%s), index: %d (%s), offset: %d, limit: %d, Keys: %+v", ns, spacemeta.PackageName, indexnum, ind.Name, offset, limit, unpackedKeys)
+}
+
+func (n NSPackage) GetUpdateDebugInfo(ns uint32, primaryKey [][]byte, updateOps []octopus.Ops) string {
+    spacemeta, ex := n[ns]
+    if !ex {
+        return fmt.Sprintf("unknown space %d, primaryKey: %+v, updateOps: %+v", ns, primaryKey, updateOps)
+    }
+
+    unpackedKeys, err := spacemeta.PK.Unpacker([][][]byte{primaryKey})
+    if err != nil {
+    	return fmt.Sprintf("Space: %d (%s), primaryKey: %+v, updateOps: %+v (error unpack: %s)", ns, spacemeta.PackageName, primaryKey, updateOps, err)
+    }
+
+    updateFields := ""
+
+    for _, op := range updateOps {
+        val, err := spacemeta.Fields[op.Field].Unpacker(op.Value)
+        if err != nil {
+            val = fmt.Sprintf("% X (can't unpack: %s)", op.Value, err)
+        }
+        
+        updateFields += fmt.Sprintf("%s %s <= `%v`; ", octopus.GetOpCodeName(op.Op), spacemeta.Fields[op.Field].Name, val)
+    }
+
+	return fmt.Sprintf("Space: %d (%s), primaryKey: %s (%+v), updateOps: %s", ns, spacemeta.PackageName, spacemeta.PK.Name, unpackedKeys, updateFields)
+}
+
+func (n NSPackage) GetDeleteDebugInfo(ns uint32, primaryKey [][]byte) string {
+    spacemeta, ex := n[ns]
+    if !ex {
+        return fmt.Sprintf("unknown space %d, primaryKey: %+v", ns, primaryKey)
+    }
+
+    unpackedKeys, err := spacemeta.PK.Unpacker([][][]byte{primaryKey})
+    if err != nil {
+    	return fmt.Sprintf("Space: %d (%s), primaryKey: %+v (error unpack: %s)", ns, spacemeta.PackageName, primaryKey, err)
+    }
+
+	return fmt.Sprintf("Space: %d (%s), primaryKey: %s (%+v)", ns, spacemeta.PackageName, spacemeta.PK.Name, unpackedKeys)
+}
+
+func (n NSPackage) GetInsertDebugInfo(ns uint32, needRetVal bool, insertMode octopus.InsertMode, tuple octopus.TupleData) string {
+    strMode := octopus.GetInsertModeName(insertMode)
+
+    spacemeta, ex := n[ns]
+    if !ex {
+        return fmt.Sprintf("unknown space %d, insertMode: %s, tuple: %+v", ns, strMode, tuple)
+    }
+
+    strObj, err := spacemeta.Unpacker(context.TODO(), tuple)
+    if err != nil {
+        return fmt.Sprintf("Space: %d (%s), insertMode: %s, tuple: %+v (err unpack: %s)", ns, spacemeta.PackageName, strMode, tuple, err)
+    }
+
+	return fmt.Sprintf("Space: %d (%s), insertMode: %s, tuple: \n%s", ns, spacemeta.PackageName, strMode, strObj)
+}

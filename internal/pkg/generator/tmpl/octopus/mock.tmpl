@@ -1,0 +1,323 @@
+package {{ .ARPkg }}
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/mailru/activerecord/pkg/activerecord"
+	"github.com/mailru/activerecord/pkg/octopus"
+{{- range $ind, $imp := .Imports }}
+	{{ if ne $imp.ImportName "" }}{{ $imp.ImportName }} {{ end }}"{{ $imp.Path }}"
+{{- end }}
+{{- range $i, $imp := addImport .FieldList }}
+	"{{ $imp }}"
+{{- end }}
+)
+
+{{ $pkgName := .ARPkg }}
+{{ $PublicStructName := .ARPkgTitle -}}
+{{ $fields := .FieldList }}
+{{ $serializers := .Serializers -}}
+{{ $fidx := .FieldMap }}
+
+func (obj *{{ $PublicStructName }}) MockSelectResponse() ([][]byte, error) {
+	tuple := [][]byte{}
+	
+	var data []byte
+
+	var err error
+
+{{ range $ind, $fstruct := .FieldList -}}
+	data, err = pack{{ $fstruct.Name }}([]byte{}, obj.Get{{ $fstruct.Name }}())
+	if err != nil {
+		return nil, err
+	}
+
+	tuple = append(tuple, data)
+
+{{ end }}
+	return tuple, nil
+}
+
+{{ $pktype := "" }}
+{{ $pklenfld := 1 }}
+{{ $pkind := index .Indexes 0 }}
+{{ range $num, $ind := .Indexes -}}
+	{{ if $ind.Primary }}
+		{{ $pktype = $ind.Type }}
+		{{ $pklenfld = len $ind.Fields }}
+		{{ $pkind = $ind }}
+	{{ end }}
+	{{ $lenfld := len $ind.Fields -}}
+func (obj *{{ $PublicStructName }}) Mock{{ $ind.Selector }}Request(ctx context.Context, {{ if not $ind.Unique }}limiter activerecord.SelectorLimiter{{ end }}) []byte {
+	key := []{{ $ind.Type }}{
+		{{- $lenfld := len $ind.Fields -}}
+		{{ if ne $lenfld 1 -}}
+		{
+		{{- range $_, $fieldNum := $ind.Fields }}
+			{{- $ifield := index $fields $fieldNum }}
+			{{ $fi := index $fidx $ifield.Name -}}
+			{{ $fstruct := index $fields $fi -}}
+			{{ $serlen := len $fstruct.Serializer -}}
+			{{ $ifield.Name }}: obj.Get{{ $ifield.Name }}(),
+		{{- end }}
+		},
+		{{- else }}
+			{{- range $_, $fieldNum := $ind.Fields }}
+				{{- $ifield := index $fields $fieldNum }}
+				obj.Get{{ $ifield.Name }}(),
+			{{- end }}
+		{{- end }}
+	}
+	return obj.Mock{{ $ind.Selector }}sRequest(ctx, key, {{ if not $ind.Unique }}limiter{{ end }})
+}
+
+{{ if ne $lenfld 1 -}}
+	{{ range $numf, $ifld := $ind.Fields -}}
+		{{ $sfield := index $fields $ifld -}}
+		{{ $fi := index $fidx $sfield.Name }}
+		{{ $fstruct := index $fields $fi }}
+		{{ $serlen := len $fstruct.Serializer -}}
+		{{ if ne $serlen 0 -}}
+			{{ $sname := index $fstruct.Serializer 0 -}}
+			{{ $serializer := index $serializers $sname -}}
+			{{ $rtype := $serializer.Type -}}
+func serialize{{ $sfield.Name}}(ctx context.Context, v{{ $sfield.Name}} {{ $rtype }}) {{ $sfield.Format }} {
+	v, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $fstruct.SerializerParams }} v{{ $sfield.Name}})
+	if err != nil {
+		activerecord.Logger().Fatal(ctx, err)
+	}
+	return v
+}
+		{{ end -}}
+	{{ end -}}
+{{ end -}}
+
+func (obj *{{ $PublicStructName }}) Mock{{ $ind.Selector }}sRequest(ctx context.Context, keys []{{ $ind.Type }}, {{ if not $ind.Unique }}limiter activerecord.SelectorLimiter{{ end }}) []byte {
+	log := activerecord.Logger()
+	ctx = log.SetLoggerValueToContext(ctx, map[string]interface{}{"Mock{{ $ind.Selector }}sRequest": keys, "Repo": "{{$PublicStructName}}" })
+	keysPacked := [][][]byte{}
+
+	var (
+		data []byte
+		err error
+	)
+	for _, key := range keys {
+		keysField := [][]byte{}
+
+		{{ if ne $lenfld 1 -}}
+			{{ range $numf, $ifld := $ind.Fields -}}
+				{{ $sfield := index $fields $ifld -}}
+				{{ $packerparam := packerParam $sfield.Format -}}
+				{{ $packparam := printf "key.%s" $sfield.Name -}}
+				{{ $fi := index $fidx $sfield.Name }}
+				{{ $fstruct := index $fields $fi }}
+				{{ $serlen := len $fstruct.Serializer -}}				
+				data, err = pack{{ $sfield.Name }}([]byte{}, {{ $packparam }})
+				if err != nil {
+					log.Fatal(ctx, err)
+				}
+		
+				keysField = append(keysField, data)	
+			{{ end -}}
+		{{ else -}}
+
+			{{- range $_, $fieldNum := $ind.Fields }}
+				{{- $ifield := index $fields $fieldNum }}
+
+			data, err = pack{{ $ifield.Name }}([]byte{}, key)
+			if err != nil {
+				log.Fatal(ctx, err)
+				return nil
+			}
+	
+			keysField = append(keysField, data)	
+			{{- end }}
+		{{ end -}}
+
+
+
+		keysPacked = append(keysPacked, keysField)
+	}
+
+	log.Debug(ctx, fmt.Sprintf("Packed Keys: '% X'", keysPacked))
+	{{ if not $ind.Unique }}
+	return octopus.PackSelect(namespace, {{ $ind.Num }}, limiter.Offset(), limiter.Limit(), keysPacked)
+	{{ else }}
+	return octopus.PackSelect(namespace, {{ $ind.Num }}, 0, 0, keysPacked)
+	{{ end }}
+}
+
+func {{ $ind.Selector }}MockerLogger(keys []{{ $ind.Type }}, res {{ $PublicStructName }}List{{ if not $ind.Unique }}, limiter activerecord.SelectorLimiter{{ end }}) func() (activerecord.MockerLogger, error) {
+return func() (activerecord.MockerLogger, error){
+		fixturesKey := ""
+		for _, key := range keys {
+			{{ if ne $lenfld 1 -}}
+				fixturesKey += "{{ $pkgName }}.{{ $ind.Type }}{\n"
+				{{ range $numf, $ifld := $ind.Fields -}}
+					{{ $sfield := index $fields $ifld -}}
+					{{ $packerparam := packerParam $sfield.Format -}}
+					{{ $packparam := printf "key.%s" $sfield.Name -}}
+					{{ $serlen := len $sfield.Serializer }}
+					{{ if ne $serlen 0 }}
+						{{ $sname := index $sfield.Serializer 0 -}}
+						{{ $serializer := index $serializers $sname -}}
+						{{ $serparams := $sfield.SerializerParams -}}
+						skey, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $packparam }})
+						if err != nil {
+							return activerecord.MockerLogger{}, err
+						}
+						{{ $packparam = "skey" }}
+					{{ end }}
+
+					{{- $tostr := $packerparam.ToString }}
+					{{- $conv := index $tostr 0 }}
+					{{ if ne $conv " " }}
+			fixturesKey += "{{ $sfield.Name }}: " + {{ index $tostr 0 }}{{ $packparam }}{{ index $tostr 1 }} + ",\n"
+					{{ else }}
+			fixturesKey += "{{ $sfield.Name }}: \"" + {{ $packparam }} + "\",\n"
+					{{ end }}
+
+				{{ end -}}
+				fixturesKey += "},\n"
+			{{ else -}}
+				{{ $ifield := index $ind.Fields 0 -}}
+				{{ $sfield := index $fields $ifield -}}
+				{{ $packerparam := packerParam $sfield.Format -}}
+				{{- $tostr := $packerparam.ToString }}
+				{{- $conv := index $tostr 0 }}
+				{{ if ne $conv " " }}
+				fixturesKey += {{ index $tostr 0 }}key{{ index $tostr 1 }}
+				{{ else }}
+				fixturesKey += "\"" + key + "\""
+				{{ end }}
+				fixturesKey += ",\n"
+			{{ end -}}
+
+		}
+
+		mockerName := "mocker{{ $PublicStructName }}By{{ $ind.Name }}"
+		mocker := "fixture.Get{{ $PublicStructName }}By{{ $ind.Name }}Mocker("
+		{{ if not $ind.Unique }}
+		mocker += fmt.Sprintf("activerecord.NewLimitOffset(%d, %d)", limiter.Limit(), limiter.Offset())
+		mockerName += fmt.Sprintf("_%d_%d", limiter.Limit(), limiter.Offset())
+		{{ end }}
+		mocker += ")"
+
+		fixture := mockerName
+
+		if res != nil && len(res) != 0 {
+			pks := "[]{{ $pktype }}{\n"
+
+			for _, r := range res {
+				{{ if ne $pklenfld 1 }}
+				pks += "{"
+				{{- range $_, $fieldNum := $pkind.Fields }}
+					{{- $ifield := index $fields $fieldNum }}
+					{{ $packerparam := packerParam $ifield.Format }}
+					{{- $tostr := $packerparam.ToString }}
+					pks += "{{ $ifield.Name }}:" + {{ index $tostr 0 }}r.Get{{ $ifield.Name }}(){{ index $tostr 1 }} + ", "
+				{{ end }}
+				pks += "},"
+				{{ else }}
+					{{ $ifield := index $pkind.Fields 0 -}}
+					{{ $sfield := index $fields $ifield -}}
+					{{ $packerparam := packerParam $sfield.Format }}
+					{{- $tostr := $packerparam.ToString }}
+					{{- $conv := index $tostr 0 }}
+					{{ if ne $conv " " }}
+				pks += {{ index $tostr 0 }}r.Primary(){{ index $tostr 1 }} + ",\n"
+					{{ else }}
+				pks += "\"" + r.Primary() + "\",\n"
+					{{ end }}
+				{{ end }}
+			}
+
+			pks += "}"
+
+			fixture += ".ByFixturePKWithKeys(ctx, " + pks + ", []{{ $ind.Type }}{" + fixturesKey + "})"
+		} else {
+			fixture += ".EmptyByKeys(ctx, " + fixturesKey + ")"
+		}
+
+		return activerecord.MockerLogger{MockerName: mockerName, Mockers: mocker, FixturesSelector: fixture, ResultName: "{{ $pkgName }}", Results: res}, nil
+	}
+}
+
+{{ end }}
+
+func (obj *{{ $PublicStructName }}) RepoSelector(ctx context.Context) (any, error) {
+	data, err := SelectByPrimary(ctx, obj.Primary())
+	if err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, fmt.Errorf("select {{ $PublicStructName }} with pk %v: %w", obj.Primary(), activerecord.ErrNoData)
+	}
+	return data, err
+}
+
+func (obj *{{ $PublicStructName }}) MockUpdate(ctx context.Context) []byte {
+    log := activerecord.Logger()
+    ctx = log.SetLoggerValueToContext(ctx, map[string]interface{}{"MockUpdate": obj.BaseField.UpdateOps, "Repo": "{{$PublicStructName}}" })
+
+    //todo repaired logic not implemented
+
+    pk, err := obj.packPk()
+    if err != nil {
+        log.Fatal(ctx, err)
+        return nil
+    }
+
+    w := octopus.PackUpdate(namespace, pk, obj.BaseField.UpdateOps)
+
+    log.Debug(ctx, fmt.Sprintf("Update packed tuple: '%X'\n", w))
+
+    return w
+}
+
+func (obj *{{ $PublicStructName }}) MockInsertOrReplace(ctx context.Context) []byte {
+    return obj.mockInsertReplace(ctx, octopus.InsertModeInserOrReplace)
+}
+
+func (obj *{{ $PublicStructName }}) MockInsert(ctx context.Context) []byte {
+    obj.BaseField.Exists = false
+
+    return obj.mockInsertReplace(ctx, octopus.InsertModeInsert)
+}
+
+func (obj *{{ $PublicStructName }}) MockReplace(ctx context.Context) []byte {
+    obj.BaseField.Exists = true
+
+    return obj.mockInsertReplace(ctx, octopus.InsertModeReplace)
+}
+
+func (obj *{{ $PublicStructName }}) mockInsertReplace(ctx context.Context, insertMode octopus.InsertMode) []byte {
+    log := activerecord.Logger()
+    ctx = log.SetLoggerValueToContext(ctx, map[string]interface{}{"MockInsertReplacePrimary": obj.PrimaryString(), "MockInsertReplaceMode": insertMode, "Repo": "{{$PublicStructName}}" })
+
+    var tuple [][]byte
+    var data []byte
+    var err error
+
+	{{ range $ind, $fstruct := .FieldList }}
+    // {{ $fstruct.Name }}
+	data, err = pack{{ $fstruct.Name }}([]byte{}, obj.Get{{ $fstruct.Name }}())
+	if err != nil {
+		log.Fatal(ctx, err)
+        return nil
+	}
+
+	tuple = append(tuple, data)
+	{{ end }}
+
+	if len(obj.BaseField.ExtraFields) > 0 {
+		tuple = append(tuple, obj.BaseField.ExtraFields...)
+	}
+
+	w := octopus.PackInsertReplace(namespace, insertMode, tuple)
+
+	log.Debug(ctx, fmt.Sprintf("insertReplace packed tuple: '%X'\n", w))
+
+	return w
+}

@@ -1,0 +1,1106 @@
+package {{ .ARPkg }}
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"log"
+{{ if eq .Server.Conf "" -}}
+	"time"
+{{ end }}
+	"strings"
+
+	"github.com/mailru/activerecord/pkg/iproto/iproto"
+	"github.com/mailru/activerecord/pkg/activerecord"
+	"github.com/mailru/activerecord/pkg/octopus"
+{{- range $ind, $imp := .Imports }}
+	{{ if ne $imp.ImportName "" }}{{ $imp.ImportName }} {{ end }}"{{ $imp.Path }}"
+{{- end }}
+{{- range $i, $imp := addImport .FieldList }}
+	"{{ $imp }}"
+{{- end }}
+)
+{{ $pkgName := .ARPkg }}
+{{ $serializers := .Serializers -}}
+{{ $PublicStructName := .ARPkgTitle -}}
+{{ $LinkedObject := .LinkedObject }}
+{{ $flags := .Flags }}
+{{ $fields := .FieldList }}
+type {{ $PublicStructName }} struct {
+	octopus.BaseField
+{{- range $ind, $fstruct := .FieldList -}}
+	{{ $rtype := $fstruct.Format -}}
+	{{ $serlen := len $fstruct.Serializer -}}
+	{{ if ne $serlen 0 -}}
+		{{ $sname := index $fstruct.Serializer 0 -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $rtype = $serializer.Type -}}
+	{{ end }}
+	field{{ $fstruct.Name }} {{ $rtype -}}
+{{ end }}
+}
+
+type {{ $PublicStructName }}List []*{{ $PublicStructName }}
+
+const (
+	namespace uint32 = {{ .Container.Num }}
+	cntFields uint32 = {{ len .FieldList }}
+{{- range $fieldname, $flag := .Flags -}}
+	{{ range $i, $flagname := $flag.Flags }}
+	{{ $fieldname }}{{ $flagname }}Flag = 1 << {{ $i -}}
+	{{ end -}}
+{{ end }}
+)
+
+{{ if .Triggers.RepairTuple.Params.Defaults -}}
+var defaultValue = [][]byte{
+{{- $notfirst := false -}}
+{{ range $ind, $fstruct := .FieldList -}}
+	{{ $packerparam := packerParam $fstruct.Format -}}
+	{{ if $notfirst }},{{ end -}}
+	{{ $notfirst = true }}
+	{{ $packerparam.DefaultValue -}}
+{{ end -}} 
+}
+{{- end }}
+
+{{ if eq .Server.Conf "" -}}
+var boxOption, _ = octopus.NewOptions(
+	"{{ .Server.Host }}:{{ .Server.Port }}",
+	octopus.ModeMaster,
+	octopus.WithTimeout(time.Millisecond * {{ .Server.Timeout }}, time.Millisecond * {{ .Server.Timeout }}),
+)
+
+var clusterInfo = activerecord.NewClusterInfo(
+	activerecord.WithShard([]activerecord.OptionInterface{boxOption}, []activerecord.OptionInterface{}),
+){{ end }}
+
+// box - возвращает коннектор для БД
+// TODO 
+// - унести в пакет pkg/octopus тут общий код нет смысла его нагенеривать
+// - сделать статистику по используемым инстансам
+// - прикрутить локальный пингер и исключать недоступные инстансы
+func box(ctx context.Context, shard int, instType activerecord.ShardInstanceType) (*octopus.Connection, error) {
+{{ if ne .Server.Conf "" -}}
+	configPath := "{{ .Server.Conf }}"
+
+	clusterInfo, err := activerecord.ConfigCacher().Get(
+		ctx,
+		configPath, 
+		activerecord.MapGlobParam{
+			Timeout: octopus.DefaultConnectionTimeout, 
+			PoolSize: octopus.DefaultPoolSize,
+		},
+		func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
+			return octopus.NewOptions(
+				sic.Addr,
+				octopus.ServerModeType(sic.Mode),
+				octopus.WithTimeout(sic.Timeout, sic.Timeout),
+				octopus.WithPoolSize(sic.PoolSize),
+			)
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("can't get cluster %s info: %w", configPath, err)
+	}
+
+	if len(clusterInfo) < int(shard) {
+		return nil, fmt.Errorf("invalid shard num %d, max = %d", shard, len(clusterInfo))
+	}
+{{ end }}
+	var configBox activerecord.ShardInstance
+
+	switch instType {
+	case activerecord.ReplicaInstanceType:
+		if len(clusterInfo[shard].Replicas) == 0 {
+			return nil, fmt.Errorf("replicas not set")
+		}
+
+		configBox = clusterInfo[shard].NextReplica()
+	case activerecord.ReplicaOrMasterInstanceType:
+		if len(clusterInfo[shard].Replicas) != 0 {
+			configBox = clusterInfo[shard].NextReplica()
+			break
+		}
+
+		fallthrough
+	case activerecord.MasterInstanceType:
+		configBox = clusterInfo[shard].NextMaster()			
+	}
+
+	conn, err := activerecord.ConnectionCacher().GetOrAdd(configBox, func(options interface{}) (activerecord.ConnectionInterface, error) {
+		octopusOpt, ok := options.(*octopus.ConnectionOptions)
+		if !ok {
+			return nil, fmt.Errorf("invalit type of options %T, want Options", options)
+		}
+
+		return octopus.GetConnection(ctx, octopusOpt)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error from connectionCacher: %w", err)
+	}
+
+	box, ok := conn.(*octopus.Connection)
+	if !ok {
+		return nil, fmt.Errorf("invalid connection type %T, want *octopus.Connection", conn)
+	}
+
+	return box, nil
+}
+
+func New(ctx context.Context) *{{ $PublicStructName }} {
+	newObj := {{ $PublicStructName }}{}
+	newObj.BaseField.UpdateOps = []octopus.Ops{}
+	newObj.BaseField.ExtraFields = [][]byte{}
+	newObj.BaseField.Objects = map[string][]octopus.ModelStruct{}
+
+	return &newObj
+}
+
+{{- if .Triggers.RepairTuple }}
+func repairTuple(ctx context.Context, tuple *octopus.TupleData) error {
+	{{- if .Triggers.RepairTuple.ImportName }}
+	logger := activerecord.Logger()
+
+	logger.Debug(ctx, "{{ $PublicStructName }}", "Repair trigger called")
+
+	err := {{ .Triggers.RepairTuple.ImportName }}.{{ .Triggers.RepairTuple.Func }}(tuple, cntFields)
+	if err != nil {
+		return fmt.Errorf("trigger can't repair tuple %w", err)
+	}
+	{{- else if .Triggers.RepairTuple.Params.Defaults }}
+	logger := activerecord.Logger()
+
+	logger.Warn(ctx, "{{ $PublicStructName }}", "Repair trigger set defaults")
+	for f := tuple.Cnt; f < cntFields; f++ {
+		tuple.Data = append(tuple.Data, defaultValue[f])
+	}
+	tuple.Cnt = cntFields
+	{{- end }}
+
+	return nil
+}
+{{- end }}
+
+func TupleToStruct(ctx context.Context, tuple octopus.TupleData) (*{{ $PublicStructName }}, error) {
+	np := New(ctx)
+
+	{{ range $ind, $fstruct := .FieldList -}}
+	val{{ $fstruct.Name }}, err := Unpack{{ $fstruct.Name -}}(bytes.NewReader(tuple.Data[{{$ind}}]))
+	if err != nil {
+		return nil, err
+	}
+
+	np.Set{{ $fstruct.Name }}(val{{ $fstruct.Name }})
+	{{ end }}
+
+	np.BaseField.Exists = true
+	np.BaseField.UpdateOps = []octopus.Ops{}
+
+	if tuple.Cnt > cntFields {
+		logger := activerecord.Logger()
+
+		logger.Warn(ctx, "{{ $PublicStructName }}", np.PrimaryString(), "Extra fields")
+
+		np.BaseField.ExtraFields = tuple.Data[cntFields:]
+	}
+
+	return np, nil
+}
+
+func NewFromBox(ctx context.Context, tuples []octopus.TupleData) ([]*{{ $PublicStructName }}, error) {
+	logger := activerecord.Logger()
+
+	logger.Debug(ctx, "{{ $PublicStructName }}", fmt.Sprintf("Cnt tuples %d", len(tuples)))
+
+	ret := make([]*{{ $PublicStructName }}, 0, len(tuples))
+
+	for num, tuple := range tuples {
+		var repaired bool
+		{{- if .Triggers.RepairTuple }}
+
+		if tuple.Cnt != cntFields {
+			err := repairTuple(ctx, &tuple)
+			if err != nil {
+				logger.Error(ctx, "{{ $PublicStructName }}", fmt.Errorf("%d tuple in response has %d fields but expected: %d. Repair fault: %w", num, tuple.Cnt, cntFields, err))
+				continue
+			}
+
+			repaired = true
+		}
+		{{- end }}
+
+		if tuple.Cnt < cntFields {
+			return nil, fmt.Errorf("not enought selected fields %d in response tuple: %d but expected %d fields", tuple.Cnt, num, cntFields)
+		}
+
+		np, err := TupleToStruct(ctx, tuple)
+		{{- if .Triggers.RepairTuple }}
+		if err != nil {
+			logger.Warn(ctx, "{{ $PublicStructName }}", fmt.Sprintf("error unpack tuple %s. Try to repair", err))
+
+			err = repairTuple(ctx, &tuple)
+			if err != nil {
+				logger.Error(ctx, "{{ $PublicStructName }}", fmt.Sprintf("can't repair: %s", err))
+				continue
+			}
+
+			repaired = true
+
+			np, err = TupleToStruct(ctx, tuple)
+		}
+		{{- end }}
+		if err != nil {
+			logger.Error(ctx, "{{ $PublicStructName }}", fmt.Sprintf("error unpack tuple %s", err))
+			return nil, err
+		}
+
+		np.BaseField.Repaired = repaired
+		ret = append(ret, np)
+	}
+
+	return ret, nil
+}
+{{ range $ind, $fstruct := .FieldList -}}
+	{{ $packerparam := packerParam $fstruct.Format -}}
+	{{ $rtype := $fstruct.Format -}}
+	{{ $sname := $fstruct.SerializerName -}}
+	{{ if ne $sname "" -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $rtype = $serializer.Type -}}
+	{{ end -}}
+func pack{{ $fstruct.Name }}(w []byte, {{ $fstruct.Name }} {{ $rtype }}) ([]byte, error) {
+	{{ $bvar :=  $packerparam.PackConvFunc $fstruct.Name -}}
+	{{ if ne $sname "" -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $serparams := $fstruct.SerializerParams -}}
+	pvar, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $bvar }})
+	if err != nil {
+		return nil, fmt.Errorf("error marshal field {{ $fstruct.Name }}: %w", err)
+	}
+	{{- else -}}
+	pvar := {{ $bvar }}
+	{{- end }}
+
+	return {{ $packerparam.PackFunc }}(w, pvar, iproto.ModeDefault), nil
+}
+
+func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error) {
+	var {{ $fstruct.Name }} {{ if ne $packerparam.UnpackType "" }}{{ $packerparam.UnpackType }}{{ else }}{{ $fstruct.Format }}{{ end }}
+	{{ $isPointer := hasPrefix (printf "%s" $rtype) "*" }}
+
+	err := {{ $packerparam.UnpackFunc }}(r, &{{ $fstruct.Name }}, iproto.ModeDefault)
+	if err != nil {
+		errRet = fmt.Errorf("error unpack field {{ $fstruct.Name }} in tuple: '%w'", err)
+		return
+	}
+
+	bvar := {{ if ne $packerparam.UnpackConvFunc "" -}}
+		{{ $packerparam.UnpackConvFunc }}({{ $fstruct.Name }})
+	{{ else -}}
+		{{ $fstruct.Name }}
+	{{ end -}}
+
+	{{ $underlyingType := trimPrefix (printf "%s" $rtype) "*"}}
+	{{ if ne $sname "" -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $serparams := $fstruct.SerializerParams }}
+
+	var svar {{ $underlyingType }}
+	
+	err = {{ $serializer.ImportName }}.{{ $serializer.Unmarshaler }}({{ $serparams }}bvar, &svar)
+	if err != nil {
+		errRet = fmt.Errorf("error unmarshal field {{ $fstruct.Name }}: %w", err)
+		return
+	}
+
+	{{ else -}}
+	svar := bvar
+
+	{{ end -}}
+
+	return {{ if $isPointer }}&svar{{else}}svar{{end}}, nil
+}
+
+func (obj *{{ $PublicStructName }}) Get{{ $fstruct.Name }}() {{ $rtype }} {
+	return obj.field{{ $fstruct.Name }}
+}
+
+func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {{ $rtype }}) error {
+	{{- if $fstruct.PrimaryKey }}
+	if obj.BaseField.Exists {
+		return fmt.Errorf("can't modify field included in primary key")
+	}
+
+	{{ end -}}
+	data, err := pack{{ $fstruct.Name }}([]byte{}, {{ $fstruct.Name }})
+	if err != nil {
+		return err
+	}
+
+	{{- if eq $fstruct.Format "string" "[]byte" -}}
+		{{- if gt $fstruct.Size 0 }}
+
+	if len(data) > {{ $fstruct.Size }} {
+		return fmt.Errorf("max length of field '{{ $PublicStructName }}.{{ $fstruct.Name }}' is '%d' (received '%d')", {{ $fstruct.Size }}, len(data))
+	}
+		{{- else }}
+
+	logger := activerecord.Logger()
+
+	logger.Warn(context.TODO(), "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Size for field '{{ $fstruct.Name }}' not set. Cur field size: %d. Object: '{{ $PublicStructName }}'", len(data)))
+		{{- end }}
+	{{- end }}
+
+	obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpSet, Value: data})
+	obj.field{{ $fstruct.Name }} = {{ $fstruct.Name}}
+
+	{{- if ne $fstruct.ObjectLink "" }}
+	delete(obj.BaseField.Objects, "{{ $fstruct.ObjectLink }}")
+	{{- end }}
+
+	return nil
+}
+	{{- range $i, $mut := $fstruct.Mutators -}}
+		{{ $mutatorparam := mutatorParam $mut $fstruct.Format -}}
+		{{ $mtype := $fstruct.Format }}
+
+func (obj *{{ $PublicStructName }}) {{ $mutatorparam.Name }}{{ $fstruct.Name }}(mutArg {{ $mtype }}) error {
+		{{- if eq $mutatorparam.Name "Inc" }}
+	if mutArg == 0 {
+		return nil
+	}
+
+	if uint64({{ $packerparam.MaxValue }} - obj.field{{ $fstruct.Name }}) < uint64(mutArg) {
+		return fmt.Errorf("overflow type '{{ $fstruct.Format }}' after Inc %d", mutArg)
+	}
+
+	data := iproto.PackUint32([]byte{}, uint32(mutArg), iproto.ModeDefault)
+
+	obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpAdd, Value: data})
+	obj.field{{ $fstruct.Name }} += {{ $packerparam.MutatorTypeConv }}(mutArg)
+		{{- else if eq $mutatorparam.Name "Dec" }}
+	if mutArg == 0 {
+		return nil
+	}
+
+	if uint64(obj.field{{ $fstruct.Name }} - {{ $packerparam.MinValue }}) < uint64(mutArg) {
+		return fmt.Errorf("overflow type '{{ $fstruct.Format }}' after Dec %d", mutArg)
+	}
+
+	data := iproto.PackUint32([]byte{}, uint32(-mutArg), iproto.ModeDefault)
+
+	obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpAdd, Value: data})
+	obj.field{{ $fstruct.Name }} -= {{ $packerparam.MutatorTypeConv }}(mutArg)
+		{{- else if eq $mutatorparam.Name "And" }}
+	if obj.field{{ $fstruct.Name }} == 0 || obj.field{{ $fstruct.Name }} & mutArg == obj.field{{ $fstruct.Name }} {
+		return nil
+	}
+
+	data := iproto.PackUint32([]byte{}, uint32(mutArg), iproto.ModeDefault)
+
+	obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpAnd, Value: data})
+	obj.field{{ $fstruct.Name }} &= mutArg
+		{{- else if eq $mutatorparam.Name "Or" "SetBit" }}
+	if mutArg == 0 || obj.field{{ $fstruct.Name }} | mutArg == obj.field{{ $fstruct.Name }} {
+		return nil
+	}
+
+	data := iproto.PackUint32([]byte{}, uint32(mutArg), iproto.ModeDefault)
+
+	obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpOr, Value: data})
+	obj.field{{ $fstruct.Name }} |= mutArg
+		{{- else if eq $mutatorparam.Name "ClearBit" }}
+	if mutArg == 0 || obj.field{{ $fstruct.Name }} & ^mutArg == obj.field{{ $fstruct.Name }} {
+		return nil
+	}
+
+	data := iproto.PackUint32([]byte{}, uint32(^mutArg), iproto.ModeDefault)
+
+	obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpAnd, Value: data})
+	obj.field{{ $fstruct.Name }} &= ^mutArg
+		{{- else if eq $mutatorparam.Name "Xor" }}
+	if mutArg == 0 || obj.field{{ $fstruct.Name }} ^ mutArg == obj.field{{ $fstruct.Name }} {
+		return nil
+	}
+
+	data := iproto.PackUint32([]byte{}, uint32(mutArg), iproto.ModeDefault)
+
+	obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpXor, Value: data})
+	obj.field{{ $fstruct.Name }} ^= mutArg
+		{{- else }}
+	Unknown mutator type in template!!!
+		{{- end }}
+
+	return nil
+}
+	{{- end }}
+	{{- $fl := index $flags $fstruct.Name }}
+	{{- if $fl }}
+		{{- range $i, $flag := $fl.Flags }}
+
+func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}{{ $flag }}() error {
+	return obj.SetBit{{ $fstruct.Name }}( {{ $fstruct.Name }}{{ $flag }}Flag )
+}
+
+func (obj *{{ $PublicStructName }}) Clear{{ $fstruct.Name }}{{ $flag }}() error {
+	return obj.ClearBit{{ $fstruct.Name }}( {{ $fstruct.Name }}{{ $flag }}Flag )
+}
+
+func (obj *{{ $PublicStructName }}) Is{{ $fstruct.Name }}{{ $flag }}() bool {
+	return obj.Get{{ $fstruct.Name }}() & {{ $fstruct.Name }}{{ $flag }}Flag == {{ $fstruct.Name }}{{ $flag }}Flag
+}
+		{{- end }}
+	{{- end }}
+
+{{ end -}}
+
+func selectBox (ctx context.Context, indexnum uint32, keysPacked [][][]byte, limiter activerecord.SelectorLimiter) ([]*{{ $PublicStructName }}, error) {
+	logger := activerecord.Logger()
+	ctx = logger.SetLoggerValueToContext(ctx, activerecord.ValueLogPrefix{"limiter": limiter.String()})
+	metricTimer := activerecord.Metric().Timer("octopus", "{{ $PublicStructName }}")
+	metricStatCnt := activerecord.Metric().StatCount("octopus", "{{ $PublicStructName }}")
+	metricErrCnt := activerecord.Metric().ErrorCount("octopus", "{{ $PublicStructName }}")
+
+	w := octopus.PackSelect(namespace, indexnum, limiter.Offset(), limiter.Limit(), keysPacked)
+
+	metricTimer.Timing(ctx, "select_pack")
+	metricStatCnt.Inc(ctx, "select_keys", float64(len(keysPacked)))
+
+	logger.Debug(ctx, fmt.Sprintf("Select packed tuple: '% X'", w))
+
+	connection, err := box(ctx, 0, activerecord.ReplicaOrMasterInstanceType)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "select_preparebox", 1)
+		logger.Error(ctx, fmt.Sprintf("Error get box '%s'", err))
+
+		return nil, err
+	}
+
+	respBytes, errCall := connection.Call(ctx, octopus.RequestTypeSelect, w)
+	if errCall != nil {
+		metricErrCnt.Inc(ctx, "select_box", 1)
+		logger.Error(ctx, "Error select from box", errCall, connection.Info())
+
+		return nil, errCall
+	}
+
+	metricTimer.Timing(ctx, "select_box")
+
+	logger.Debug(ctx, fmt.Sprintf("Response from box '%X'", respBytes))
+
+	tuplesData, err := octopus.ProcessResp(respBytes, 0)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "select_resp", 1)
+		logger.Error(ctx, "Error parse response: ", err)
+
+		return nil, err
+	}
+
+	metricTimer.Timing(ctx, "select_process")
+	metricStatCnt.Inc(ctx, "select_tuples_res", float64(len(tuplesData)))
+
+	nps, err := NewFromBox(ctx, tuplesData)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "select_preparebox", 1)
+		logger.Error(ctx, "Error in response: ", err)
+
+		return nil, err
+	}
+
+	metricTimer.Timing(ctx, "select_newobj")
+
+	if limiter.FullfillWarn() && len(nps) == int(limiter.Limit()) {
+		logger.Warn(ctx, "Select limit reached. Result may less than db records.")
+	}
+
+	mode, ok := connection.InstanceMode().(octopus.ServerModeType)
+	if !ok || activerecord.ServerModeType(mode) == activerecord.ModeReplica {
+		if !ok {
+			logger.Error(ctx, "Invalid server mode type: %T", connection.InstanceMode())
+		}
+
+		for npNum := range nps {
+			nps[npNum].IsReplica = true
+			nps[npNum].Readonly = true
+		}
+	}
+
+	logger.Debug(ctx, "Success select")
+
+	metricTimer.Finish(ctx, "select")
+
+	return nps, nil
+}
+
+{{ $pktype := "" }}
+{{ $pklenfld := 1 }}
+{{ $pkind := index .Indexes 0 }}
+{{ range $num, $ind := .Indexes -}}
+{{ $lenfld := len $ind.Fields -}}
+	{{ if $ind.Primary }}
+		{{ $pktype = $ind.Type }}
+		{{ $pklenfld = len $ind.Fields }}
+		{{ $pkind = $ind }}
+func (obj *{{ $PublicStructName }}) Primary() {{ $ind.Type }} {
+		{{ if ne $lenfld 1 }}
+	return {{ $ind.Type }}{
+			{{- range $_, $fieldNum := $ind.Fields }}
+				{{- $ifield := index $fields $fieldNum }}
+		{{ $ifield.Name }}: obj.Get{{ $ifield.Name }}(),
+			{{- end }}
+	}
+		{{ else }} 
+			{{- range $_, $fieldNum := $ind.Fields }}
+				{{- $ifield := index $fields $fieldNum }}
+	return obj.Get{{ $ifield.Name }}()
+			{{- end }}
+		{{ end -}}
+}
+
+func SelectByPrimary(ctx context.Context, pk {{ $ind.Type }}) (*{{ $PublicStructName }}, error) {
+	return {{ $ind.Selector }}(ctx, pk)
+}
+	{{ end }}
+{{ end }}
+
+{{ range $num, $ind := .Indexes -}}
+	{{ $lenfld := len $ind.Fields -}}
+	{{ if ne $lenfld 1 }}
+type {{ $ind.Type }} struct {
+		{{- range $_, $fieldNum := $ind.Fields }}
+			{{- $ifield := index $fields $fieldNum }}
+	{{ $rtype := $ifield.Format -}}
+	{{ $serlen := len $ifield.Serializer -}}
+	{{ if ne $serlen 0 -}}
+		{{ $sname := index $ifield.Serializer 0 -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $rtype = $serializer.Type -}}
+	{{ end }}
+	{{ $ifield.Name }} {{ $rtype -}}
+		{{- end }}
+}
+	{{ end -}}
+
+func PackKeyIndex{{ $ind.Name }}(ctx context.Context, keys []{{ $ind.Type }}) ([][][]byte, error) {
+	keysPacked := [][][]byte{}
+
+	for _, key := range keys {
+		keysField := [][]byte{}
+		{{ if ne $lenfld 1 -}}
+			{{ range $numf, $ifld := $ind.Fields -}}
+				{{ $sfield := index $fields $ifld -}}
+				{{ $packerparam := packerParam $sfield.Format -}}
+				{{ $packparam := printf "key.%s" $sfield.Name -}}
+				{{ $serlen := len $sfield.Serializer }}
+				{{ if ne $serlen 0 }}
+					{{ $sname := index $sfield.Serializer 0 -}}
+					{{ $serializer := index $serializers $sname -}}
+					{{ $serparams := $sfield.SerializerParams -}}
+					skey, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $packparam }})
+					if err != nil {
+						return nil, err
+					}
+					{{ $packparam = "skey" }}
+				{{ end }}
+
+		keysField = append(keysField, {{ $packerparam.PackFunc }}([]byte{}, {{ $packerparam.PackConvFunc $packparam }}, iproto.ModeDefault))
+			{{ end -}}
+		{{ else -}}
+			{{ $ifield := index $ind.Fields 0 -}}
+			{{ $sfield := index $fields $ifield -}}
+			{{ $packerparam := packerParam $sfield.Format -}}
+		keysField = append(keysField, {{ $packerparam.PackFunc }}([]byte{}, {{ $packerparam.PackConvFunc "key" }}, iproto.ModeDefault))
+		{{ end -}}
+		keysPacked = append(keysPacked, keysField)
+	}
+
+	return keysPacked, nil
+}
+func UnpackKeyIndex{{ $ind.Name }}(packedKeys [][][]byte) ([]{{ $ind.Type }}, error) {
+	ret := []{{ $ind.Type }}{}
+
+	for _, packedKey := range packedKeys {
+		{{ if ne $lenfld 1 }}
+		newIField := {{ $ind.Type }}{}
+		
+		var err error
+
+		{{- range $num, $fieldNum := $ind.Fields }}
+			{{- $ifield := index $fields $fieldNum }}
+			newIField.{{ $ifield.Name }}, err = Unpack{{ $ifield.Name }}(bytes.NewReader(packedKey[{{$num}}]))
+			if err != nil {
+				return nil, fmt.Errorf("can't unpack index: %s", err)
+			}
+		{{ end }}
+		{{ else }}
+		{{- $fieldNum := index $ind.Fields 0 }}
+		{{- $ifield := index $fields $fieldNum }}
+		newIField, err := Unpack{{ $ifield.Name }}(bytes.NewReader(packedKey[{{$num}}]))
+		if err != nil {
+			return nil, fmt.Errorf("can't unpack index: %s", err)
+		}
+		{{ end }}
+		ret = append(ret, newIField)
+	}
+
+	return ret, nil
+}
+/*
+
+	keysPacked := [][][]byte{}
+
+	for _, key := range keys {
+		keysField := [][]byte{}
+		{{ if ne $lenfld 1 -}}
+			{{ range $numf, $ifld := $ind.Fields -}}
+				{{ $sfield := index $fields $ifld -}}
+				{{ $packerparam := packerParam $sfield.Format -}}
+				{{ $packparam := printf "key.%s" $sfield.Name -}}
+				{{ $serlen := len $sfield.Serializer }}
+				{{ if ne $serlen 0 }}
+					{{ $sname := index $sfield.Serializer 0 -}}
+					{{ $serializer := index $serializers $sname -}}
+					{{ $serparams := $sfield.SerializerParams -}}
+					skey, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $packparam }})
+					if err != nil {
+						return nil, err
+					}
+					{{ $packparam = "skey" }}
+				{{ end }}
+
+		keysField = append(keysField, {{ $packerparam.PackFunc }}([]byte{}, {{ $packerparam.PackConvFunc $packparam }}, iproto.ModeDefault))
+			{{ end -}}
+		{{ else -}}
+			{{ $ifield := index $ind.Fields 0 -}}
+			{{ $sfield := index $fields $ifield -}}
+			{{ $packerparam := packerParam $sfield.Format -}}
+		keysField = append(keysField, {{ $packerparam.PackFunc }}([]byte{}, {{ $packerparam.PackConvFunc "key" }}, iproto.ModeDefault))
+		{{ end -}}
+		keysPacked = append(keysPacked, keysField)
+	}
+
+	return keysPacked, nil
+}
+*/
+func {{ $ind.Selector }}s(ctx context.Context, keys []{{ $ind.Type }}{{ if not $ind.Unique }}, limiter activerecord.SelectorLimiter{{ end }}) ([]*{{ $PublicStructName }}, error) {
+	ctx = activerecord.Logger().SetLoggerValueToContext(ctx, map[string]interface{}{"{{ $ind.Selector }}s": keys, "Repo": "{{ $PublicStructName }}" })
+
+	keysPacked, err := PackKeyIndex{{ $ind.Name }}(ctx, keys)
+	if err != nil {
+		return nil, fmt.Errorf("can't pack index key: %s", err)
+	}
+
+	{{ if $ind.Unique -}}
+	limiter := activerecord.EmptyLimiter()
+	{{ end }}
+
+	res, err := selectBox(ctx, {{ $ind.Num }}, keysPacked, limiter)
+	if err != nil {
+		return res, err	
+	}
+
+	activerecord.Logger().CollectQueries(ctx, {{ $ind.Selector }}MockerLogger(keys, {{ $PublicStructName }}List(res){{ if not $ind.Unique }}, limiter {{ end }}))
+
+	return res, err
+}
+
+func {{ $ind.Selector }}(ctx context.Context, key {{ $ind.Type }}{{ if not $ind.Unique }}, limiter activerecord.SelectorLimiter{{ end }}) ({{ if $ind.Unique }}{{ else }}[]{{ end }}*{{ $PublicStructName }}, error) {
+	selected, err := {{ $ind.Selector }}s(ctx, []{{ $ind.Type }}{key}{{ if not $ind.Unique }}, limiter{{ end }})
+	if err != nil {
+		return nil, err
+	}
+
+	{{ if $ind.Unique -}}
+	if len(selected) > 0 {
+		if len(selected) > 1 {
+			activerecord.Logger().Error(ctx, "{{ $PublicStructName }}", "More than one tuple for uniq key ID '%s': %d", key, len(selected))
+		}
+
+		return selected[0], nil
+	}
+
+	return nil, nil
+	{{- else }}
+
+	return selected, nil
+	{{- end }}
+}
+{{ end }}
+{{ range $name, $fobj := .FieldObject -}}
+{{ $linkedobj := index $LinkedObject $fobj.ObjectName }}
+func (obj *{{ $PublicStructName }}) Get{{ $name }}(ctx context.Context) ({{ if not $fobj.Unique }}[]{{ end }}*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}, error){
+	{{- if $fobj.Unique }}
+	if ret, ok := obj.BaseField.Objects["{{ $name }}"]; ok && len(ret) == 1 {
+		return ret[0].(*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}), nil
+	}
+
+	ret, err := {{ $linkedobj.Namespace.PackageName }}.SelectBy{{ $fobj.Key }}(ctx, obj.Get{{ $fobj.Field }}())
+	if err != nil {
+		return nil, err
+	}
+
+	obj.BaseField.Objects["{{ $name }}"] = []octopus.ModelStruct{ret}
+	{{- else }}
+
+	var ret []*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}
+
+	if retI, ok := obj.BaseField.Objects["{{ $name }}"]; ok && len(retI) > 0 {
+		for _, ri := range retI {
+			ret = append(ret, ri.(*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}))
+		}
+
+		return ret, nil
+	}
+
+	ret, err := {{ $linkedobj.Namespace.PackageName }}.SelectBy{{ $fobj.Key }}(ctx, obj.Get{{ $fobj.Field }}(), activerecord.NewLimiter(100)) //ToDo default limit for multi object
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ret) == 100 {
+		activerecord.Logger().Warn(ctx, "limit for multiple linked object riched '{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}' '{{ $PublicStructName }}'")
+	}
+
+	for _, r := range ret {
+		obj.BaseField.Objects["{{ $name }}"] = append(obj.BaseField.Objects["{{ $name }}"], r)
+	}
+	{{- end }}
+
+	return ret, nil
+}
+
+{{ end -}}
+
+func (obj *{{ $PublicStructName }}) Equal (anotherObjI any) bool {
+	anotherObj, ok := anotherObjI.(*{{ $PublicStructName }})
+	if !ok {
+		return false
+	}
+
+	var dataObj []byte
+	var dataAnotherObj []byte
+	var err error
+
+	{{- range $ind, $fstruct := .FieldList }} 
+	dataObj, err = pack{{ $fstruct.Name }}([]byte{}, obj.Get{{ $fstruct.Name }}())
+	if err != nil {
+		return false
+	}
+
+	dataAnotherObj, err = pack{{ $fstruct.Name }}([]byte{}, anotherObj.Get{{ $fstruct.Name }}())
+	if err != nil {
+		return false
+	}
+
+	if string(dataObj) != string(dataAnotherObj) {
+		return false
+	}
+	{{ end }}
+
+	return true
+}
+
+func (obj *{{ $PublicStructName }}) PrimaryString() string {
+	ret := []string{
+	{{- range $ind, $fstruct := .FieldList }}
+		{{- if $fstruct.PrimaryKey }}
+			{{- $packerparam := packerParam $fstruct.Format }}
+			{{- $tostr := $packerparam.ToString }} 
+			{{ index $tostr 0 }}obj.Get{{ $fstruct.Name }}(){{ index $tostr 1 }},
+		{{- end }}
+	{{- end }}
+	}
+
+	return strings.Join(ret, ", ")
+}
+
+func (obj *{{ $PublicStructName }}) packPk() ([][]byte, error) {
+	packedPk := [][]byte{}
+
+	var (
+		data []byte
+		err error
+	)
+
+	{{- range $ind, $fstruct := .FieldList }}
+		{{- if $fstruct.PrimaryKey }}
+
+	data, err = pack{{ $fstruct.Name }}([]byte{}, obj.Get{{ $fstruct.Name }}())
+	if err != nil {
+		return [][]byte{}, err
+	}
+
+	packedPk = append(packedPk, data)
+		{{- end }}
+	{{- end }}
+
+	return packedPk, nil
+}
+
+func (obj *{{ $PublicStructName }}) Delete(ctx context.Context) error {
+	logger := activerecord.Logger()
+	metricTimer := activerecord.Metric().Timer("octopus", "{{ $PublicStructName }}")
+	metricStatCnt := activerecord.Metric().StatCount("octopus", "{{ $PublicStructName }}")
+	metricErrCnt := activerecord.Metric().ErrorCount("octopus", "{{ $PublicStructName }}")
+
+	metricStatCnt.Inc(ctx, "delete_request", 1)
+
+	if !obj.BaseField.Exists {
+		return fmt.Errorf("can't delete not exists object")
+	}
+
+	pk, err := obj.packPk()
+	if err != nil {
+		metricErrCnt.Inc(ctx, "delete_pack", 1)
+		return fmt.Errorf("error delete: %w", err)
+	}
+
+	w := octopus.PackDelete(namespace, pk)
+	log.Printf("Delete packed tuple: '%X'\n", w)
+
+	connection, err := box(ctx, 0, activerecord.MasterInstanceType)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "delete_preparebox", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
+
+		return err
+	}
+
+	respBytes, errCall := connection.Call(ctx, octopus.RequestTypeDelete, w)
+	if errCall != nil {
+		metricErrCnt.Inc(ctx, "delete_box", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error delete from box", errCall, connection.Info())
+		
+		return errCall
+	}
+
+	metricTimer.Timing(ctx, "delete_box")
+
+	logger.Debug(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Response from box '% X'", respBytes))
+
+	_, err = octopus.ProcessResp(respBytes, octopus.NeedRespFlag|octopus.UniqRespFlag)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "delete_resp", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error parse response: ", err)
+		
+		return err
+	}
+
+	metricStatCnt.Inc(ctx, "delete_success", 1)
+
+	obj.BaseField.Exists = false
+	obj.BaseField.UpdateOps = []octopus.Ops{}
+
+	logger.Debug(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Success delete")
+
+	metricTimer.Finish(ctx, "delete")
+
+	return nil
+}
+
+func (obj *{{ $PublicStructName }}) Update(ctx context.Context) error {
+	logger := activerecord.Logger()
+	metricTimer := activerecord.Metric().Timer("octopus", "{{ $PublicStructName }}")
+	metricStatCnt := activerecord.Metric().StatCount("octopus", "{{ $PublicStructName }}")
+	metricErrCnt := activerecord.Metric().ErrorCount("octopus", "{{ $PublicStructName }}")
+
+	metricStatCnt.Inc(ctx, "update_request", 1)
+
+	if !obj.BaseField.Exists {
+		metricErrCnt.Inc(ctx, "update_notexists", 1)
+		return fmt.Errorf("can't update not exists object")
+	}
+
+	if obj.BaseField.Repaired {
+		metricStatCnt.Inc(ctx, "update_repaired", 1)
+		logger.Debug(ctx, "", obj.PrimaryString(), "Flag 'Repaired' is true! Insert instead Update")
+
+		return obj.Replace(ctx)
+	}
+
+	if len(obj.BaseField.UpdateOps) == 0 {
+		metricStatCnt.Inc(ctx, "update_empty", 1)
+		logger.Debug(ctx, "", obj.PrimaryString(), "Empty update")
+
+		return nil
+	}
+
+	pk, err := obj.packPk()
+	if err != nil {
+		metricErrCnt.Inc(ctx, "update_packpk", 1)
+		return fmt.Errorf("error update: %w", err)
+	}
+
+	w := octopus.PackUpdate(namespace, pk, obj.BaseField.UpdateOps)
+
+	log.Printf("Update packed tuple: '%X'\n", w)
+
+	connection, err := box(ctx, 0, activerecord.MasterInstanceType)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "update_preparebox", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
+		return err
+	}
+
+	respBytes, errCall := connection.Call(ctx, octopus.RequestTypeUpdate, w)
+	if errCall != nil {
+		metricErrCnt.Inc(ctx, "update_box", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error update ia a box", errCall, connection.Info())
+		return errCall
+	}
+
+	metricTimer.Timing(ctx, "update_box")
+
+	logger.Debug(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Response from box '%X'", respBytes))
+
+	_, err = octopus.ProcessResp(respBytes, octopus.NeedRespFlag|octopus.UniqRespFlag)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "update_resp", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error parse response: ", err)
+		return err
+	}
+
+	obj.BaseField.UpdateOps = []octopus.Ops{}
+
+	logger.Debug(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Success update")
+
+	metricStatCnt.Inc(ctx, "update_success", 1)
+	metricTimer.Finish(ctx, "update")
+
+	return nil
+}
+
+func (obj *{{ $PublicStructName }}) Insert(ctx context.Context) error {
+	metricStatCnt := activerecord.Metric().StatCount("octopus", "{{ $PublicStructName }}")
+	metricErrCnt := activerecord.Metric().ErrorCount("octopus", "{{ $PublicStructName }}")
+
+	metricStatCnt.Inc(ctx, "insert_request", 1)
+
+	if obj.BaseField.Exists {
+		metricErrCnt.Inc(ctx, "insert_exists", 1)
+		return fmt.Errorf("can't insert already exists object")
+	}
+
+	err := obj.insertReplace(ctx, octopus.InsertModeInsert)
+
+	if err == nil {
+		metricStatCnt.Inc(ctx, "insert_success", 1)
+	}
+
+	return err
+}
+
+func (obj *{{ $PublicStructName }}) Replace(ctx context.Context) error {
+	metricStatCnt := activerecord.Metric().StatCount("octopus", "{{ $PublicStructName }}")
+	metricErrCnt := activerecord.Metric().ErrorCount("octopus", "{{ $PublicStructName }}")
+
+	metricStatCnt.Inc(ctx, "replace_request", 1)
+
+	if !obj.BaseField.Exists {
+		metricErrCnt.Inc(ctx, "replace_notexists", 1)
+		return fmt.Errorf("can't replace not exists object")
+	}
+
+	err := obj.insertReplace(ctx, octopus.InsertModeReplace)
+
+	if err == nil {
+		metricStatCnt.Inc(ctx, "replace_success", 1)
+	}
+
+	return err
+}
+
+func (obj *{{ $PublicStructName }}) InsertOrReplace(ctx context.Context) error {
+	metricStatCnt := activerecord.Metric().StatCount("octopus", "{{ $PublicStructName }}")
+
+	metricStatCnt.Inc(ctx, "insertorreplace_request", 1)
+
+	err := obj.insertReplace(ctx, octopus.InsertModeInserOrReplace)
+
+	if err == nil {
+		metricStatCnt.Inc(ctx, "insertorreplace_success", 1)
+	}
+
+	return err
+}
+
+func (obj *{{ $PublicStructName }}) insertReplace(ctx context.Context, insertMode octopus.InsertMode) error {
+	var (
+		err error
+		tuple [][]byte
+		data []byte
+	)
+
+	metricTimer := activerecord.Metric().Timer("octopus", "{{ $PublicStructName }}")
+	metricErrCnt := activerecord.Metric().ErrorCount("octopus", "{{ $PublicStructName }}")
+
+	{{ range $ind, $fstruct := .FieldList }}
+
+	data, err = pack{{ $fstruct.Name }}([]byte{}, obj.Get{{ $fstruct.Name }}())
+	if err != nil {
+		metricErrCnt.Inc(ctx, "insertreplace_packfield", 1)
+		return err
+	}
+
+	tuple = append(tuple, data)
+	{{ end }}
+
+	metricTimer.Timing(ctx, "insertreplace_packtuple")
+
+	if len(obj.BaseField.ExtraFields) > 0 {
+		tuple = append(tuple, obj.BaseField.ExtraFields...)
+	}
+
+	w := octopus.PackInsertReplace(namespace, insertMode, tuple)
+	logger := activerecord.Logger()
+
+	metricTimer.Timing(ctx, "insertreplace_pack")
+	logger.Trace(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Insert packed tuple: '%X'", w))
+
+	connection, err := box(ctx, 0, activerecord.MasterInstanceType)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "insertreplace_preparebox", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
+
+		return err
+	}
+
+	respBytes, errCall := connection.Call(ctx, octopus.RequestTypeInsert, w)
+	if errCall != nil {
+		metricErrCnt.Inc(ctx, "insertreplace_box", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error insert into box", errCall, connection.Info())
+
+		return errCall
+	}
+
+	metricTimer.Timing(ctx, "insertreplace_box")
+
+	logger.Trace(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Response from box '%X'", respBytes))
+
+	tuplesData, err := octopus.ProcessResp(respBytes, octopus.NeedRespFlag|octopus.UniqRespFlag)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "insertreplace_prespreparebox", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error parse response: ", err)
+
+		return err
+	}
+
+	_, err = NewFromBox(ctx, tuplesData)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "insertreplace_obj", 1)
+		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error in response: ", err)
+
+		return err
+	}
+
+	obj.BaseField.Exists = true
+	obj.BaseField.UpdateOps = []octopus.Ops{}
+	obj.BaseField.Repaired = false
+
+	logger.Debug(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Success insert")
+
+	metricTimer.Finish(ctx, "insertreplace")
+
+	return nil
+}

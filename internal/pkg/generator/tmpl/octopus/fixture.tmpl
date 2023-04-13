@@ -1,0 +1,205 @@
+package {{ .ARPkg }}
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"log"
+{{ if eq .Server.Conf "" -}}
+	"time"
+{{ end }}
+	"strings"
+
+    "gopkg.in/yaml.v3"
+
+	"github.com/mailru/activerecord/pkg/activerecord"
+	"github.com/mailru/activerecord/pkg/octopus"
+{{- range $ind, $imp := .Imports }}
+	{{ if ne $imp.ImportName "" }}{{ $imp.ImportName }} {{ end }}"{{ $imp.Path }}"
+{{- end }}
+{{- range $i, $imp := addImport .FieldList }}
+	"{{ $imp }}"
+{{- end }}
+)
+{{ $pkgName := .ARPkg }}
+{{ $serializers := .Serializers -}}
+{{ $PublicStructName := .ARPkgTitle -}}
+{{ $LinkedObject := .LinkedObject }}
+{{ $flags := .Flags }}
+{{ $fields := .FieldList }}
+{{ $typePK := "" -}}
+{{ $fieldNamePK := "" -}}
+
+{{ range $num, $ind := .Indexes -}}
+{{ $lenfld := len $ind.Fields -}}
+	{{ if $ind.Primary }}
+        {{ if ne $lenfld 1 }}
+        {{ $typePK = print $pkgName "." $ind.Type }}
+        {{ else }}
+        {{- $typePK = $ind.Type -}}
+        {{ end }}
+        {{- $fieldNamePK = $ind.Name -}}
+    {{ end }}
+{{ end }}
+
+
+type {{ $PublicStructName }}FT struct {
+{{- range $ind, $fstruct := .FieldList -}}
+	{{ $rtype := $fstruct.Format -}}
+	{{ $serlen := len $fstruct.Serializer -}}
+	{{ if ne $serlen 0 -}}
+		{{ $sname := index $fstruct.Serializer 0 -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $rtype = $serializer.Type -}}
+	{{ end }}
+	{{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}"`
+{{- end }}
+}
+
+func MarshalFixtures(objs []*{{$PublicStructName}}) ([]byte, error) {
+	fts := make([]{{$PublicStructName}}FT, 0, len(objs))
+	for _, obj := range objs {
+		fts = append(fts, {{$PublicStructName}}FT{
+            {{- range $ind, $fstruct := .FieldList }}
+			{{$fstruct.Name}}: obj.Get{{$fstruct.Name}}(),
+			{{- end }}
+		})
+	}
+	return yaml.Marshal(fts)
+}
+
+func UnmarshalFixtures(source []byte) []*{{$PublicStructName}} {
+    var fixtures []{{$PublicStructName}}FT
+
+    if err := yaml.Unmarshal(source, &fixtures); err != nil {
+        log.Fatalf("unmarshal {{$PublicStructName}}FT fixture: %v", err)
+    }
+
+    objs := make([]*{{$PublicStructName}}, 0, len(fixtures))
+
+    for _, ft := range fixtures {
+
+        o := New(context.Background())
+        {{- range $ind, $fstruct := .FieldList }}
+        if err := o.Set{{$fstruct.Name}}(ft.{{$fstruct.Name}}); err != nil {
+            log.Fatalf("can't set value %v to field {{$fstruct.Name}} of {{$PublicStructName}} fixture: %s", ft.{{$fstruct.Name}}, err)
+        }
+        {{- end }}
+
+        objs = append(objs, o)
+    }
+
+    return objs
+}
+
+func (objs {{$PublicStructName}}List) String() string {
+	o, err := MarshalFixtures(objs)
+	if err != nil {
+		activerecord.Logger().Fatal(context.Background(), err)
+	}
+	return string(o)
+}
+
+{{/* Отдельный тип фикстур, чтобы не было пересечения по PrimaryKey для update, select, delete... фикстур в yaml */}}
+type  {{ $PublicStructName }}UpdateFT struct {
+{{- range $ind, $fstruct := .FieldList -}}
+    {{ if eq $fstruct.Name $fieldNamePK }}
+        {{ $rtype := $fstruct.Format -}}
+        {{ $serlen := len $fstruct.Serializer -}}
+        {{ if ne $serlen 0 -}}
+            {{ $sname := index $fstruct.Serializer 0 -}}
+            {{ $serializer := index $serializers $sname -}}
+            {{ $rtype = $serializer.Type -}}
+        {{ end }}
+        {{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}"`
+    {{ end }}
+{{- end }}
+	UpdateOptions []{{ $PublicStructName }}UpdateFixtureOptions `yaml:"update_options"`
+}
+
+type {{ $PublicStructName }}UpdateFixtureOptions struct {
+	{{/* Generate option for each not primary field */}}
+    {{- range $ind, $fstruct := .FieldList -}}
+        {{ if ne $fstruct.Name $fieldNamePK }}
+            {{ $rtype := $fstruct.Format -}}
+            {{ $serlen := len $fstruct.Serializer -}}
+            {{ if ne $serlen 0 -}}
+                {{ $sname := index $fstruct.Serializer 0 -}}
+                {{ $serializer := index $serializers $sname -}}
+                {{ $rtype = $serializer.Type -}}
+            {{ end }}
+
+            {{$fstruct.Name}} *{{$PublicStructName}}{{$fstruct.Name}}UpdateFixtureOption `yaml:"{{ $fstruct.Name | snakeCase -}}"`
+        {{ end }}
+    {{- end }}
+}
+
+{{/* Generate options struct for each not primary field */}}
+{{- range $ind, $fstruct := .FieldList -}}
+    {{ if ne $fstruct.Name $fieldNamePK }}
+        {{ $rtype := $fstruct.Format -}}
+        {{ $serlen := len $fstruct.Serializer -}}
+        {{ if ne $serlen 0 -}}
+            {{ $sname := index $fstruct.Serializer 0 -}}
+            {{ $serializer := index $serializers $sname -}}
+            {{ $rtype = $serializer.Type -}}
+        {{ end }}
+
+        type {{$PublicStructName}}{{$fstruct.Name}}UpdateFixtureOption struct {
+            Value {{ $rtype -}} `yaml:"set_value"`
+        }
+    {{ end }}
+{{- end }}
+
+func UnmarshalUpdateFixtures(source []byte) []*{{$PublicStructName}} {
+    var fixtures []{{$PublicStructName}}UpdateFT
+
+    if err := yaml.Unmarshal(source, &fixtures); err != nil {
+        log.Fatalf("unmarshal {{$PublicStructName}}UpdateFT fixture: %v", err)
+    }
+
+    objs := make([]*{{$PublicStructName}}, 0, len(fixtures))
+
+    for _, ft := range fixtures {
+        obj := New(context.Background())
+
+        {{ range $num, $ind := .Indexes -}}
+            {{ $lenfld := len $ind.Fields }}
+                {{ if $ind.Primary }}
+                    {{ if eq $lenfld 1 }}
+                        if err := obj.Set{{ $fieldNamePK }}(ft.{{ $fieldNamePK }}); err != nil {
+                             log.Fatalf("error Set{{ $fieldNamePK }}: %v", err)
+                        }
+                        obj.BaseField.Exists = true
+                        obj.BaseField.UpdateOps = []octopus.Ops{}
+                    {{ end }}
+                {{ end }}
+            {{ end }}
+
+        SetFixtureUpdateOptions(obj, ft.UpdateOptions)
+
+        objs = append(objs, obj)
+    }
+
+    return objs
+}
+
+func UnmarshalInsertReplaceFixtures(source []byte) []*{{$PublicStructName}} {
+    return UnmarshalFixtures(source)
+}
+
+func SetFixtureUpdateOptions(obj *{{$PublicStructName}}, updateOptions  []{{$PublicStructName}}UpdateFixtureOptions) {
+    for priority, updateOption := range updateOptions {
+    {{- range $ind, $fstruct := .FieldList }}
+        {{/* Skip primary key field */}}
+        {{ if ne $fstruct.Name $fieldNamePK }}
+            // Если опции нет, то ее нет в списке на установку
+            if updateOption.{{$fstruct.Name}} != nil {
+                if err := obj.Set{{$fstruct.Name}}(updateOption.{{$fstruct.Name}}.Value); err != nil {
+                    log.Fatalf("Set{{$fstruct.Name}}[priority: %d] error: %v", priority, err)
+                }
+            }
+        {{ end }}
+    {{- end }}
+    }
+}
