@@ -1,3 +1,7 @@
+//go:build fixme
+
+//undefined reference to `sync.(*WaitGroup).state' with gcc on go 1.20
+
 package pool
 
 import (
