@@ -83,13 +83,6 @@ full-lint: install-lint
 cover:
 	go test -timeout=$(TEST_TIMEOUT) -v -coverprofile=coverage.out ./...  && go tool cover -html=coverage.out
 
-# Запустить интеграционные тесты
-# Такие тесты должны быть помечены флагом integration
-.PHONY: test-integration
-test-integration:
-	echo "Start testing activerecord \n"
-	go test -parallel=10  $(PWD)/... -coverprofile=cover.out -tags=integration  -timeout=$(TEST_TIMEOUT)
-
 # Запустить unit тесты
 .PHONY: test
 test:
