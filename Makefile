@@ -96,10 +96,6 @@ test:
 	echo "Start testing activerecord \n"
 	go test -parallel=10 $(PWD)/... -coverprofile=cover.out -timeout=$(TEST_TIMEOUT)
 
-.PHONY: generate
-generate:
-	go run -ldflags=$(LD_FLAGS) cmd/argen/main.go --path './example/model/repository' --fixture_path "example/testutil"
-
 .PHONY: install
 install:
 	go install -ldflags=$(LD_FLAGS) ./...
