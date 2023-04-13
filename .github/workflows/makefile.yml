@@ -13,15 +13,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    
+    - name: Build
+      run: make
 
-    - name: configure
-      run: ./configure
-
-    - name: Install dependencies
-      run: make generate
-
-    - name: Run check
-      run: make lint
-
-    - name: Run distcheck
+    - name: Run test
       run: make test
