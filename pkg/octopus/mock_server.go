@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+
 	"github.com/mailru/activerecord/pkg/iproto/iproto"
 )
 

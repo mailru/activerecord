@@ -6,7 +6,7 @@ LAST_COMMIT_HASH = $(shell git rev-parse HEAD | cut -c -8)
 # Таймаут для тестов
 TEST_TIMEOUT?=30s
 # Тег golang-ci
-GOLANGCI_TAG:=1.42.1
+GOLANGCI_TAG:=1.52.2
 # Путь до бинарников
 LOCAL_BIN:=$(CURDIR)/bin
 # Путь до бинарника golang-ci
@@ -71,7 +71,7 @@ endif
 # Линтер проверяет лишь отличия от мастера
 .PHONY: lint
 lint: install-lint
-	$(GOLANGCI_BIN) run --config=.golangci.yml ./... --new-from-rev=origin/master --build-tags=activerecord
+	$(GOLANGCI_BIN) run --config=.golangci.yml ./... --new-from-rev=origin/main --build-tags=activerecord
 
 # Линтер проходится по всему коду
 .PHONY: full-lint
@@ -83,22 +83,11 @@ full-lint: install-lint
 cover:
 	go test -timeout=$(TEST_TIMEOUT) -v -coverprofile=coverage.out ./...  && go tool cover -html=coverage.out
 
-# Запустить интеграционные тесты
-# Такие тесты должны быть помечены флагом integration
-.PHONY: test-integration
-test-integration:
-	echo "Start testing activerecord \n"
-	go test -parallel=10  $(PWD)/... -coverprofile=cover.out -tags=integration  -timeout=$(TEST_TIMEOUT)
-
 # Запустить unit тесты
 .PHONY: test
 test:
 	echo "Start testing activerecord \n"
 	go test -parallel=10 $(PWD)/... -coverprofile=cover.out -timeout=$(TEST_TIMEOUT)
-
-.PHONY: generate
-generate:
-	go run -ldflags=$(LD_FLAGS) cmd/argen/main.go --path './example/model/repository' --fixture_path "example/testutil"
 
 .PHONY: install
 install:
