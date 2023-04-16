@@ -8,7 +8,6 @@ on:
 
 jobs:
   test:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -17,8 +16,14 @@ jobs:
     - name: Run test
       run: make test
 
-    - name: Run lint
-      run: make lint
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run lint
+        run: make full-lint
 
   golangci:
     name: lint

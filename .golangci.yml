@@ -28,12 +28,12 @@ linters-settings:
 linters:
   disable-all: true
   enable:
-    - revive
+#    - revive
     - govet
     - errcheck
     - ineffassign
     - typecheck
-    - goconst
+#    - goconst
     - gosec
     - goimports
     - gosimple
@@ -44,7 +44,7 @@ linters:
     - gocognit
     - prealloc
     - gochecknoinits
-    - wsl
+#    - wsl
     - gocritic
 
 issues:
