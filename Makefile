@@ -6,7 +6,7 @@ LAST_COMMIT_HASH = $(shell git rev-parse HEAD | cut -c -8)
 # Таймаут для тестов
 TEST_TIMEOUT?=30s
 # Тег golang-ci
-GOLANGCI_TAG:=1.42.1
+GOLANGCI_TAG:=1.52.2
 # Путь до бинарников
 LOCAL_BIN:=$(CURDIR)/bin
 # Путь до бинарника golang-ci

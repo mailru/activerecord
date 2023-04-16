@@ -17,6 +17,9 @@ jobs:
     - name: Run test
       run: make test
 
+    - name: Run lint
+      run: make lint
+
   golangci:
     name: lint
     runs-on: ubuntu-latest
