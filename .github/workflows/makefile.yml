@@ -17,9 +17,8 @@ jobs:
     - name: Build
       run: make
 
-#   TODO fix linter warn
-#    - name: Run check
-#      run: make lint
+    - name: Run check
+      run: make lint
 
     - name: Run test
       run: make test
