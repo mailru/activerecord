@@ -71,7 +71,7 @@ endif
 # Линтер проверяет лишь отличия от мастера
 .PHONY: lint
 lint: install-lint
-	$(GOLANGCI_BIN) run --config=.golangci.yml ./... --new-from-rev=origin/master --build-tags=activerecord
+	$(GOLANGCI_BIN) run --config=.golangci.yml ./... --new-from-rev=origin/main --build-tags=activerecord
 
 # Линтер проходится по всему коду
 .PHONY: full-lint
