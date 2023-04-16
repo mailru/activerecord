@@ -26,7 +26,7 @@ jobs:
         run: make full-lint
 
   golangci:
-    name: lint
+    name: golangci-lint-action
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-go@v4
@@ -44,7 +44,7 @@ jobs:
           # working-directory: somedir
 
           # Optional: golangci-lint command line arguments.
-          args: --issues-exit-code=0
+          #args: --issues-exit-code=0
 
           # Optional: show only new issues if it's a pull request. The default value is `false`.
           # only-new-issues: true
