@@ -9,7 +9,7 @@ import (
 )
 
 func TestParseSerializer(t *testing.T) {
-	dst := ds.NewRecordPacakge()
+	dst := ds.NewRecordPackage()
 
 	if _, err := dst.AddImport("github.com/mailru/activerecord/notexistsfolder/dictionary"); err != nil {
 		t.Errorf("can't prepare test data: %s", err)
@@ -74,7 +74,7 @@ func TestParseSerializer(t *testing.T) {
 }
 
 func TestParseTypeSerializer(t *testing.T) {
-	dst := ds.NewRecordPacakge()
+	dst := ds.NewRecordPackage()
 	if _, err := dst.AddImport("github.com/mailru/activerecord/notexistsfolder/dictionary"); err != nil {
 		t.Errorf("can't prepare test data: %s", err)
 		return

@@ -103,7 +103,7 @@ func (a *ArGen) addRecordPackage(pkgName string) (*ds.RecordPackage, error) {
 		return nil, &arerror.ErrParseGenDecl{Name: pkgName, Err: arerror.ErrRedefined}
 	}
 
-	a.packagesParsed[pkgName] = ds.NewRecordPacakge()
+	a.packagesParsed[pkgName] = ds.NewRecordPackage()
 
 	return a.packagesParsed[pkgName], nil
 }

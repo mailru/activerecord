@@ -3,12 +3,13 @@ package parser_test
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/mailru/activerecord/internal/pkg/ds"
 	"github.com/mailru/activerecord/internal/pkg/parser"
 	"github.com/mailru/activerecord/internal/pkg/testutil"
+	"gotest.tools/assert"
+	"gotest.tools/assert/cmp"
 )
 
 func TestParse(t *testing.T) {
@@ -41,7 +42,7 @@ type TriggersFoo struct {
 
 	srcRoot, err := tempDirs.AddTempDir()
 	if err != nil {
-		t.Errorf("can't initialize dir: %s", err)
+		t.Errorf("can't initialize directory: %s", err)
 		return
 	}
 
@@ -71,7 +72,7 @@ type TriggersFoo struct {
 			name: "simple decl",
 			args: args{
 				srcFileName: filepath.Join(src, "foo.go"),
-				rc:          ds.NewRecordPacakge(),
+				rc:          ds.NewRecordPackage(),
 			},
 			wantErr: false,
 			want: &ds.RecordPackage{
@@ -98,7 +99,7 @@ type TriggersFoo struct {
 					},
 					{
 						Name:     "Field1Part",
-						Num:      1,
+						Num:      0,
 						Selector: "SelectByField1",
 						Fields:   []int{0},
 						FieldsMap: map[string]ds.IndexField{
@@ -106,6 +107,7 @@ type TriggersFoo struct {
 						},
 						Primary: false,
 						Unique:  false,
+						Partial: true,
 					},
 				},
 				IndexMap:      map[string]int{"Field1Field2": 0, "Field1Part": 1},
@@ -140,9 +142,7 @@ type TriggersFoo struct {
 				return
 			}
 
-			if !reflect.DeepEqual(tt.args.rc, tt.want) {
-				t.Errorf("Parse() = %+v, want %+v", tt.args.rc, tt.want)
-			}
+			assert.Check(t, cmp.DeepEqual(tt.want, tt.args.rc), "Invalid response, test `%s`", tt.name)
 		})
 	}
 }

@@ -66,7 +66,7 @@ func (rc *RecordPackage) AddIndex(ind IndexDeclaration) error {
 		}
 	}
 
-	if ind.Num == 0 && len(rc.Indexes) > 0 {
+	if !ind.Partial && ind.Num == 0 && len(rc.Indexes) > 0 {
 		ind.Num = rc.Indexes[len(rc.Indexes)-1].Num + 1
 	}
 
@@ -111,16 +111,16 @@ func (rc *RecordPackage) AddImport(path string, reqImportName ...string) (Import
 		return rc.Imports[imp], nil
 	}
 
-	newimport := ImportDeclaration{
+	newImport := ImportDeclaration{
 		Path:       path,
 		ImportName: resultImportName,
 	}
 
-	rc.ImportMap[newimport.Path] = len(rc.Imports)
+	rc.ImportMap[newImport.Path] = len(rc.Imports)
 	rc.ImportPkgMap[searchImportName] = len(rc.Imports)
-	rc.Imports = append(rc.Imports, newimport)
+	rc.Imports = append(rc.Imports, newImport)
 
-	return newimport, nil
+	return newImport, nil
 }
 
 func (rc *RecordPackage) FindImport(path string) (ImportDeclaration, error) {
@@ -139,13 +139,13 @@ func (rc *RecordPackage) FindImportByPkg(pkg string) (*ImportDeclaration, error)
 	return nil, &arerror.ErrParseImportDecl{Name: pkg, Err: arerror.ErrParseImportNotFound}
 }
 
-func (rc *RecordPackage) FindOrAddImport(path, importname string) (ImportDeclaration, error) {
+func (rc *RecordPackage) FindOrAddImport(path, importName string) (ImportDeclaration, error) {
 	imp, err := rc.FindImport(path)
 	if err != nil {
 		var impErr *arerror.ErrParseImportDecl
 
 		if errors.As(err, &impErr) && errors.Is(impErr.Err, arerror.ErrParseImportNotFound) {
-			imp, err = rc.AddImport(path, importname)
+			imp, err = rc.AddImport(path, importName)
 			if err != nil {
 				return ImportDeclaration{}, err
 			}

@@ -7,9 +7,9 @@ import (
 )
 
 func Test_checkBackend(t *testing.T) {
-	rcOctopus := ds.NewRecordPacakge()
+	rcOctopus := ds.NewRecordPackage()
 	rcOctopus.Backends = []string{"octopus"}
-	rcMany := ds.NewRecordPacakge()
+	rcMany := ds.NewRecordPackage()
 	rcMany.Backends = []string{"octopus", "postgres"}
 
 	type args struct {
@@ -20,7 +20,7 @@ func Test_checkBackend(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		{name: "emptyBack", args: args{cl: ds.NewRecordPacakge()}, wantErr: true},
+		{name: "emptyBack", args: args{cl: ds.NewRecordPackage()}, wantErr: true},
 		{name: "oneBack", args: args{cl: rcOctopus}, wantErr: false},
 		{name: "manyBack", args: args{cl: rcMany}, wantErr: true},
 	}
@@ -34,8 +34,8 @@ func Test_checkBackend(t *testing.T) {
 }
 
 func Test_checkLinkedObject(t *testing.T) {
-	rp := ds.NewRecordPacakge()
-	rpLinked := ds.NewRecordPacakge()
+	rp := ds.NewRecordPackage()
+	rpLinked := ds.NewRecordPackage()
 
 	err := rpLinked.AddFieldObject(ds.FieldObject{
 		Name:       "Foo",

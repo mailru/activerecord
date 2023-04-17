@@ -10,7 +10,7 @@ import (
 )
 
 func TestParseFieldsObject(t *testing.T) {
-	rp := ds.NewRecordPacakge()
+	rp := ds.NewRecordPackage()
 
 	err := rp.AddField(ds.FieldDeclaration{
 		Name:       "BarID",
@@ -26,7 +26,7 @@ func TestParseFieldsObject(t *testing.T) {
 		return
 	}
 
-	wantRp := ds.NewRecordPacakge()
+	wantRp := ds.NewRecordPackage()
 	wantRp.FieldsMap["BarID"] = len(wantRp.Fields)
 	wantRp.Fields = append(wantRp.Fields, ds.FieldDeclaration{
 		Name:       "BarID",

@@ -25,7 +25,7 @@ func Test_parseDoc(t *testing.T) {
 		{
 			name: "doc",
 			args: args{
-				dst: ds.NewRecordPacakge(),
+				dst: ds.NewRecordPackage(),
 				docs: &ast.CommentGroup{
 					List: []*ast.Comment{
 						{Text: `//ar:serverHost:127.0.0.1;serverPort:11011;serverTimeout:500`},
@@ -64,7 +64,7 @@ func Test_parseDoc(t *testing.T) {
 		{
 			name: "docComment",
 			args: args{
-				dst: ds.NewRecordPacakge(),
+				dst: ds.NewRecordPackage(),
 				docs: &ast.CommentGroup{
 					List: []*ast.Comment{
 						{Text: `//blablabla`},
@@ -72,12 +72,12 @@ func Test_parseDoc(t *testing.T) {
 				},
 			},
 			wantErr: false,
-			want:    ds.NewRecordPacakge(),
+			want:    ds.NewRecordPackage(),
 		},
 		{
 			name: "docError",
 			args: args{
-				dst: ds.NewRecordPacakge(),
+				dst: ds.NewRecordPackage(),
 				docs: &ast.CommentGroup{
 					List: []*ast.Comment{
 						{Text: `//ar:fdgsdsfgdf`},
@@ -85,7 +85,7 @@ func Test_parseDoc(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			want:    ds.NewRecordPacakge(),
+			want:    ds.NewRecordPackage(),
 		},
 	}
 	for _, tt := range tests {
@@ -108,7 +108,7 @@ func Test_parseGen(t *testing.T) {
 		dst  *ds.RecordPackage
 		genD *ast.GenDecl
 	}
-	w := ds.NewRecordPacakge()
+	w := ds.NewRecordPackage()
 	w.Backends = []string{"octopus"}
 	w.Namespace = ds.NamespaceDeclaration{
 		Num:         5,
@@ -120,7 +120,7 @@ func Test_parseGen(t *testing.T) {
 		Host:    "127.0.0.1",
 		Port:    "11011",
 	}
-	wLinked := ds.NewRecordPacakge()
+	wLinked := ds.NewRecordPackage()
 	wLinked.Backends = []string{"octopus"}
 	wLinked.Namespace = ds.NamespaceDeclaration{
 		Num:         5,
@@ -181,7 +181,7 @@ func Test_parseGen(t *testing.T) {
 		{
 			name: "private and public names",
 			args: args{
-				dst: ds.NewRecordPacakge(),
+				dst: ds.NewRecordPackage(),
 				genD: &ast.GenDecl{
 					Tok: token.TYPE,
 					Doc: &ast.CommentGroup{
@@ -211,7 +211,7 @@ func Test_parseGen(t *testing.T) {
 		{
 			name: "Invalid names in struct",
 			args: args{
-				dst: ds.NewRecordPacakge(),
+				dst: ds.NewRecordPackage(),
 				genD: &ast.GenDecl{
 					Tok: token.TYPE,
 					Doc: &ast.CommentGroup{
@@ -251,7 +251,7 @@ func Test_parseGen(t *testing.T) {
 		{
 			name: "linked objects",
 			args: args{
-				dst: ds.NewRecordPacakge(),
+				dst: ds.NewRecordPackage(),
 				genD: &ast.GenDecl{
 					Tok: token.TYPE,
 					Doc: &ast.CommentGroup{
@@ -335,7 +335,7 @@ func Test_parseAst(t *testing.T) {
 		{
 			name: "private and public names",
 			args: args{
-				rc: ds.NewRecordPacakge(),
+				rc: ds.NewRecordPackage(),
 				decls: []ast.Decl{
 					&ast.GenDecl{
 						Tok: token.TYPE,

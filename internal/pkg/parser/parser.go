@@ -34,7 +34,7 @@ const (
 	SizeTag       TagNameType = "size"
 	SerializerTag TagNameType = "serializer"
 	FieldsTag     TagNameType = "fields"
-	OrderdescTag  TagNameType = "orderdesc"
+	OrderDescTag  TagNameType = "orderdesc"
 )
 
 type TypeName string
