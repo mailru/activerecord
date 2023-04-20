@@ -117,3 +117,78 @@ func ParseFields(dst *ds.RecordPackage, fields []*ast.Field) error {
 
 	return nil
 }
+
+// Функция парсинга тегов полей модели
+func ParseProcFieldsTag(field *ast.Field, newfield *ds.ProcFieldDeclaration) error {
+	tagParam, err := splitTag(field, NoCheckFlag, map[TagNameType]ParamValueRule{PrimaryKeyTag: ParamNotNeedValue, UniqueTag: ParamNotNeedValue})
+	if err != nil {
+		return &arerror.ErrParseTypeFieldDecl{Name: newfield.Name, FieldType: string(newfield.Format), Err: err}
+	}
+
+	if len(tagParam) > 0 {
+		for _, kv := range tagParam {
+			switch TagNameType(kv[0]) {
+			case ProcInputParamTag:
+				newfield.Type = newfield.Type | 1
+			case ProcOutputParamTag:
+				newfield.Type = newfield.Type | 2
+			case SizeTag:
+				if kv[1] != "" {
+					size, err := strconv.ParseInt(kv[1], 10, 64)
+					if err != nil {
+						return &arerror.ErrParseTypeFieldTagDecl{Name: newfield.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrParseTagValueInvalid}
+					}
+
+					newfield.Size = size
+				}
+			case SerializerTag:
+				newfield.Serializer = strings.Split(kv[1], ",")
+			default:
+				return &arerror.ErrParseTypeFieldTagDecl{Name: newfield.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrParseTagUnknown}
+			}
+		}
+	}
+
+	return nil
+}
+
+// Функция парсинга полей процедуры
+func ParseProcFields(dst *ds.RecordPackage, fields []*ast.Field) error {
+	for _, field := range fields {
+		if field.Names == nil || len(field.Names) != 1 {
+			return &arerror.ErrParseTypeFieldDecl{Err: arerror.ErrNameDeclaration}
+		}
+
+		newField := ds.ProcFieldDeclaration{
+			Name:       field.Names[0].Name,
+			Serializer: []string{},
+		}
+
+		switch t := field.Type.(type) {
+		case *ast.Ident:
+			newField.Format = octopus.Format(t.String())
+		case *ast.ArrayType:
+			if t.Elt.(*ast.Ident).Name != "byte" {
+				return &arerror.ErrParseTypeFieldDecl{Name: newField.Name, FieldType: t.Elt.(*ast.Ident).Name, Err: arerror.ErrParseFieldArrayOfNotByte}
+			}
+
+			if t.Len == nil {
+				return &arerror.ErrParseTypeFieldDecl{Name: newField.Name, FieldType: t.Elt.(*ast.Ident).Name, Err: arerror.ErrParseFieldArrayNotSlice}
+			}
+
+			return &arerror.ErrParseTypeFieldDecl{Name: newField.Name, FieldType: t.Elt.(*ast.Ident).Name, Err: arerror.ErrParseFieldBinary}
+		default:
+			return &arerror.ErrParseTypeFieldDecl{Name: newField.Name, FieldType: fmt.Sprintf("%T", t), Err: arerror.ErrUnknown}
+		}
+
+		if err := ParseProcFieldsTag(field, &newField); err != nil {
+			return fmt.Errorf("error ParseFieldsTag: %w", err)
+		}
+
+		if err := dst.AddProcField(newField); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

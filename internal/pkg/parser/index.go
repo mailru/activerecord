@@ -172,3 +172,74 @@ func ParseIndexes(dst *ds.RecordPackage, fields []*ast.Field) error {
 
 	return nil
 }
+
+func ParseParams(dst *ds.RecordPackage, fields []*ast.Field) error {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	for _, field := range fields {
+		if field.Names == nil || len(field.Names) != 1 {
+			return &arerror.ErrParseTypeIndexDecl{IndexType: "index", Err: arerror.ErrNameDeclaration}
+		}
+
+		ind := ds.IndexDeclaration{
+			Name:      field.Names[0].Name,
+			Fields:    []int{},
+			FieldsMap: map[string]ds.IndexField{},
+			Selector:  "SelectBy" + field.Names[0].Name}
+
+		if err := checkBoolType(field.Type); err != nil {
+			return &arerror.ErrParseTypeIndexDecl{IndexType: "index", Name: ind.Name, Err: arerror.ErrTypeNotBool}
+		}
+
+		if err := ParseParamTag(field, &ind, dst.FieldsMap); err != nil {
+			return fmt.Errorf("error parse indexTag: %w", err)
+		}
+
+		if err := dst.AddIndex(ind); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func ParseParamTag(field *ast.Field, ind *ds.IndexDeclaration, fieldsMap map[string]int) error {
+	tagParam, err := splitTag(field, CheckFlagEmpty, map[TagNameType]ParamValueRule{PrimaryKeyTag: ParamNotNeedValue, UniqueTag: ParamNotNeedValue})
+	if err != nil {
+		return &arerror.ErrParseTypeIndexDecl{IndexType: "index", Name: ind.Name, Err: err}
+	}
+
+	for _, kv := range tagParam {
+		switch TagNameType(kv[0]) {
+		case SelectorTag:
+			ind.Selector = kv[1]
+		case FieldsTag:
+			for _, fieldName := range strings.Split(kv[1], ",") {
+				if fldNum, ex := fieldsMap[fieldName]; !ex {
+					return &arerror.ErrParseTypeIndexTagDecl{IndexType: "index", Name: ind.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrFieldNotExist}
+				} else if _, ex := ind.FieldsMap[fieldName]; ex {
+					return &arerror.ErrParseTypeIndexTagDecl{IndexType: "index", Name: ind.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrDuplicate}
+				} else {
+					ind.FieldsMap[fieldName] = ds.IndexField{IndField: fldNum, Order: ds.IndexOrderAsc}
+					ind.Fields = append(ind.Fields, fldNum)
+				}
+			}
+		case OrderDescTag:
+			for _, fn := range strings.Split(kv[1], ",") {
+				if _, ex := fieldsMap[fn]; !ex {
+					return &arerror.ErrParseTypeIndexTagDecl{IndexType: "index", Name: ind.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrFieldNotExist}
+				} else if indField, ex := ind.FieldsMap[fn]; !ex {
+					return &arerror.ErrParseTypeIndexTagDecl{IndexType: "index", Name: ind.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrFieldNotExist}
+				} else {
+					indField.Order = ds.IndexOrderDesc
+				}
+			}
+		default:
+			return &arerror.ErrParseTypeIndexTagDecl{IndexType: "index", Name: ind.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrParseTagUnknown}
+		}
+	}
+
+	return nil
+}

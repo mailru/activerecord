@@ -131,11 +131,13 @@ func Test_splitParam(t *testing.T) {
 			want: [][]string{{"a", "b"}, {"d", "f"}, {"g"}},
 		},
 		{
-			name: "tagflagerr", wantErr: true,
+			name:    "tagflagerr",
+			wantErr: false,
 			args: args{
 				str:  "a",
 				rule: map[TagNameType]ParamValueRule{},
 			},
+			want: [][]string{{"a"}},
 		},
 		{
 			name: "tagflagerr", wantErr: true,

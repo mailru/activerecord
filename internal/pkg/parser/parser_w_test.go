@@ -49,6 +49,8 @@ func Test_parseDoc(t *testing.T) {
 				Backends:        []string{"octopus"},
 				Fields:          []ds.FieldDeclaration{},
 				FieldsMap:       map[string]int{},
+				ProcFields:      []ds.ProcFieldDeclaration{},
+				ProcFieldsMap:   map[string]int{},
 				FieldsObjectMap: map[string]ds.FieldObject{},
 				Indexes:         []ds.IndexDeclaration{},
 				IndexMap:        map[string]int{},
@@ -90,7 +92,7 @@ func Test_parseDoc(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := parseDoc(tt.args.dst, tt.args.docs); (err != nil) != tt.wantErr {
+			if err := parseDoc(tt.args.dst, string(Fields), tt.args.docs); (err != nil) != tt.wantErr {
 				t.Errorf("parseDoc() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -365,6 +367,8 @@ func Test_parseAst(t *testing.T) {
 			want: &ds.RecordPackage{
 				Server:          ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11011"},
 				Namespace:       ds.NamespaceDeclaration{Num: 5, PublicName: "Baz", PackageName: "baz"},
+				ProcFields:      []ds.ProcFieldDeclaration{},
+				ProcFieldsMap:   map[string]int{},
 				Fields:          []ds.FieldDeclaration{},
 				FieldsMap:       map[string]int{},
 				FieldsObjectMap: map[string]ds.FieldObject{},

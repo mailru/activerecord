@@ -26,43 +26,113 @@ import (
 {{ $LinkedObject := .LinkedObject }}
 {{ $flags := .Flags }}
 {{ $fields := .FieldList }}
+{{ $procfields := .ProcFieldList }}
+
+{{ if $fields }}
+    type {{ $PublicStructName }} struct {
+        octopus.BaseField
+    {{- range $ind, $fstruct := .FieldList -}}
+        {{ $rtype := $fstruct.Format -}}
+        {{ $serlen := len $fstruct.Serializer -}}
+        {{ if ne $serlen 0 -}}
+            {{ $sname := index $fstruct.Serializiner 0 -}}
+            {{ $serializer := index $serializers $sname -}}
+            {{ $rtype = $serializer.Type -}}
+        {{ end }}
+        field{{ $fstruct.Name }} {{ $rtype -}}
+    {{ end }}
+    }
+
+    type {{ $PublicStructName }}List []*{{ $PublicStructName }}
+
+    const (
+        namespace uint32 = {{ .Container.Num }}
+        cntFields uint32 = {{ len .FieldList }}
+    {{- range $fieldname, $flag := .Flags -}}
+        {{ range $i, $flagname := $flag.Flags }}
+        {{ $fieldname }}{{ $flagname }}Flag = 1 << {{ $i -}}
+        {{ end -}}
+    {{ end }}
+    )
+
+    {{ if .Triggers.RepairTuple.Params.Defaults -}}
+    var defaultValue = [][]byte{
+    {{- $notfirst := false -}}
+    {{ range $ind, $fstruct := .FieldList -}}
+        {{ $packerparam := packerParam $fstruct.Format -}}
+        {{ if $notfirst }},{{ end -}}
+        {{ $notfirst = true }}
+        {{ $packerparam.DefaultValue -}}
+    {{ end -}}
+    }
+    {{- end }}
+{{end}}
+
+// proc struct
+
+{{ if $procfields }}
+
 type {{ $PublicStructName }} struct {
-	octopus.BaseField
-{{- range $ind, $fstruct := .FieldList -}}
-	{{ $rtype := $fstruct.Format -}}
-	{{ $serlen := len $fstruct.Serializer -}}
-	{{ if ne $serlen 0 -}}
-		{{ $sname := index $fstruct.Serializer 0 -}}
-		{{ $serializer := index $serializers $sname -}}
-		{{ $rtype = $serializer.Type -}}
-	{{ end }}
-	field{{ $fstruct.Name }} {{ $rtype -}}
+{{- range $ind, $fstruct := .ProcFieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $ptype := $fstruct.Type -}}
+    {{ $serlen := len $fstruct.Serializer -}}
+    {{ if ne $serlen 0 -}}
+        {{ $sname := index $fstruct.Serializiner 0 -}}
+        {{ $serializer := index $serializers $sname -}}
+        {{ $rtype = $serializer.Type -}}
+    {{ end }}
+    {{ if ne $ptype 1 -}}
+    field{{ $fstruct.Name }} {{ $rtype -}}
+    {{ end }}
 {{ end }}
 }
-
-type {{ $PublicStructName }}List []*{{ $PublicStructName }}
 
 const (
-	namespace uint32 = {{ .Container.Num }}
-	cntFields uint32 = {{ len .FieldList }}
-{{- range $fieldname, $flag := .Flags -}}
-	{{ range $i, $flagname := $flag.Flags }}
-	{{ $fieldname }}{{ $flagname }}Flag = 1 << {{ $i -}}
-	{{ end -}}
-{{ end }}
-)
+    procName string = "{{ .Container.ObjectName }}"
+    )
 
-{{ if .Triggers.RepairTuple.Params.Defaults -}}
-var defaultValue = [][]byte{
-{{- $notfirst := false -}}
-{{ range $ind, $fstruct := .FieldList -}}
-	{{ $packerparam := packerParam $fstruct.Format -}}
-	{{ if $notfirst }},{{ end -}}
-	{{ $notfirst = true }}
-	{{ $packerparam.DefaultValue -}}
-{{ end -}} 
+{{- range $ind, $fstruct := .ProcFieldList -}}
+{{ $rtype := $fstruct.Format -}}
+{{ $ptype := $fstruct.Type -}}
+    {{ if ne $ptype 1 -}}
+    func (obj *{{ $PublicStructName }}) Get{{ $fstruct.Name }}() {{ $rtype }} {
+        return obj.field{{ $fstruct.Name }}
+    }
+    {{ end }}
+{{ end }}
+
+
+type {{ $PublicStructName }}Params struct {
+{{- range $ind, $fstruct := .ProcFieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $ptype := $fstruct.Type -}}
+    {{ $serlen := len $fstruct.Serializer -}}
+    {{ if ne $serlen 0 -}}
+        {{ $sname := index $fstruct.Serializiner 0 -}}
+        {{ $serializer := index $serializers $sname -}}
+        {{ $rtype = $serializer.Type -}}
+    {{ end }}
+    {{ if ne $ptype 3 -}}
+    field{{ $fstruct.Name }} {{ $rtype -}}
+    {{ end }}
+{{ end }}
 }
-{{- end }}
+
+func Call(ctx context.Context, params {{ $PublicStructName }}Params) (*{{ $PublicStructName }}, error) {
+	c, _ := box(ctx, 0, activerecord.ReplicaInstanceType)
+
+	td, err := octopus.CallLua(ctx, c, procName, args...)
+	if err != nil {
+		return nil, fmt.Errorf("call lua procedure %s: %w", procName, err)
+	}
+
+    return nil
+}
+
+// end proc struct
+
+{{end}}
 
 {{ if eq .Server.Conf "" -}}
 var boxOption, _ = octopus.NewOptions(
@@ -838,6 +908,7 @@ func (obj *{{ $PublicStructName }}) packPk() ([][]byte, error) {
 	return packedPk, nil
 }
 
+{{ if $fields }}
 func (obj *{{ $PublicStructName }}) Delete(ctx context.Context) error {
 	logger := activerecord.Logger()
 	metricTimer := activerecord.Metric().Timer("octopus", "{{ $PublicStructName }}")
@@ -1104,3 +1175,4 @@ func (obj *{{ $PublicStructName }}) insertReplace(ctx context.Context, insertMod
 
 	return nil
 }
+{{ end }}

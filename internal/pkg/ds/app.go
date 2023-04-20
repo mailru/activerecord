@@ -56,6 +56,7 @@ func (i *AppInfo) String() string {
 
 // Структура для описания неймспейса сущности
 type NamespaceDeclaration struct {
+	ObjectName  string
 	Num         int64
 	PublicName  string
 	PackageName string
@@ -86,6 +87,8 @@ type RecordPackage struct {
 	ImportPkgMap    map[string]int                   // Обратный индекс от пакетов к импортам
 	TriggerMap      map[string]TriggerDeclaration    // Список триггеров используемых в сущности
 	FlagMap         map[string]FlagDeclaration       // Список флагов используемых в полях сущности
+	ProcFields      []ProcFieldDeclaration           // Описание параметров процедуры, важна последовательность
+	ProcFieldsMap   map[string]int                   // Обратный индекс от имен
 }
 
 // Конструктор для RecordPackage, инициализирует ссылочные типы
@@ -106,6 +109,8 @@ func NewRecordPackage() *RecordPackage {
 		SerializerMap:   map[string]SerializerDeclaration{},
 		TriggerMap:      map[string]TriggerDeclaration{},
 		FlagMap:         map[string]FlagDeclaration{},
+		ProcFields:      []ProcFieldDeclaration{},
+		ProcFieldsMap:   map[string]int{},
 	}
 }
 
@@ -121,6 +126,13 @@ const (
 type IndexField struct {
 	IndField int
 	Order    IndexOrder
+}
+
+// Тип для описания входных параметров при вызове процедуры
+type ParametersDeclaration struct {
+	Name     string // Имя параметра
+	Selector string // Название функции селектора
+	Fields   []int  // Список номеров полей
 }
 
 // Тип для описания индекса
@@ -145,6 +157,15 @@ type FieldDeclaration struct {
 	Size       int64          // Размер поля, используется только для строковых значений
 	Serializer []string       // Сериализатора для поля
 	ObjectLink string         // является ли поле ссылкой на другую сущность
+}
+
+// Тип описывающий поле процедуры
+type ProcFieldDeclaration struct {
+	Name       string         // Название поля
+	Format     octopus.Format // формат поля
+	Type       uint8          // тип параметра (IN, OUT, INOUT)
+	Size       int64          // Размер поля, используется только для строковых значений
+	Serializer []string       // Сериализатора для поля
 }
 
 // Метод возвращающий имя сериализатора, если он установлен, иначе пустую строку

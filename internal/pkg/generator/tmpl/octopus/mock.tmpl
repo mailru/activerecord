@@ -220,15 +220,17 @@ return func() (activerecord.MockerLogger, error){
 				{{ end }}
 				pks += "},"
 				{{ else }}
-					{{ $ifield := index $pkind.Fields 0 -}}
-					{{ $sfield := index $fields $ifield -}}
-					{{ $packerparam := packerParam $sfield.Format }}
-					{{- $tostr := $packerparam.ToString }}
-					{{- $conv := index $tostr 0 }}
-					{{ if ne $conv " " }}
-				pks += {{ index $tostr 0 }}r.Primary(){{ index $tostr 1 }} + ",\n"
-					{{ else }}
-				pks += "\"" + r.Primary() + "\",\n"
+				    {{ if $pkind.Fields }}
+                        {{ $ifield := index $pkind.Fields 0 -}}
+                        {{ $sfield := index $fields $ifield -}}
+                        {{ $packerparam := packerParam $sfield.Format }}
+                        {{- $tostr := $packerparam.ToString }}
+                        {{- $conv := index $tostr 0 }}
+                        {{ if ne $conv " " }}
+                    pks += {{ index $tostr 0 }}r.Primary(){{ index $tostr 1 }} + ",\n"
+                        {{ else }}
+                    pks += "\"" + r.Primary() + "\",\n"
+                        {{ end }}
 					{{ end }}
 				{{ end }}
 			}
