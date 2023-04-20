@@ -111,6 +111,14 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 	}
 
+	for _, fld := range cl.ProcFields {
+		if fld.Type < 1 && fld.Type > 3 {
+
+		}
+		//TODO: добавить валидацию
+		primaryFound = true
+	}
+
 	if !primaryFound {
 		return &arerror.ErrCheckPackageIndexDecl{Pkg: cl.Namespace.PackageName, Index: "primary", Err: arerror.ErrIndexNotExist}
 	}

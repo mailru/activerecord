@@ -38,7 +38,7 @@ func (obj *{{ $PublicStructName }}) MockSelectResponse() ([][]byte, error) {
 {{ end }}
 	return tuple, nil
 }
-
+{{ if $fields }} //indexes
 {{ $pktype := "" }}
 {{ $pklenfld := 1 }}
 {{ $pkind := index .Indexes 0 }}
@@ -112,7 +112,7 @@ func (obj *{{ $PublicStructName }}) Mock{{ $ind.Selector }}sRequest(ctx context.
 				{{ $packparam := printf "key.%s" $sfield.Name -}}
 				{{ $fi := index $fidx $sfield.Name }}
 				{{ $fstruct := index $fields $fi }}
-				{{ $serlen := len $fstruct.Serializer -}}				
+				{{ $serlen := len $fstruct.Serializer -}}
 				data, err = pack{{ $sfield.Name }}([]byte{}, {{ $packparam }})
 				if err != nil {
 					log.Fatal(ctx, err)
@@ -247,7 +247,7 @@ return func() (activerecord.MockerLogger, error){
 }
 
 {{ end }}
-
+{{ end }} //indexes
 func (obj *{{ $PublicStructName }}) RepoSelector(ctx context.Context) (any, error) {
 	data, err := SelectByPrimary(ctx, obj.Primary())
 	if err != nil {

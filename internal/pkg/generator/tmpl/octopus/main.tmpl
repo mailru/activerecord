@@ -35,7 +35,7 @@ import (
         {{ $rtype := $fstruct.Format -}}
         {{ $serlen := len $fstruct.Serializer -}}
         {{ if ne $serlen 0 -}}
-            {{ $sname := index $fstruct.Serializiner 0 -}}
+            {{ $sname := index $fstruct.Serializer 0 -}}
             {{ $serializer := index $serializers $sname -}}
             {{ $rtype = $serializer.Type -}}
         {{ end }}
@@ -68,17 +68,15 @@ import (
     {{- end }}
 {{end}}
 
-// proc struct
-
 {{ if $procfields }}
-
+// proc struct
 type {{ $PublicStructName }} struct {
 {{- range $ind, $fstruct := .ProcFieldList -}}
     {{ $rtype := $fstruct.Format -}}
     {{ $ptype := $fstruct.Type -}}
     {{ $serlen := len $fstruct.Serializer -}}
     {{ if ne $serlen 0 -}}
-        {{ $sname := index $fstruct.Serializiner 0 -}}
+        {{ $sname := index $fstruct.Serializer 0 -}}
         {{ $serializer := index $serializers $sname -}}
         {{ $rtype = $serializer.Type -}}
     {{ end }}
@@ -109,12 +107,12 @@ type {{ $PublicStructName }}Params struct {
     {{ $ptype := $fstruct.Type -}}
     {{ $serlen := len $fstruct.Serializer -}}
     {{ if ne $serlen 0 -}}
-        {{ $sname := index $fstruct.Serializiner 0 -}}
+        {{ $sname := index $fstruct.Serializer 0 -}}
         {{ $serializer := index $serializers $sname -}}
         {{ $rtype = $serializer.Type -}}
     {{ end }}
-    {{ if ne $ptype 3 -}}
-    field{{ $fstruct.Name }} {{ $rtype -}}
+    {{ if ne $ptype 2 -}}
+    {{ $fstruct.Name }} {{ $rtype -}}
     {{ end }}
 {{ end }}
 }
@@ -122,12 +120,14 @@ type {{ $PublicStructName }}Params struct {
 func Call(ctx context.Context, params {{ $PublicStructName }}Params) (*{{ $PublicStructName }}, error) {
 	c, _ := box(ctx, 0, activerecord.ReplicaInstanceType)
 
-	td, err := octopus.CallLua(ctx, c, procName, args...)
+	td, err := octopus.CallLua(ctx, c, procName)
 	if err != nil {
 		return nil, fmt.Errorf("call lua procedure %s: %w", procName, err)
 	}
 
-    return nil
+	_ = td
+
+    return nil, nil
 }
 
 // end proc struct
@@ -602,7 +602,7 @@ func selectBox (ctx context.Context, indexnum uint32, keysPacked [][][]byte, lim
 
 	return nps, nil
 }
-
+{{ if $fields }} // indexes
 {{ $pktype := "" }}
 {{ $pklenfld := 1 }}
 {{ $pkind := index .Indexes 0 }}
@@ -620,7 +620,7 @@ func (obj *{{ $PublicStructName }}) Primary() {{ $ind.Type }} {
 		{{ $ifield.Name }}: obj.Get{{ $ifield.Name }}(),
 			{{- end }}
 	}
-		{{ else }} 
+		{{ else }}
 			{{- range $_, $fieldNum := $ind.Fields }}
 				{{- $ifield := index $fields $fieldNum }}
 	return obj.Get{{ $ifield.Name }}()
@@ -797,6 +797,7 @@ func {{ $ind.Selector }}(ctx context.Context, key {{ $ind.Type }}{{ if not $ind.
 	{{- end }}
 }
 {{ end }}
+{{ end }}// end indexes
 {{ range $name, $fobj := .FieldObject -}}
 {{ $linkedobj := index $LinkedObject $fobj.ObjectName }}
 func (obj *{{ $PublicStructName }}) Get{{ $name }}(ctx context.Context) ({{ if not $fobj.Unique }}[]{{ end }}*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}, error){

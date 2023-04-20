@@ -137,7 +137,8 @@ func Test_checkFields(t *testing.T) {
 			name: "empty fields",
 			args: args{
 				cl: ds.RecordPackage{
-					Fields: []ds.FieldDeclaration{},
+					Fields:     []ds.FieldDeclaration{},
+					ProcFields: []ds.ProcFieldDeclaration{},
 				},
 			},
 			wantErr: true,
