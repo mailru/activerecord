@@ -549,7 +549,7 @@ GetPlatform SetPlatform
 Доступ к фикстурам осуществляется по первичному ключу описанному в структуре модели
 
 Если файлы не были созданы предварительно генератор создает пустые yaml файлы для всех сущностей описанной модели.
-Именование полей модели в yaml файле в формате snake case. Подсмотреть на пример можно в директории `example/testutil/fixture`
+Именование полей модели в yaml файле в формате snake case. Подсмотреть на пример можно в [https://github.com/mailru/activerecord-cookbook/tree/main/example/testutil/fixture](example/testutil/fixture)
 
 ## Примеры использования фикстур
 ## Update
@@ -559,7 +559,7 @@ package test
 
 import (
   "context"
-  "github.com/mailru/activerecord-cookbook//example/testutil/fixture"
+  "github.com/mailru/activerecord-cookbook/example/testutil/fixture"
   "github.com/mailru/activerecord/pkg/octopus"
 )
 
@@ -600,8 +600,8 @@ package test
 
 import (
   "context"
-  "github.com/mailru/activerecord-cookbook//example/testutil/fixture"
-  "github.com/mailru/activerecord-cookbook//example/model/repository/generated/reward"
+  "github.com/mailru/activerecord-cookbook/example/testutil/fixture"
+  "github.com/mailru/activerecord-cookbook/example/model/repository/generated/reward"
   "github.com/mailru/activerecord/pkg/octopus"
 )
 

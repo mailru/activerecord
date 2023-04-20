@@ -15,7 +15,7 @@
 
 ## Пример
 
-Подсмотреть на пример можно в директории `example`
+Подсмотреть на пример можно в [https://github.com/mailru/activerecord-cookbook](activerecord-cookbook)
 
 ## Драйверы
 
