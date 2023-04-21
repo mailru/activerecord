@@ -159,6 +159,15 @@ type FieldDeclaration struct {
 	ObjectLink string         // является ли поле ссылкой на другую сущность
 }
 
+// Метод возвращающий имя сериализатора, если он установлен, иначе пустую строку
+func (f *FieldDeclaration) SerializerName() string {
+	if len(f.Serializer) > 0 {
+		return f.Serializer[0]
+	}
+
+	return ""
+}
+
 // Тип описывающий поле процедуры
 type ProcFieldDeclaration struct {
 	Name       string         // Название поля
@@ -169,7 +178,7 @@ type ProcFieldDeclaration struct {
 }
 
 // Метод возвращающий имя сериализатора, если он установлен, иначе пустую строку
-func (f *FieldDeclaration) SerializerName() string {
+func (f *ProcFieldDeclaration) SerializerName() string {
 	if len(f.Serializer) > 0 {
 		return f.Serializer[0]
 	}
