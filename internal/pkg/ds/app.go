@@ -87,7 +87,8 @@ type RecordPackage struct {
 	ImportPkgMap    map[string]int                   // Обратный индекс от пакетов к импортам
 	TriggerMap      map[string]TriggerDeclaration    // Список триггеров используемых в сущности
 	FlagMap         map[string]FlagDeclaration       // Список флагов используемых в полях сущности
-	ProcFields      []ProcFieldDeclaration           // Описание параметров процедуры, важна последовательность
+	ProcInFields    []ProcFieldDeclaration           // Описание входных параметров процедуры, важна последовательность
+	ProcOutFields   []ProcFieldDeclaration           // Описание выходных параметров процедуры, важна последовательность
 	ProcFieldsMap   map[string]int                   // Обратный индекс от имен
 }
 
@@ -109,7 +110,6 @@ func NewRecordPackage() *RecordPackage {
 		SerializerMap:   map[string]SerializerDeclaration{},
 		TriggerMap:      map[string]TriggerDeclaration{},
 		FlagMap:         map[string]FlagDeclaration{},
-		ProcFields:      []ProcFieldDeclaration{},
 		ProcFieldsMap:   map[string]int{},
 	}
 }

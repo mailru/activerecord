@@ -49,7 +49,6 @@ func Test_parseDoc(t *testing.T) {
 				Backends:        []string{"octopus"},
 				Fields:          []ds.FieldDeclaration{},
 				FieldsMap:       map[string]int{},
-				ProcFields:      []ds.ProcFieldDeclaration{},
 				ProcFieldsMap:   map[string]int{},
 				FieldsObjectMap: map[string]ds.FieldObject{},
 				Indexes:         []ds.IndexDeclaration{},
@@ -367,7 +366,6 @@ func Test_parseAst(t *testing.T) {
 			want: &ds.RecordPackage{
 				Server:          ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11011"},
 				Namespace:       ds.NamespaceDeclaration{Num: 5, PublicName: "Baz", PackageName: "baz"},
-				ProcFields:      []ds.ProcFieldDeclaration{},
 				ProcFieldsMap:   map[string]int{},
 				Fields:          []ds.FieldDeclaration{},
 				FieldsMap:       map[string]int{},

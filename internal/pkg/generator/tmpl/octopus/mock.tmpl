@@ -17,7 +17,7 @@ import (
 {{ $pkgName := .ARPkg }}
 {{ $PublicStructName := .ARPkgTitle -}}
 {{ $fields := .FieldList }}
-{{ $procfields := .ProcFieldList }}
+{{ $procfields := .ProcOutFieldList }}
 {{ $serializers := .Serializers -}}
 {{ $fidx := .FieldMap }}
 
@@ -29,16 +29,13 @@ func (obj *{{ $PublicStructName }}) MockSelectResponse() ([][]byte, error) {
 
 	var err error
 
-{{ range $ind, $fstruct := $procfields -}}
-{{ $ptype := $fstruct.Type -}}
-    {{ if ne $ptype 1 -}}
+{{ range $ind, $fstruct := .ProcOutFieldList -}}
 	data, err = pack{{ $fstruct.Name }}([]byte{}, obj.Get{{ $fstruct.Name }}())
 	if err != nil {
 		return nil, err
 	}
 
 	tuple = append(tuple, data)
-    {{- end }}
 {{ end }}
 	return tuple, nil
 }

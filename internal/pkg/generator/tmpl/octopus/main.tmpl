@@ -26,7 +26,7 @@ import (
 {{ $LinkedObject := .LinkedObject }}
 {{ $flags := .Flags }}
 {{ $fields := .FieldList }}
-{{ $procfields := .ProcFieldList }}
+{{ $procfields := .ProcOutFieldList }}
 
 {{ if $fields }}
     type {{ $PublicStructName }} struct {
@@ -72,18 +72,15 @@ import (
 // proc struct
 type {{ $PublicStructName }} struct {
     params {{ $PublicStructName }}Params
-{{- range $ind, $fstruct := .ProcFieldList -}}
+{{- range $ind, $fstruct := .ProcOutFieldList }}
     {{ $rtype := $fstruct.Format -}}
-    {{ $ptype := $fstruct.Type -}}
     {{ $serlen := len $fstruct.Serializer -}}
     {{ if ne $serlen 0 -}}
         {{ $sname := index $fstruct.Serializer 0 -}}
         {{ $serializer := index $serializers $sname -}}
         {{ $rtype = $serializer.Type -}}
     {{ end -}}
-    {{ if ne $ptype 1 -}}
     field{{- $fstruct.Name }} {{ $rtype -}}
-    {{- end }}
 {{ end }}
 }
 
@@ -91,36 +88,31 @@ type {{ $PublicStructName }}List []*{{ $PublicStructName }}
 
 const (
     procName string = "{{ .Container.ObjectName }}"
+    cntOutFields uint32 = {{ len .ProcOutFieldList }}
     )
 
-{{- range $ind, $fstruct := .ProcFieldList -}}
+{{- range $ind, $fstruct := .ProcOutFieldList -}}
 {{ $rtype := $fstruct.Format -}}
 {{ $sname := $fstruct.Serializer.Name -}}
 {{ if ne $sname "" -}}
     {{ $serializer := index $serializers $sname -}}
     {{ $rtype = $serializer.Type -}}
-{{ end -}}
-{{ $ptype := $fstruct.Type -}}
-    {{ if ne $ptype 1 -}}
+{{ end }}
     func (obj *{{ $PublicStructName }}) Get{{ $fstruct.Name }}() {{ $rtype }} {
         return obj.field{{ $fstruct.Name }}
     }
-    {{ end }}
 {{ end }}
 
 type {{ $PublicStructName }}Params struct {
-{{- range $ind, $fstruct := .ProcFieldList -}}
+{{- range $ind, $fstruct := .ProcInFieldList -}}
     {{ $rtype := $fstruct.Format -}}
-    {{ $ptype := $fstruct.Type -}}
     {{ $serlen := len $fstruct.Serializer -}}
     {{ if ne $serlen 0 -}}
         {{ $sname := index $fstruct.Serializer 0 -}}
         {{ $serializer := index $serializers $sname -}}
         {{ $rtype = $serializer.Type -}}
     {{ end }}
-    {{- if ne $ptype 2 -}}
     {{ $fstruct.Name }} {{ $rtype -}}
-    {{- end }}
 {{ end }}
 }
 
@@ -128,13 +120,16 @@ func (obj *{{ $PublicStructName }}) GetParams() {{ $PublicStructName }}Params {
     return obj.params
 }
 
+func  (obj *{{ $PublicStructName }}) setParams(params {{ $PublicStructName }}Params) error {
+	obj.params = params
+
+	return nil
+}
+
 func (obj *{{ $PublicStructName }}Params) arrayValues() []string  {
 	return []string{
-{{- range $ind, $fstruct := .ProcFieldList -}}
-    {{ $ptype := $fstruct.Type -}}
-    {{- if ne $ptype 2 }}
+{{- range $ind, $fstruct := .ProcInFieldList -}}
 		obj.{{- $fstruct.Name -}},
-    {{- end }}
 {{- end }}
 	}
 }
@@ -155,13 +150,17 @@ func Call(ctx context.Context, params {{ $PublicStructName }}Params) (*{{ $Publi
 		return nil, err
 	}
 
-	tuples, err := octopus.CallLua(ctx, connection, procName, params.arrayValues()...)
+	td, err := octopus.CallLua(ctx, connection, procName, params.arrayValues()...)
 	if err != nil {
 		metricErrCnt.Inc(ctx, "call_proc", 1)
 		return nil, fmt.Errorf("call lua procedure %s: %w", procName, err)
 	}
 
-	ret, err := tupleToStruct(ctx, tuples)
+    if len(td) != 1 {
+        return nil, fmt.Errorf("invalid response len from lua call: %d. Only one tuple supported", len(td))
+    }
+
+	ret, err := TupleToStruct(ctx, td[0])
 	if err != nil {
 		metricErrCnt.Inc(ctx, "call_proc_preparebox", 1)
 		logger.Error(ctx, "Error in response: ", err)
@@ -174,25 +173,26 @@ func Call(ctx context.Context, params {{ $PublicStructName }}Params) (*{{ $Publi
 	return ret, nil
 }
 
-func tupleToStruct(ctx context.Context, tuples []octopus.TupleData) (*{{ $PublicStructName }}, error) {
+func TupleToStruct(ctx context.Context, tuple octopus.TupleData) (*{{ $PublicStructName }}, error) {
+    if tuple.Cnt < cntOutFields {
+        return nil, fmt.Errorf("not enought selected fields %d in response tuple: %d but expected %d fields", tuple.Cnt, tuple.Cnt, cntOutFields)
+    }
+
 	np := {{ $PublicStructName }}{}
 
-	{{ range $ind, $fstruct := .ProcFieldList -}}
-	{{ $ptype := $fstruct.Type -}}
-	    {{ if ne $ptype 1 -}}
-	val{{ $fstruct.Name }}, err := Unpack{{ $fstruct.Name -}}(bytes.NewReader(tuples[{{$ind}} - 1].Data[0]))
+	{{ range $ind, $fstruct := .ProcOutFieldList -}}
+	val{{ $fstruct.Name }}, err := Unpack{{ $fstruct.Name -}}(bytes.NewReader(tuple.Data[{{$ind}}]))
 	if err != nil {
 		return nil, err
 	}
 
 	np.field{{ $fstruct.Name }} = val{{ $fstruct.Name }}
-	    {{ end }}
 	{{ end }}
 
 	return &np, nil
 }
 
-{{ range $ind, $fstruct := .ProcFieldList -}}
+{{ range $ind, $fstruct := .ProcOutFieldList -}}
 	{{ $packerparam := packerParam $fstruct.Format -}}
 	{{ $rtype := $fstruct.Format -}}
 	{{ $sname := $fstruct.Serializer.Name -}}
@@ -200,14 +200,11 @@ func tupleToStruct(ctx context.Context, tuples []octopus.TupleData) (*{{ $Public
 		{{ $serializer := index $serializers $sname -}}
 		{{ $rtype = $serializer.Type -}}
 	{{ end -}}
-    {{ $ptype := $fstruct.Type -}}
-    {{ if ne $ptype 1 -}}
 func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {{ $rtype }}) error {
 	obj.field{{ $fstruct.Name }} = {{ $fstruct.Name}}
 
 	return nil
 }
-    {{- end }}
 
 func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error) {
 	var {{ $fstruct.Name }} {{ if ne $packerparam.UnpackType "" }}{{ $packerparam.UnpackType }}{{ else }}{{ $fstruct.Format }}{{ end }}
@@ -350,16 +347,15 @@ func box(ctx context.Context, shard int, instType activerecord.ShardInstanceType
 	return box, nil
 }
 
-{{ if $fields }}
 func New(ctx context.Context) *{{ $PublicStructName }} {
 	newObj := {{ $PublicStructName }}{}
+	{{- if $fields }}
 	newObj.BaseField.UpdateOps = []octopus.Ops{}
 	newObj.BaseField.ExtraFields = [][]byte{}
 	newObj.BaseField.Objects = map[string][]octopus.ModelStruct{}
-
+    {{ end }}
 	return &newObj
 }
-{{ end }}
 
 {{- if .Triggers.RepairTuple }}
 func repairTuple(ctx context.Context, tuple *octopus.TupleData) error {

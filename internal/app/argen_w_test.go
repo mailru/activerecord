@@ -679,7 +679,6 @@ type TriggersFoo struct {
 					},
 					FieldsMap:       map[string]int{"Field1": 0, "Field2": 1},
 					FieldsObjectMap: map[string]ds.FieldObject{},
-					ProcFields:      []ds.ProcFieldDeclaration{},
 					ProcFieldsMap:   map[string]int{},
 					Indexes: []ds.IndexDeclaration{
 						{

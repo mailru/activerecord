@@ -111,7 +111,7 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 	}
 
-	for _, fld := range cl.ProcFields {
+	for _, fld := range cl.ProcOutFields {
 		if fld.Type < 1 && fld.Type > 3 {
 
 		}

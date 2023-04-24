@@ -132,7 +132,6 @@ type TriggersFoo struct {
 					},
 				},
 				FlagMap:       map[string]ds.FlagDeclaration{},
-				ProcFields:    []ds.ProcFieldDeclaration{},
 				ProcFieldsMap: map[string]int{},
 			},
 		},
@@ -205,8 +204,11 @@ type ProcFieldsFoo struct {
 				Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11111"},
 				Fields:    []ds.FieldDeclaration{},
 				FieldsMap: map[string]int{},
-				ProcFields: []ds.ProcFieldDeclaration{
+				ProcInFields: []ds.ProcFieldDeclaration{
 					{Name: "InParams1", Format: "string", Type: 1, Serializer: []string{}},
+					{Name: "InOutParams2", Format: "string", Type: 3, Serializer: []string{}},
+				},
+				ProcOutFields: []ds.ProcFieldDeclaration{
 					{Name: "InOutParams2", Format: "string", Type: 3, Serializer: []string{}},
 					{Name: "Output", Format: "string", Type: 2, Serializer: []string{}},
 				},

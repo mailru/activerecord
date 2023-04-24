@@ -130,13 +130,21 @@ func TestGenerateOctopus(t *testing.T) {
 					ARPkgTitle: "Foo",
 					FieldList:  []ds.FieldDeclaration{},
 					FieldMap:   map[string]int{},
-					ProcFieldList: []ds.ProcFieldDeclaration{
+					ProcInFieldList: []ds.ProcFieldDeclaration{
 						{
 							Name:       "Input",
 							Format:     "string",
 							Type:       1,
 							Serializer: []string{},
 						},
+						{
+							Name:       "InputOutput",
+							Format:     "string",
+							Type:       2,
+							Serializer: []string{},
+						},
+					},
+					ProcOutFieldList: []ds.ProcFieldDeclaration{
 						{
 							Name:       "InputOutput",
 							Format:     "string",
@@ -176,7 +184,7 @@ func TestGenerateOctopus(t *testing.T) {
 					`func (obj *Foo) GetOutput() int {`,
 					`func (obj *Foo) GetInputOutput() string {`,
 					`func Call(ctx context.Context, params FooParams) (*Foo, error)`,
-					`func tupleToStruct(ctx context.Context, tuples []octopus.TupleData) (*Foo, error) {`,
+					`func TupleToStruct(ctx context.Context, tuple octopus.TupleData) (*Foo, error) {`,
 					`func box(ctx context.Context, shard int, instType activerecord.ShardInstanceType) (*octopus.Connection, error) {`,
 					`procName string = "bar"`,
 					`type Foo struct {`,

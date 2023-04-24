@@ -23,7 +23,7 @@ import (
 {{ $PackageName := .ARPkg -}}
 {{ $PublicStructName := .ARPkgTitle -}}
 {{ $fields := .FieldList }}
-{{ $procfields := .ProcFieldList }}
+{{ $procfields := .ProcOutFieldList }}
 {{ $typePK := "" -}}
 {{ $fieldNamePK := "" -}}
 
@@ -58,7 +58,7 @@ func Get{{$PublicStructName}}ByParams(params {{$PackageName}}.{{$PublicStructNam
 
     ctx := activerecord.Logger().SetLoggerValueToContext(context.Background(), map[string]interface{}{"Get{{$PublicStructName}}ByParams": params, "FixtureStore": "{{$PackageName}}Store"})
 
-    activerecord.Logger().Debug(ctx, res)
+    activerecord.Logger().Debug(ctx, {{$PackageName}}.{{$PublicStructName}}List([]*{{$PackageName}}.{{$PublicStructName}}{res}))
 
     return res
 }
