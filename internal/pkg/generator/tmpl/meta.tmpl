@@ -47,6 +47,7 @@ var NamespacePackages = NSPackage {
             {{- end }}
         },
         Indexes: map[string]IndexMeta{
+        {{ if $ns.Indexes }}
         {{- $pk := index $ns.Indexes 0 }}
         {{- range $num, $ind := $ns.Indexes }}
             {{- if $ind.Primary }}{{ $pk = $ind }}{{ end }}
@@ -55,10 +56,14 @@ var NamespacePackages = NSPackage {
                 Unpacker: func(packedKeys [][][]byte) (any, error) { return {{ $ns.Namespace.PackageName }}.UnpackKeyIndex{{ $ind.Name }}(packedKeys)},
             },
         {{- end }}
+        {{- end }}
         },
         PK: IndexMeta{
+            {{ if $ns.Indexes }}
+            {{- $pk := index $ns.Indexes 0 }}
             Name: "{{ $pk.Name }}",
             Unpacker: func(packedKeys [][][]byte) (any, error) { return {{ $ns.Namespace.PackageName }}.UnpackKeyIndex{{ $pk.Name }}(packedKeys)},
+            {{- end }}
         },
     },
 {{ end }}

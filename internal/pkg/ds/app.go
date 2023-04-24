@@ -148,52 +148,46 @@ type IndexDeclaration struct {
 	Partial   bool                  // Признак того, что индекс частичный
 }
 
-// Тип описывающий поле в сущности
+// Serializer Сериализаторы для поля
+type Serializer []string
+
+// FieldDeclaration Тип описывающий поле в сущности
 type FieldDeclaration struct {
 	Name       string         // Название поля
 	Format     octopus.Format // формат поля
 	PrimaryKey bool           // участвует ли поле в первичном ключе (при изменении таких полей необходимо делать delete + insert вместо update)
 	Mutators   []FieldMutator // список мутаторов (атомарных действий на уровне БД)
 	Size       int64          // Размер поля, используется только для строковых значений
-	Serializer []string       // Сериализатора для поля
+	Serializer Serializer     // Сериализатора для поля
 	ObjectLink string         // является ли поле ссылкой на другую сущность
 }
 
-// Метод возвращающий имя сериализатора, если он установлен, иначе пустую строку
-func (f *FieldDeclaration) SerializerName() string {
-	if len(f.Serializer) > 0 {
-		return f.Serializer[0]
+// Name возвращает имя сериализатора, если он установлен, иначе пустую строку
+func (s Serializer) Name() string {
+	if len(s) > 0 {
+		return s[0]
 	}
 
 	return ""
 }
 
-// Тип описывающий поле процедуры
+// Params Параметры передаваемые при сериализации. Используется, когда на уровне декларирования
+// известно, что сериализатор/десериализатор требует дополнительных константных значений
+func (s Serializer) Params() string {
+	if len(s) > 1 {
+		return `"` + strings.Join(s[1:], `", "`) + `", `
+	}
+
+	return ""
+}
+
+// ProcFieldDeclaration Тип описывающий поле процедуры
 type ProcFieldDeclaration struct {
 	Name       string         // Название поля
 	Format     octopus.Format // формат поля
 	Type       uint8          // тип параметра (IN, OUT, INOUT)
 	Size       int64          // Размер поля, используется только для строковых значений
-	Serializer []string       // Сериализатора для поля
-}
-
-// Метод возвращающий имя сериализатора, если он установлен, иначе пустую строку
-func (f *ProcFieldDeclaration) SerializerName() string {
-	if len(f.Serializer) > 0 {
-		return f.Serializer[0]
-	}
-
-	return ""
-}
-
-// Параметры передаваемые при сериализации. Используется, когда на уровне декларирования
-// известно, что сериализатор/десериализатор требует дополнительных константных значений
-func (f *FieldDeclaration) SerializerParams() string {
-	if len(f.Serializer) > 1 {
-		return `"` + strings.Join(f.Serializer[1:], `", "`) + `", `
-	}
-
-	return ""
+	Serializer Serializer     // Сериализатора для поля
 }
 
 // Тип и константы описывающие мутаторы для поля

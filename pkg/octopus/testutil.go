@@ -120,6 +120,27 @@ func CreateInsertOrReplaceFixture(entity MockEntities, reqData []byte, trigger f
 	return oft
 }
 
+// CreateCallFixture - конструктор фикстур для вызова процедуры
+func CreateCallFixture(reqData func(mocks []MockEntities) []byte, respEnt []MockEntities) (FixtureType, error) {
+	newID := atomic.AddUint32(&fixtureID, 1)
+
+	respByte, err := PackMockResponse(respEnt)
+	if err != nil {
+		return FixtureType{}, fmt.Errorf("error prepare fixture response: %s", err)
+	}
+
+	oft := FixtureType{
+		ID:       newID,
+		Msg:      RequestTypeCall,
+		Request:  reqData(respEnt),
+		Response: respByte,
+		RespObjs: respEnt,
+		Trigger:  nil,
+	}
+
+	return oft, nil
+}
+
 func WrapTriggerWithOnUsePromise(trigger func(types []FixtureType) []FixtureType) (wrappedTrigger func(types []FixtureType) []FixtureType, isUsed func() bool) {
 	used := false
 

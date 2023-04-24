@@ -23,9 +23,71 @@ import (
 {{ $PackageName := .ARPkg -}}
 {{ $PublicStructName := .ARPkgTitle -}}
 {{ $fields := .FieldList }}
+{{ $procfields := .ProcFieldList }}
 {{ $typePK := "" -}}
 {{ $fieldNamePK := "" -}}
 
+{{ if $procfields }}
+var {{$PackageName}}Once sync.Once
+var {{$PackageName}}Store map[{{$PackageName}}.{{$PublicStructName}}Params]*{{$PackageName}}.{{$PublicStructName}}
+
+//go:embed data/{{$PackageName}}.yaml
+var {{$PackageName}}Source []byte
+
+func init{{$PublicStructName}}() {
+    {{$PackageName}}Once.Do(func() {
+        fixtures := {{$PackageName}}.UnmarshalFixtures({{$PackageName}}Source)
+
+        {{$PackageName}}Store = map[{{$PackageName}}.{{$PublicStructName}}Params]*{{$PackageName}}.{{$PublicStructName}}{}
+        for _, f := range fixtures {
+            if _, ok := {{$PackageName}}Store[f.GetParams()]; ok {
+                log.Fatalf("{{$PackageName}} fixture with params %v are duplicated", f.GetParams())
+            }
+            {{$PackageName}}Store[f.GetParams()] = f
+        }
+    })
+}
+
+func Get{{$PublicStructName}}ByParams(params {{$PackageName}}.{{$PublicStructName}}Params) *{{$PackageName}}.{{$PublicStructName}} {
+    init{{$PublicStructName}}()
+
+    res, ex := {{$PackageName}}Store[params]
+    if !ex {
+        log.Fatalf("{{$PublicStructName}} fixture with params %v not found", params)
+    }
+
+    ctx := activerecord.Logger().SetLoggerValueToContext(context.Background(), map[string]interface{}{"Get{{$PublicStructName}}ByParams": params, "FixtureStore": "{{$PackageName}}Store"})
+
+    activerecord.Logger().Debug(ctx, res)
+
+    return res
+}
+
+type {{ $PublicStructName }}ProcedureMocker struct {}
+
+func (m {{ $PublicStructName }}ProcedureMocker) ByFixtureParams(ctx context.Context, params {{$PackageName}}.FooParams) octopus.FixtureType {
+	return m.ByParamsMocks(ctx, params,
+		[]octopus.MockEntities{
+			Get{{$PublicStructName}}ByParams(params),
+		})
+}
+
+func (m {{ $PublicStructName }}ProcedureMocker) ByParamsMocks(ctx context.Context, params {{$PackageName}}.FooParams, mocks []octopus.MockEntities) octopus.FixtureType {
+	oft, err := octopus.CreateCallFixture(
+		func(wsubME []octopus.MockEntities) []byte {
+			return {{$PackageName}}.MockCallRequest(ctx, params)
+		},
+		mocks,
+	)
+	if err != nil {
+		activerecord.Logger().Fatal(ctx, fmt.Sprintf("Error create mock by params: %s", err))
+	}
+
+	return oft
+}
+{{ end }}
+
+{{ if $fields }}
 {{ range $num, $ind := .Indexes -}}
 {{ $lenfld := len $ind.Fields -}}
 	{{ if $ind.Primary }}
@@ -37,7 +99,6 @@ import (
         {{- $fieldNamePK = $ind.Name -}}
     {{ end }}
 {{ end }}
-
 
 {{ range $_, $mockOperation := split ",Update,InsertReplace" "," }}
 var {{$PackageName}}{{ $mockOperation }}Once sync.Once
@@ -114,7 +175,7 @@ func Update{{ $PublicStructName }}Fixture({{ $fieldNamePK }} {{ $typePK }}) {{ $
 {{- range $_, $fstruct := .FieldList}}
         {{/* Determine real filed type */}}
     	{{ $rtype := $fstruct.Format -}}
-    	{{ $sname := $fstruct.SerializerName -}}
+    	{{ $sname := $fstruct.Serializer.Name -}}
     	{{ if ne $sname "" -}}
     		{{ $serializer := index $serializers $sname -}}
     		{{ $rtype = $serializer.Type -}}
@@ -168,6 +229,7 @@ func (bf {{ $PublicStructName }}BuildableFixture) Build(ctx context.Context) (fx
 
     return octopus.CreateUpdateFixture(obj.MockUpdate(ctx), wrappedTrigger), promiseIsUsed
 }
+{{- end }}
 
 {{ range $num, $ind := .Indexes -}}
 {{ $lenfld := len $ind.Fields }}

@@ -71,6 +71,7 @@ import (
 {{ if $procfields }}
 // proc struct
 type {{ $PublicStructName }} struct {
+    params {{ $PublicStructName }}Params
 {{- range $ind, $fstruct := .ProcFieldList -}}
     {{ $rtype := $fstruct.Format -}}
     {{ $ptype := $fstruct.Type -}}
@@ -86,12 +87,19 @@ type {{ $PublicStructName }} struct {
 {{ end }}
 }
 
+type {{ $PublicStructName }}List []*{{ $PublicStructName }}
+
 const (
     procName string = "{{ .Container.ObjectName }}"
     )
 
 {{- range $ind, $fstruct := .ProcFieldList -}}
 {{ $rtype := $fstruct.Format -}}
+{{ $sname := $fstruct.Serializer.Name -}}
+{{ if ne $sname "" -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $rtype = $serializer.Type -}}
+{{ end -}}
 {{ $ptype := $fstruct.Type -}}
     {{ if ne $ptype 1 -}}
     func (obj *{{ $PublicStructName }}) Get{{ $fstruct.Name }}() {{ $rtype }} {
@@ -114,6 +122,10 @@ type {{ $PublicStructName }}Params struct {
     {{ $fstruct.Name }} {{ $rtype -}}
     {{- end }}
 {{ end }}
+}
+
+func (obj *{{ $PublicStructName }}) GetParams() {{ $PublicStructName }}Params {
+    return obj.params
 }
 
 func (obj *{{ $PublicStructName }}Params) arrayValues() []string  {
@@ -183,11 +195,20 @@ func tupleToStruct(ctx context.Context, tuples []octopus.TupleData) (*{{ $Public
 {{ range $ind, $fstruct := .ProcFieldList -}}
 	{{ $packerparam := packerParam $fstruct.Format -}}
 	{{ $rtype := $fstruct.Format -}}
-	{{ $sname := $fstruct.SerializerName -}}
+	{{ $sname := $fstruct.Serializer.Name -}}
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
 		{{ $rtype = $serializer.Type -}}
 	{{ end -}}
+    {{ $ptype := $fstruct.Type -}}
+    {{ if ne $ptype 1 -}}
+func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {{ $rtype }}) error {
+	obj.field{{ $fstruct.Name }} = {{ $fstruct.Name}}
+
+	return nil
+}
+    {{- end }}
+
 func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error) {
 	var {{ $fstruct.Name }} {{ if ne $packerparam.UnpackType "" }}{{ $packerparam.UnpackType }}{{ else }}{{ $fstruct.Format }}{{ end }}
 	{{ $isPointer := hasPrefix (printf "%s" $rtype) "*" }}
@@ -207,7 +228,7 @@ func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error)
 	{{ $underlyingType := trimPrefix (printf "%s" $rtype) "*"}}
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
-		{{ $serparams := $fstruct.SerializerParams }}
+		{{ $serparams := $fstruct.Serializer.Params }}
 
 	var svar {{ $underlyingType }}
 
@@ -223,6 +244,22 @@ func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error)
 	{{ end -}}
 
 	return {{ if $isPointer }}&svar{{else}}svar{{end}}, nil
+}
+
+func pack{{ $fstruct.Name }}(w []byte, {{ $fstruct.Name }} {{ $rtype }}) ([]byte, error) {
+	{{ $bvar :=  $packerparam.PackConvFunc $fstruct.Name -}}
+	{{ if ne $sname "" -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $serparams := $fstruct.Serializer.Params -}}
+	pvar, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $bvar }})
+	if err != nil {
+		return nil, fmt.Errorf("error marshal field {{ $fstruct.Name }}: %w", err)
+	}
+	{{- else -}}
+	pvar := {{ $bvar }}
+	{{- end }}
+
+	return {{ $packerparam.PackFunc }}(w, pvar, iproto.ModeDefault), nil
 }
 {{ end }}
 // end proc struct
@@ -434,7 +471,7 @@ func NewFromBox(ctx context.Context, tuples []octopus.TupleData) ([]*{{ $PublicS
 {{ range $ind, $fstruct := .FieldList -}}
 	{{ $packerparam := packerParam $fstruct.Format -}}
 	{{ $rtype := $fstruct.Format -}}
-	{{ $sname := $fstruct.SerializerName -}}
+	{{ $sname := $fstruct.Serializer.Name -}}
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
 		{{ $rtype = $serializer.Type -}}
@@ -443,7 +480,7 @@ func pack{{ $fstruct.Name }}(w []byte, {{ $fstruct.Name }} {{ $rtype }}) ([]byte
 	{{ $bvar :=  $packerparam.PackConvFunc $fstruct.Name -}}
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
-		{{ $serparams := $fstruct.SerializerParams -}}
+		{{ $serparams := $fstruct.Serializer.Params -}}
 	pvar, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $bvar }})
 	if err != nil {
 		return nil, fmt.Errorf("error marshal field {{ $fstruct.Name }}: %w", err)
@@ -474,7 +511,7 @@ func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error)
 	{{ $underlyingType := trimPrefix (printf "%s" $rtype) "*"}}
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
-		{{ $serparams := $fstruct.SerializerParams }}
+		{{ $serparams := $fstruct.Serializer.Params }}
 
 	var svar {{ $underlyingType }}
 	
@@ -769,7 +806,7 @@ func PackKeyIndex{{ $ind.Name }}(ctx context.Context, keys []{{ $ind.Type }}) ([
 				{{ if ne $serlen 0 }}
 					{{ $sname := index $sfield.Serializer 0 -}}
 					{{ $serializer := index $serializers $sname -}}
-					{{ $serparams := $sfield.SerializerParams -}}
+					{{ $serparams := $sfield.Serializer.Params -}}
 					skey, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $packparam }})
 					if err != nil {
 						return nil, err
@@ -834,7 +871,7 @@ func UnpackKeyIndex{{ $ind.Name }}(packedKeys [][][]byte) ([]{{ $ind.Type }}, er
 				{{ if ne $serlen 0 }}
 					{{ $sname := index $sfield.Serializer 0 -}}
 					{{ $serializer := index $serializers $sname -}}
-					{{ $serparams := $sfield.SerializerParams -}}
+					{{ $serparams := $sfield.Serializer.Params -}}
 					skey, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $packparam }})
 					if err != nil {
 						return nil, err
