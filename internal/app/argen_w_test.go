@@ -357,7 +357,7 @@ func TestArGen_preparePackage(t *testing.T) {
 	rpFoo := ds.NewRecordPackage()
 	rpFoo.Backends = []string{"octopus"}
 	rpFoo.Server = ds.ServerDeclaration{Host: "127.0.0.1", Port: "11011"}
-	rpFoo.Namespace = ds.NamespaceDeclaration{Num: 0, PackageName: "foo", PublicName: "Foo"}
+	rpFoo.Namespace = ds.NamespaceDeclaration{ObjectName: "0", PackageName: "foo", PublicName: "Foo"}
 
 	err := rpFoo.AddField(ds.FieldDeclaration{
 		Name:       "ID",
@@ -401,7 +401,7 @@ func TestArGen_preparePackage(t *testing.T) {
 
 	rpBar := ds.NewRecordPackage()
 	rpBar.Backends = []string{"octopus"}
-	rpBar.Namespace = ds.NamespaceDeclaration{Num: 1, PackageName: "bar", PublicName: "Bar"}
+	rpBar.Namespace = ds.NamespaceDeclaration{ObjectName: "1", PackageName: "bar", PublicName: "Bar"}
 
 	err = rpBar.AddField(ds.FieldDeclaration{
 		Name:       "ID",
@@ -671,7 +671,7 @@ type TriggersFoo struct {
 			wantErr: false,
 			want: map[string]*ds.RecordPackage{
 				"foo": {
-					Namespace: ds.NamespaceDeclaration{Num: 2, PublicName: "Foo", PackageName: "foo"},
+					Namespace: ds.NamespaceDeclaration{ObjectName: "2", PublicName: "Foo", PackageName: "foo"},
 					Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11111"},
 					Fields: []ds.FieldDeclaration{
 						{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Size: 5, Serializer: []string{}},

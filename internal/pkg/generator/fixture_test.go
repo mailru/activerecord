@@ -13,8 +13,6 @@ func TestGenerateFixture(t *testing.T) {
 		params PkgData
 	}
 
-	namespaceNum := int64(2)
-
 	packageName := "gift"
 
 	tests := []struct {
@@ -84,7 +82,7 @@ func TestGenerateFixture(t *testing.T) {
 					LinkedObject: map[string]ds.RecordPackage{
 						packageName: {
 							Namespace: ds.NamespaceDeclaration{
-								Num:         0,
+								ObjectName:  "0",
 								PublicName:  "Gift",
 								PackageName: "gift",
 								ModuleName:  "github.com/foo/bar/baz.git/internal/pkg/model/repository/cmpl/",
@@ -92,7 +90,7 @@ func TestGenerateFixture(t *testing.T) {
 						},
 					},
 					Server:      ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11011"},
-					Container:   ds.NamespaceDeclaration{Num: namespaceNum, PublicName: "Testmodel", PackageName: "testmodel"},
+					Container:   ds.NamespaceDeclaration{ObjectName: "0", PublicName: "Testmodel", PackageName: "testmodel"},
 					Serializers: map[string]ds.SerializerDeclaration{},
 					Imports: []ds.ImportDeclaration{
 						{

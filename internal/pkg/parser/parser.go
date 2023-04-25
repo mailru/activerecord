@@ -88,6 +88,29 @@ func parseAst(pkgName string, decls []ast.Decl, rc *ds.RecordPackage) error {
 	return nil
 }
 
+func parseStructNameType(dst *ds.RecordPackage, nodeName string, curr *ast.StructType) error {
+	switch StructNameType(nodeName) {
+	case Fields:
+		return ParseFields(dst, curr.Fields.List)
+	case FieldsObject:
+		return ParseFieldsObject(dst, curr.Fields.List)
+	case Indexes:
+		return ParseIndexes(dst, curr.Fields.List)
+	case IndexParts:
+		return ParseIndexPart(dst, curr.Fields.List)
+	case Serializers:
+		return ParseSerializer(dst, curr.Fields.List)
+	case Triggers:
+		return ParseTrigger(dst, curr.Fields.List)
+	case Flags:
+		return ParseFlags(dst, curr.Fields.List)
+	case ProcFields:
+		return ParseProcFields(dst, curr.Fields.List)
+	default:
+		return arerror.ErrUnknown
+	}
+}
+
 func parseStructType(dst *ds.RecordPackage, name string, doc *ast.CommentGroup, curr *ast.StructType) error {
 	nodeName, public, private, err := getNodeName(name)
 	if err != nil {
@@ -139,29 +162,6 @@ func parseTokenType(dst *ds.RecordPackage, genD *ast.GenDecl) error {
 	}
 
 	return nil
-}
-
-func parseStructNameType(dst *ds.RecordPackage, nodeName string, curr *ast.StructType) error {
-	switch StructNameType(nodeName) {
-	case Fields:
-		return ParseFields(dst, curr.Fields.List)
-	case FieldsObject:
-		return ParseFieldsObject(dst, curr.Fields.List)
-	case Indexes:
-		return ParseIndexes(dst, curr.Fields.List)
-	case IndexParts:
-		return ParseIndexPart(dst, curr.Fields.List)
-	case Serializers:
-		return ParseSerializer(dst, curr.Fields.List)
-	case Triggers:
-		return ParseTrigger(dst, curr.Fields.List)
-	case Flags:
-		return ParseFlags(dst, curr.Fields.List)
-	case ProcFields:
-		return ParseProcFields(dst, curr.Fields.List)
-	default:
-		return arerror.ErrUnknown
-	}
 }
 
 // parseTokenImport финальные проверки перед парсингом импорта
@@ -225,16 +225,15 @@ func parseDoc(dst *ds.RecordPackage, nodeName string, doc *ast.CommentGroup) err
 					}
 
 					dst.Server.Timeout = timeout
-				// TODO: привести к общему строковому типу независимому от бекэнда и типа объекта
 				case "namespace":
 					switch StructNameType(nodeName) {
 					case Fields:
-						nsnum, err := strconv.ParseInt(kv[1], 10, 64)
+						_, err := strconv.ParseInt(kv[1], 10, 64)
 						if err != nil {
 							return &arerror.ErrParseDocDecl{Name: kv[0], Value: kv[1], Err: arerror.ErrParseDocNamespaceDecl}
 						}
 
-						dst.Namespace.Num = nsnum
+						dst.Namespace.ObjectName = kv[1]
 					case ProcFields:
 						if len(kv[1]) == 0 {
 							return &arerror.ErrParseDocDecl{Name: kv[0], Value: kv[1], Err: arerror.ErrParseDocNamespaceDecl}

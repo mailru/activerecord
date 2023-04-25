@@ -9,6 +9,7 @@ var ErrCheckBackendUnknown = errors.New("backend unknown")
 var ErrCheckEmptyNamespace = errors.New("empty namespace")
 var ErrCheckPkgBackendToMatch = errors.New("many backends for one class not supported yet")
 var ErrCheckFieldSerializerNotFound = errors.New("serializer not found")
+var ErrCheckFieldSerializerNotSupported = errors.New("serializer not supported")
 var ErrCheckFieldInvalidFormat = errors.New("invalid format")
 var ErrCheckFieldMutatorConflictPK = errors.New("conflict mutators with primary_key")
 var ErrCheckFieldMutatorConflictSerializer = errors.New("conflict mutators with serializer")
@@ -19,6 +20,9 @@ var ErrCheckPortEmpty = errors.New("serverPort is empty")
 var ErrCheckServerConflict = errors.New("conflict ServerHost and serverConf params")
 var ErrCheckFieldIndexEmpty = errors.New("field for index is empty")
 var ErrCheckObjectNotFound = errors.New("linked object not found")
+var ErrCheckFieldTypeNotFound = errors.New("procedure field type not found")
+var ErrCheckFieldsEmpty = errors.New("empty required field declaration")
+var ErrCheckFieldsManyDecl = errors.New("few declarations of fields not supported")
 
 // Описание ошибки декларации пакета
 type ErrCheckPackageDecl struct {

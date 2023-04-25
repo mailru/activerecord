@@ -85,7 +85,7 @@ func Test_checkNamespace(t *testing.T) {
 			name: "normal namespace",
 			args: args{
 				ns: &ds.NamespaceDeclaration{
-					Num:         0,
+					ObjectName:  "0",
 					PublicName:  "Foo",
 					PackageName: "foo",
 				},
@@ -96,7 +96,7 @@ func Test_checkNamespace(t *testing.T) {
 			name: "empty name",
 			args: args{
 				ns: &ds.NamespaceDeclaration{
-					Num:         0,
+					ObjectName:  "0",
 					PublicName:  "",
 					PackageName: "foo",
 				},
@@ -107,7 +107,7 @@ func Test_checkNamespace(t *testing.T) {
 			name: "empty package",
 			args: args{
 				ns: &ds.NamespaceDeclaration{
-					Num:         0,
+					ObjectName:  "0",
 					PublicName:  "Foo",
 					PackageName: "",
 				},
@@ -334,6 +334,156 @@ func Test_checkFields(t *testing.T) {
 					},
 					SerializerMap: map[string]ds.SerializerDeclaration{
 						"fser": {},
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := checkFields(&tt.args.cl); (err != nil) != tt.wantErr {
+				t.Errorf("checkFields() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_checkProcFields(t *testing.T) {
+	type args struct {
+		cl ds.RecordPackage
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "empty fields",
+			args: args{
+				cl: ds.RecordPackage{
+					ProcOutFields: []ds.ProcFieldDeclaration{},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "2 fields declaration",
+			args: args{
+				cl: ds.RecordPackage{
+					Fields: []ds.FieldDeclaration{
+						{
+							Name:       "Foo",
+							Format:     "int",
+							PrimaryKey: true,
+						},
+					},
+					ProcOutFields: []ds.ProcFieldDeclaration{
+						{
+							Name:   "Foo",
+							Format: "int",
+							Type:   ds.INTOUT,
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty format",
+			args: args{
+				cl: ds.RecordPackage{
+					ProcOutFields: []ds.ProcFieldDeclaration{
+						{
+							Name: "Foo",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid format",
+			args: args{
+				cl: ds.RecordPackage{
+					ProcOutFields: []ds.ProcFieldDeclaration{
+						{
+							Name:   "Foo",
+							Format: "[]int",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "type not found",
+			args: args{
+				cl: ds.RecordPackage{
+					ProcOutFields: []ds.ProcFieldDeclaration{
+						{
+							Name:   "Foo",
+							Format: "int",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "normal field",
+			args: args{
+				cl: ds.RecordPackage{
+					ProcOutFields: []ds.ProcFieldDeclaration{
+						{
+							Name:   "Foo",
+							Format: "int",
+							Type:   ds.OUT,
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "serializer not supported",
+			args: args{
+				cl: ds.RecordPackage{
+					ProcInFields: []ds.ProcFieldDeclaration{
+						{
+							Name:   "Foo",
+							Format: "int",
+							Type:   ds.IN,
+							Serializer: []string{
+								"fser",
+							},
+						},
+					},
+					SerializerMap: map[string]ds.SerializerDeclaration{
+						"fser": {},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "serializer not declared",
+			args: args{
+				cl: ds.RecordPackage{
+					ProcOutFields: []ds.ProcFieldDeclaration{
+						{
+							Name:   "Foo",
+							Format: "int",
+							Type:   2,
+						},
+						{
+							Name:   "Foo",
+							Format: "int",
+							Type:   2,
+							Serializer: []string{
+								"fser",
+							},
+						},
 					},
 				},
 			},

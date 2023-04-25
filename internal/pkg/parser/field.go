@@ -129,9 +129,11 @@ func ParseProcFieldsTag(field *ast.Field, newfield *ds.ProcFieldDeclaration) err
 		for _, kv := range tagParam {
 			switch TagNameType(kv[0]) {
 			case ProcInputParamTag:
-				newfield.Type = newfield.Type | 1
+				//результат бинарной операции 0|IN => IN; 1|IN => IN; 2|IN => INTOUT (3);
+				newfield.Type = newfield.Type | ds.IN
 			case ProcOutputParamTag:
-				newfield.Type = newfield.Type | 2
+				//результат бинарной операции 0|OUT => OUT; 1|OUT => INTOUT (3); 2|OUT => OUT;
+				newfield.Type = newfield.Type | ds.OUT
 			case SizeTag:
 				if kv[1] != "" {
 					size, err := strconv.ParseInt(kv[1], 10, 64)

@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"strconv"
 	"strings"
 	"testing"
 
@@ -14,8 +13,7 @@ func TestGenerateOctopus(t *testing.T) {
 		params PkgData
 	}
 
-	namespaceNum := int64(2)
-	namespaceStr := strconv.FormatUint(uint64(namespaceNum), 10)
+	namespaceStr := "2"
 
 	packageName := "foo"
 
@@ -76,7 +74,7 @@ func TestGenerateOctopus(t *testing.T) {
 					},
 					FieldObject: map[string]ds.FieldObject{},
 					Server:      ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11011"},
-					Container:   ds.NamespaceDeclaration{Num: namespaceNum, PublicName: "Testmodel", PackageName: "testmodel"},
+					Container:   ds.NamespaceDeclaration{ObjectName: "2", PublicName: "Testmodel", PackageName: "testmodel"},
 					Serializers: map[string]ds.SerializerDeclaration{},
 					Imports:     []ds.ImportDeclaration{},
 					Triggers:    map[string]ds.TriggerDeclaration{},
@@ -158,10 +156,9 @@ func TestGenerateOctopus(t *testing.T) {
 							Serializer: []string{"s2i"},
 						},
 					},
-					ProcFieldMap: map[string]int{},
-					Server:       ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11011"},
-					Container:    ds.NamespaceDeclaration{ObjectName: "bar", PublicName: "Testmodel", PackageName: "testmodel"},
-					Indexes:      []ds.IndexDeclaration{{}},
+					Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11011"},
+					Container: ds.NamespaceDeclaration{ObjectName: "bar", PublicName: "Testmodel", PackageName: "testmodel"},
+					Indexes:   []ds.IndexDeclaration{{}},
 					Serializers: map[string]ds.SerializerDeclaration{
 						"s2i": {
 							Name:        "Output",

@@ -57,7 +57,6 @@ func (i *AppInfo) String() string {
 // Структура для описания неймспейса сущности
 type NamespaceDeclaration struct {
 	ObjectName  string
-	Num         int64
 	PublicName  string
 	PackageName string
 	ModuleName  string
@@ -181,13 +180,22 @@ func (s Serializer) Params() string {
 	return ""
 }
 
+type ProcParameterType uint8
+
+const (
+	_      ProcParameterType = iota
+	IN                       //тип входного параметра процедуры
+	OUT                      //тип выходного параметра процедуры
+	INTOUT                   //тип одновременно и входного и выходного параметра процедуры
+)
+
 // ProcFieldDeclaration Тип описывающий поле процедуры
 type ProcFieldDeclaration struct {
-	Name       string         // Название поля
-	Format     octopus.Format // формат поля
-	Type       uint8          // тип параметра (IN, OUT, INOUT)
-	Size       int64          // Размер поля, используется только для строковых значений
-	Serializer Serializer     // Сериализатора для поля
+	Name       string            // Название поля
+	Format     octopus.Format    // формат поля
+	Type       ProcParameterType // тип параметра (IN, OUT, INOUT)
+	Size       int64             // Размер поля, используется только для строковых значений
+	Serializer Serializer        // Сериализатора для поля
 }
 
 // Тип и константы описывающие мутаторы для поля

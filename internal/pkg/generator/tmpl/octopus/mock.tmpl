@@ -59,6 +59,24 @@ func (obj *{{ $PublicStructName }}) RepoSelector(ctx context.Context) (any, erro
 
 	return data, err
 }
+
+func CallMockerLogger(params {{ $PublicStructName }}Params, res {{ $PublicStructName }}List) func() (activerecord.MockerLogger, error) {
+return func() (activerecord.MockerLogger, error){
+
+		mockerName := "mocker{{ $PublicStructName }}ByParams"
+		mocker := "fixture.Get{{ $PublicStructName }}ProcedureMocker()"
+
+        fixture := "ps := {{$PublicStructName}}Params{ \n"
+        {{- range $ind, $fstruct := .ProcInFieldList }}
+            fixture += "{{$fstruct.Name}}: params.{{$fstruct.Name}},\n"
+        {{- end }}
+        fixture += "}\n"
+		fixture += mocker
+		fixture += ".ByFixtureParams(ctx, ps)"
+
+		return activerecord.MockerLogger{MockerName: mockerName, Mockers: mocker, FixturesSelector: fixture, ResultName: "{{ $pkgName }}", Results: res}, nil
+	}
+}
 {{- end }}
 
 {{ if $fields }}

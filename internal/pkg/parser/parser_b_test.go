@@ -76,7 +76,7 @@ type TriggersFoo struct {
 			},
 			wantErr: false,
 			want: &ds.RecordPackage{
-				Namespace: ds.NamespaceDeclaration{Num: 2, PublicName: "Foo", PackageName: "foo"},
+				Namespace: ds.NamespaceDeclaration{ObjectName: "2", PublicName: "Foo", PackageName: "foo"},
 				Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11111"},
 				Fields: []ds.FieldDeclaration{
 					{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Size: 5, Serializer: []string{}},

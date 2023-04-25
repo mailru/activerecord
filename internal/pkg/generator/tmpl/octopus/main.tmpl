@@ -46,7 +46,7 @@ import (
     type {{ $PublicStructName }}List []*{{ $PublicStructName }}
 
     const (
-        namespace uint32 = {{ .Container.Num }}
+        namespace uint32 = {{ .Container.ObjectName }}
         cntFields uint32 = {{ len .FieldList }}
     {{- range $fieldname, $flag := .Flags -}}
         {{ range $i, $flagname := $flag.Flags }}
@@ -169,6 +169,8 @@ func Call(ctx context.Context, params {{ $PublicStructName }}Params) (*{{ $Publi
 	}
 
 	metricTimer.Finish(ctx, "call_proc")
+
+	activerecord.Logger().CollectQueries(ctx, CallMockerLogger(params, {{ $PublicStructName }}List([]*{{ $PublicStructName }}{ret})))
 
 	return ret, nil
 }

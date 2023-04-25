@@ -94,10 +94,6 @@ func splitParam(str string, rule map[TagNameType]ParamValueRule) ([][]string, er
 				r = rule[NameDefaultRule]
 			}
 
-			//if r == ParamNeedValue && len(kv) != 2 {
-			//	return nil, &arerror.ErrParseTagDecl{Name: kv[0], Err: arerror.ErrParseTagNoValue}
-			//}
-
 			if r == ParamNotNeedValue && len(kv) == 2 {
 				return nil, &arerror.ErrParseTagDecl{Name: kv[0], Err: arerror.ErrParseTagWithValue}
 			}

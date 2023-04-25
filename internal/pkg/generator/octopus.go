@@ -37,6 +37,7 @@ func GenerateOctopus(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGener
 
 	octopusFile := bufio.NewWriter(&octopusWriter)
 
+	//TODO возможно имеет смысл разделить большой шаблон OctopusRootRepositoryTmpl для удобства поддержки
 	err := GenerateByTmpl(octopusFile, params, "octopus", OctopusRootRepositoryTmpl)
 	if err != nil {
 		return nil, err

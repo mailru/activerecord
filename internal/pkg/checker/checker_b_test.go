@@ -11,7 +11,7 @@ import (
 func TestCheck(t *testing.T) {
 	rpFoo := ds.NewRecordPackage()
 	rpFoo.Backends = []string{"octopus"}
-	rpFoo.Namespace = ds.NamespaceDeclaration{Num: 0, PackageName: "foo", PublicName: "Foo"}
+	rpFoo.Namespace = ds.NamespaceDeclaration{ObjectName: "0", PackageName: "foo", PublicName: "Foo"}
 	rpFoo.Server = ds.ServerDeclaration{Host: "127.0.0.1", Port: "11011"}
 
 	err := rpFoo.AddField(ds.FieldDeclaration{
@@ -56,7 +56,7 @@ func TestCheck(t *testing.T) {
 
 	rpInvalidFormat := ds.NewRecordPackage()
 	rpInvalidFormat.Backends = []string{"octopus"}
-	rpInvalidFormat.Namespace = ds.NamespaceDeclaration{Num: 0, PackageName: "invform", PublicName: "InvalidFormat"}
+	rpInvalidFormat.Namespace = ds.NamespaceDeclaration{ObjectName: "0", PackageName: "invform", PublicName: "InvalidFormat"}
 	rpInvalidFormat.Server = ds.ServerDeclaration{Host: "127.0.0.1", Port: "11011"}
 
 	err = rpInvalidFormat.AddField(ds.FieldDeclaration{

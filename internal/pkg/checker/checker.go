@@ -66,6 +66,10 @@ func checkNamespace(ns *ds.NamespaceDeclaration) error {
 // - есть первичный ключ
 // - имена сущностей на которые ссылаемся на могут пересекаться с именами полей
 func checkFields(cl *ds.RecordPackage) error {
+	if len(cl.Fields) > 0 && len(cl.ProcOutFields) > 0 {
+		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckFieldsManyDecl}
+	}
+
 	primaryFound := false
 
 	octopusAvailFormat := map[octopus.Format]bool{}
@@ -111,15 +115,41 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 	}
 
-	for _, fld := range cl.ProcOutFields {
-		if fld.Type < 1 && fld.Type > 3 {
-
+	for _, fld := range cl.ProcInFields {
+		if _, ex := octopusAvailFormat[fld.Format]; !ex {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
 		}
-		//TODO: добавить валидацию
-		primaryFound = true
+
+		if len(fld.Serializer) > 0 {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotSupported}
+		}
+
+		if fld.Type == 0 {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldTypeNotFound}
+		}
 	}
 
-	if !primaryFound {
+	for _, fld := range cl.ProcOutFields {
+		if _, ex := octopusAvailFormat[fld.Format]; !ex {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
+		}
+
+		if len(fld.Serializer) > 0 {
+			if _, ex := cl.SerializerMap[fld.Serializer[0]]; !ex {
+				return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
+			}
+		}
+
+		if fld.Type == 0 {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldTypeNotFound}
+		}
+	}
+
+	if len(cl.Fields) == 0 && len(cl.ProcOutFields) == 0 {
+		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckFieldsEmpty}
+	}
+
+	if len(cl.Fields) > 0 && !primaryFound {
 		return &arerror.ErrCheckPackageIndexDecl{Pkg: cl.Namespace.PackageName, Index: "primary", Err: arerror.ErrIndexNotExist}
 	}
 

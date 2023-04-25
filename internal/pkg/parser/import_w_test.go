@@ -37,7 +37,7 @@ func TestParseImport(t *testing.T) {
 					Timeout: 0,
 				},
 				Namespace: ds.NamespaceDeclaration{
-					Num:         0,
+					ObjectName:  "",
 					PublicName:  "",
 					PackageName: "",
 				},

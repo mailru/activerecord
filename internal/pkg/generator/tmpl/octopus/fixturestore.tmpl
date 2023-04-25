@@ -65,6 +65,10 @@ func Get{{$PublicStructName}}ByParams(params {{$PackageName}}.{{$PublicStructNam
 
 type {{ $PublicStructName }}ProcedureMocker struct {}
 
+func Get{{ $PublicStructName }}ProcedureMocker() {{ $PublicStructName }}ProcedureMocker {
+	return {{ $PublicStructName }}ProcedureMocker{}
+}
+
 func (m {{ $PublicStructName }}ProcedureMocker) ByFixtureParams(ctx context.Context, params {{$PackageName}}.FooParams) octopus.FixtureType {
 	return m.ByParamsMocks(ctx, params,
 		[]octopus.MockEntities{

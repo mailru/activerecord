@@ -37,7 +37,6 @@ type PkgData struct {
 	LinkedObject     map[string]ds.RecordPackage
 	ProcInFieldList  []ds.ProcFieldDeclaration
 	ProcOutFieldList []ds.ProcFieldDeclaration
-	ProcFieldMap     map[string]int
 	Server           ds.ServerDeclaration
 	Container        ds.NamespaceDeclaration
 	Indexes          []ds.IndexDeclaration
@@ -57,7 +56,6 @@ func NewPkgData(appInfo string, cl ds.RecordPackage) PkgData {
 		FieldMap:         cl.FieldsMap,
 		ProcInFieldList:  cl.ProcInFields,
 		ProcOutFieldList: cl.ProcOutFields,
-		ProcFieldMap:     cl.ProcFieldsMap,
 		FieldObject:      cl.FieldsObjectMap,
 		Server:           cl.Server,
 		Container:        cl.Namespace,
