@@ -127,13 +127,6 @@ type IndexField struct {
 	Order    IndexOrder
 }
 
-// Тип для описания входных параметров при вызове процедуры
-type ParametersDeclaration struct {
-	Name     string // Имя параметра
-	Selector string // Название функции селектора
-	Fields   []int  // Список номеров полей
-}
-
 // Тип для описания индекса
 type IndexDeclaration struct {
 	Name      string                // Имя индекса
@@ -183,10 +176,10 @@ func (s Serializer) Params() string {
 type ProcParameterType uint8
 
 const (
-	_      ProcParameterType = iota
-	IN                       //тип входного параметра процедуры
-	OUT                      //тип выходного параметра процедуры
-	INTOUT                   //тип одновременно и входного и выходного параметра процедуры
+	_     ProcParameterType = iota
+	IN                      //тип входного параметра процедуры
+	OUT                     //тип выходного параметра процедуры
+	INOUT                   //тип одновременно и входного и выходного параметра процедуры
 )
 
 // ProcFieldDeclaration Тип описывающий поле процедуры

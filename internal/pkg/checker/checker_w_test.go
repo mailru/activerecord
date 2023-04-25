@@ -382,7 +382,7 @@ func Test_checkProcFields(t *testing.T) {
 						{
 							Name:   "Foo",
 							Format: "int",
-							Type:   ds.INTOUT,
+							Type:   ds.INOUT,
 						},
 					},
 				},

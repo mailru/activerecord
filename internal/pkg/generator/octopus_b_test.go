@@ -120,7 +120,7 @@ func TestGenerateOctopus(t *testing.T) {
 			},
 		},
 		{
-			name: "simpleProcPkg",
+			name: "procPkg",
 			want: nil,
 			args: args{
 				params: PkgData{
@@ -132,13 +132,13 @@ func TestGenerateOctopus(t *testing.T) {
 						{
 							Name:       "Input",
 							Format:     "string",
-							Type:       1,
+							Type:       ds.IN,
 							Serializer: []string{},
 						},
 						{
 							Name:       "InputOutput",
 							Format:     "string",
-							Type:       2,
+							Type:       ds.OUT,
 							Serializer: []string{},
 						},
 					},
@@ -146,13 +146,13 @@ func TestGenerateOctopus(t *testing.T) {
 						{
 							Name:       "InputOutput",
 							Format:     "string",
-							Type:       2,
+							Type:       ds.OUT,
 							Serializer: []string{},
 						},
 						{
 							Name:       "Output",
 							Format:     "string",
-							Type:       3,
+							Type:       ds.INOUT,
 							Serializer: []string{"s2i"},
 						},
 					},

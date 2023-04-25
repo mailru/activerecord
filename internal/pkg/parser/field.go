@@ -118,7 +118,7 @@ func ParseFields(dst *ds.RecordPackage, fields []*ast.Field) error {
 	return nil
 }
 
-// Функция парсинга тегов полей модели
+// ParseProcFieldsTag парсинг тегов полей декларации процедуры
 func ParseProcFieldsTag(field *ast.Field, newfield *ds.ProcFieldDeclaration) error {
 	tagParam, err := splitTag(field, NoCheckFlag, map[TagNameType]ParamValueRule{PrimaryKeyTag: ParamNotNeedValue, UniqueTag: ParamNotNeedValue})
 	if err != nil {
@@ -129,10 +129,10 @@ func ParseProcFieldsTag(field *ast.Field, newfield *ds.ProcFieldDeclaration) err
 		for _, kv := range tagParam {
 			switch TagNameType(kv[0]) {
 			case ProcInputParamTag:
-				//результат бинарной операции 0|IN => IN; 1|IN => IN; 2|IN => INTOUT (3);
+				//результат бинарной операции 0|IN => IN; 1|IN => IN; 2|IN => INOUT (3);
 				newfield.Type = newfield.Type | ds.IN
 			case ProcOutputParamTag:
-				//результат бинарной операции 0|OUT => OUT; 1|OUT => INTOUT (3); 2|OUT => OUT;
+				//результат бинарной операции 0|OUT => OUT; 1|OUT => INOUT (3); 2|OUT => OUT;
 				newfield.Type = newfield.Type | ds.OUT
 			case SizeTag:
 				if kv[1] != "" {
@@ -154,7 +154,7 @@ func ParseProcFieldsTag(field *ast.Field, newfield *ds.ProcFieldDeclaration) err
 	return nil
 }
 
-// Функция парсинга полей процедуры
+// ParseProcFields парсинг полей процедуры
 func ParseProcFields(dst *ds.RecordPackage, fields []*ast.Field) error {
 	for _, field := range fields {
 		if field.Names == nil || len(field.Names) != 1 {

@@ -98,7 +98,7 @@ func (obj *{{ $PublicStructName }}) MockSelectResponse() ([][]byte, error) {
 {{ end }}
 	return tuple, nil
 }
-{{ if $fields }} //indexes
+{{ if $fields }}
 {{ $pktype := "" }}
 {{ $pklenfld := 1 }}
 {{ $pkind := index .Indexes 0 }}
@@ -307,7 +307,7 @@ return func() (activerecord.MockerLogger, error){
 }
 
 {{ end }}
-{{ end }} //indexes
+{{ end }}
 func (obj *{{ $PublicStructName }}) RepoSelector(ctx context.Context) (any, error) {
 	data, err := SelectByPrimary(ctx, obj.Primary())
 	if err != nil {

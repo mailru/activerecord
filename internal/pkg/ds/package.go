@@ -44,11 +44,11 @@ func (rc *RecordPackage) AddProcField(f ProcFieldDeclaration) error {
 	// добавляем поле и не забываем про обратны индекс
 	rc.ProcFieldsMap[f.Name] = len(rc.ProcFieldsMap)
 	// добавляем поле во входные параметры
-	if f.Type == 1 || f.Type == 3 {
+	if f.Type == IN || f.Type == INOUT {
 		rc.ProcInFields = append(rc.ProcInFields, f)
 	}
 	// добавляем поле в выходные параметры
-	if f.Type == 2 || f.Type == 3 {
+	if f.Type == OUT || f.Type == INOUT {
 		rc.ProcOutFields = append(rc.ProcOutFields, f)
 	}
 
