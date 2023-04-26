@@ -128,14 +128,40 @@ func  (obj *{{ $PublicStructName }}) setParams(params {{ $PublicStructName }}Par
 }
 
 {{ if ne $procInLen 0 }}
-func (obj *{{ $PublicStructName }}Params) arrayValues() []string  {
-	return []string{
-{{- range $ind, $fstruct := .ProcInFieldList -}}
-		obj.{{- $fstruct.Name -}},
-{{- end }}
+func (obj *{{ $PublicStructName }}Params) arrayValues() ([]string, error)  {
+ret := []string{}
+{{ range $ind, $fstruct := .ProcInFieldList -}}
+    {{ $packerparam := packerParam $fstruct.Format -}}
+    {{ $sname := $fstruct.Serializer.Name -}}
+	{{ $bvar :=  $packerparam.PackConvFunc $fstruct.Name -}}
+	{{ if ne $sname "" -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $serparams := $fstruct.Serializer.Params -}}
+	pvar, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}obj.{{ $bvar }})
+	if err != nil {
+		return nil, fmt.Errorf("error marshal param field {{ $fstruct.Name }}: %w", err)
 	}
+
+	ret = append(ret, pvar...)
+	{{- else -}}
+	ret = append(ret, obj.{{ $bvar }})
+	{{- end }}
+{{ end }}
+	return ret, nil
 }
 {{ end }}
+
+func (obj {{ $PublicStructName }}Params) PK() string {
+    {{ if ne $procInLen 0 }}
+	return fmt.Sprint(
+	{{ range $ind, $fstruct := .ProcInFieldList -}}
+		obj.{{ $fstruct.Name }},
+	{{ end -}}
+		)
+	{{ else }}
+	return ""
+	{{ end }}
+}
 
 func Call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) (*{{ $PublicStructName }}, error) {
 	logger := activerecord.Logger()
@@ -153,7 +179,16 @@ func Call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructNa
 		return nil, err
 	}
 
-	td, err := octopus.CallLua(ctx, connection, procName{{ if ne $procInLen 0 }}, params.arrayValues()...{{ end }})
+	var args []string
+	{{ if ne $procInLen 0 }}
+	args, err = params.arrayValues()
+	if err != nil {
+		metricErrCnt.Inc(ctx, "call_proc_preparebox", 1)
+		return nil, fmt.Errorf("Error parse args of procedure %s: %w", procName, err)
+	}
+	{{ end }}
+
+	td, err := octopus.CallLua(ctx, connection, procName, args...)
 	if err != nil {
 		metricErrCnt.Inc(ctx, "call_proc", 1)
 		return nil, fmt.Errorf("call lua procedure %s: %w", procName, err)

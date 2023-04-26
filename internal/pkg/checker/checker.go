@@ -121,7 +121,9 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 
 		if len(fld.Serializer) > 0 {
-			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotSupported}
+			if _, ex := cl.SerializerMap[fld.Serializer[0]]; !ex {
+				return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
+			}
 		}
 
 		if fld.Type == 0 {

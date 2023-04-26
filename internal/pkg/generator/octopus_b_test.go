@@ -244,7 +244,7 @@ func TestGenerateOctopus(t *testing.T) {
 					`procName string = "bar"`,
 					`type Foo struct {`,
 					`type FooParams struct {`,
-					`func (obj *FooParams) arrayValues() []string`,
+					`func (obj *FooParams) arrayValues() ([]string, error)`,
 					`package ` + packageName,
 				},
 				"mock": {

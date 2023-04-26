@@ -139,7 +139,7 @@ func TestGenerateFixture(t *testing.T) {
 			},
 			wantStr: map[string][]string{
 				"fixture": {
-					`var giftStore map[gift.GiftParams]*gift.Gift`,
+					`var giftStore map[string]*gift.Gift`,
 					`func initGift() {`,
 					`func GetGiftByParams(params gift.GiftParams) *gift.Gift {`,
 					`type GiftProcedureMocker struct {}`,
@@ -207,7 +207,7 @@ func TestGenerateFixture(t *testing.T) {
 			},
 			wantStr: map[string][]string{
 				"fixture": {
-					`var giftStore map[gift.GiftParams]*gift.Gift`,
+					`var giftStore map[string]*gift.Gift`,
 					`func initGift() {`,
 					`func GetGiftByParams(params gift.GiftParams) *gift.Gift {`,
 					`type GiftProcedureMocker struct {}`,

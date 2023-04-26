@@ -36,6 +36,12 @@ import (
 type {{ $PublicStructName }}FTPK struct {
     {{- range $ind, $fstruct := .ProcInFieldList }}
         {{ $rtype := $fstruct.Format -}}
+        {{ $serlen := len $fstruct.Serializer -}}
+        {{ if ne $serlen 0 -}}
+            {{ $sname := index $fstruct.Serializer 0 -}}
+            {{ $serializer := index $serializers $sname -}}
+            {{ $rtype = $serializer.Type -}}
+        {{ end }}
 	    {{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}"`
 	{{- end }}
 }

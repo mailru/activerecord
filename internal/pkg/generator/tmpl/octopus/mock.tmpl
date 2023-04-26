@@ -45,7 +45,14 @@ func MockCallRequest(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $Pub
 	log := activerecord.Logger()
 	ctx = log.SetLoggerValueToContext(ctx, map[string]interface{}{ {{ if ne $procInLen 0 }}"MockCallRequest": params, {{ end }}"Proc": "{{ $PublicStructName }}"})
 
-	return octopus.PackLua(procName{{ if ne $procInLen 0 }}, params.arrayValues()...{{ end }})
+	{{ if ne $procInLen 0 }}
+	args, err := params.arrayValues()
+	if err != nil {
+		activerecord.Logger().Fatal(ctx, fmt.Sprintf("Error call mock request by params: %s", err))
+	}
+	{{ end }}
+
+	return octopus.PackLua(procName{{ if ne $procInLen 0 }}, args...{{ end }})
 }
 
 func (obj *{{ $PublicStructName }}) RepoSelector(ctx context.Context) (any, error) {

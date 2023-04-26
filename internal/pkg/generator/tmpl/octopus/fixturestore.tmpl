@@ -29,8 +29,9 @@ import (
 {{ $fieldNamePK := "" -}}
 
 {{ if $procfields }}
+{{ $typePK := "string" -}}
 var {{$PackageName}}Once sync.Once
-var {{$PackageName}}Store map[{{$PackageName}}.{{$PublicStructName}}Params]*{{$PackageName}}.{{$PublicStructName}}
+var {{$PackageName}}Store map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}
 
 //go:embed data/{{$PackageName}}.yaml
 var {{$PackageName}}Source []byte
@@ -39,12 +40,12 @@ func init{{$PublicStructName}}() {
     {{$PackageName}}Once.Do(func() {
         fixtures := {{$PackageName}}.UnmarshalFixtures({{$PackageName}}Source)
 
-        {{$PackageName}}Store = map[{{$PackageName}}.{{$PublicStructName}}Params]*{{$PackageName}}.{{$PublicStructName}}{}
+        {{$PackageName}}Store = map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}{}
         for _, f := range fixtures {
-            if _, ok := {{$PackageName}}Store[f.GetParams()]; ok {
+            if _, ok := {{$PackageName}}Store[f.GetParams().PK()]; ok {
                 log.Fatalf("{{$PackageName}} fixture with params %v are duplicated", f.GetParams())
             }
-            {{$PackageName}}Store[f.GetParams()] = f
+            {{$PackageName}}Store[f.GetParams().PK()] = f
         }
     })
 }
@@ -52,7 +53,7 @@ func init{{$PublicStructName}}() {
 func Get{{$PublicStructName}}ByParams(params {{$PackageName}}.{{$PublicStructName}}Params) *{{$PackageName}}.{{$PublicStructName}} {
     init{{$PublicStructName}}()
 
-    res, ex := {{$PackageName}}Store[params]
+    res, ex := {{$PackageName}}Store[params.PK()]
     if !ex {
         log.Fatalf("{{$PublicStructName}} fixture with params %v not found", params)
     }
