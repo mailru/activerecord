@@ -228,12 +228,7 @@ func parseDoc(dst *ds.RecordPackage, nodeName string, doc *ast.CommentGroup) err
 				case "namespace":
 					switch StructNameType(nodeName) {
 					case Fields:
-						_, err := strconv.ParseInt(kv[1], 10, 64)
-						if err != nil {
-							return &arerror.ErrParseDocDecl{Name: kv[0], Value: kv[1], Err: arerror.ErrParseDocNamespaceDecl}
-						}
-
-						dst.Namespace.ObjectName = kv[1]
+						fallthrough
 					case ProcFields:
 						if len(kv[1]) == 0 {
 							return &arerror.ErrParseDocDecl{Name: kv[0], Value: kv[1], Err: arerror.ErrParseDocNamespaceDecl}

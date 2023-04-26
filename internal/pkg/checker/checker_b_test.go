@@ -61,7 +61,26 @@ func TestCheck(t *testing.T) {
 
 	err = rpInvalidFormat.AddField(ds.FieldDeclaration{
 		Name:       "ID",
-		Format:     octopus.Format("byte"),
+		Format:     "byte",
+		PrimaryKey: true,
+		Mutators:   []ds.FieldMutator{},
+		Size:       0,
+		Serializer: []string{},
+		ObjectLink: "",
+	})
+	if err != nil {
+		t.Errorf("can't prepare test data: %s", err)
+		return
+	}
+
+	onInvalidFormat := ds.NewRecordPackage()
+	onInvalidFormat.Backends = []string{"octopus"}
+	onInvalidFormat.Namespace = ds.NamespaceDeclaration{ObjectName: "invalid", PackageName: "invform", PublicName: "InvalidFormat"}
+	onInvalidFormat.Server = ds.ServerDeclaration{Host: "127.0.0.1", Port: "11011", Conf: "box"}
+
+	err = onInvalidFormat.AddField(ds.FieldDeclaration{
+		Name:       "ID",
+		Format:     "byte",
 		PrimaryKey: true,
 		Mutators:   []ds.FieldMutator{},
 		Size:       0,
@@ -102,6 +121,14 @@ func TestCheck(t *testing.T) {
 			name: "wrong octopus format",
 			args: args{
 				files:         map[string]*ds.RecordPackage{"invalid": rpInvalidFormat},
+				linkedObjects: map[string]string{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "wrong octopus namespace objectname format",
+			args: args{
+				files:         map[string]*ds.RecordPackage{"invalid": onInvalidFormat},
 				linkedObjects: map[string]string{},
 			},
 			wantErr: true,

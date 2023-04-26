@@ -2,6 +2,7 @@ package checker
 
 import (
 	"log"
+	"strconv"
 
 	"github.com/mailru/activerecord/internal/pkg/arerror"
 	"github.com/mailru/activerecord/internal/pkg/ds"
@@ -65,6 +66,8 @@ func checkNamespace(ns *ds.NamespaceDeclaration) error {
 // - сериализуемые поля не могут быть ссылками на другие сущности
 // - есть первичный ключ
 // - имена сущностей на которые ссылаемся на могут пересекаться с именами полей
+//
+//nolint:gocyclo
 func checkFields(cl *ds.RecordPackage) error {
 	if len(cl.Fields) > 0 && len(cl.ProcOutFields) > 0 {
 		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckFieldsManyDecl}
@@ -115,7 +118,7 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 	}
 
-	for _, fld := range cl.ProcInFields {
+	for _, fld := range cl.ProcOutFields {
 		if _, ex := octopusAvailFormat[fld.Format]; !ex {
 			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
 		}
@@ -131,8 +134,13 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 	}
 
-	for _, fld := range cl.ProcOutFields {
-		if _, ex := octopusAvailFormat[fld.Format]; !ex {
+	octopusProcAvailFormat := map[octopus.Format]bool{}
+	for _, form := range octopus.AllProcFormat {
+		octopusProcAvailFormat[form] = true
+	}
+
+	for _, fld := range cl.ProcInFields {
+		if _, ex := octopusProcAvailFormat[fld.Format]; !ex {
 			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
 		}
 
@@ -216,6 +224,28 @@ func checkOctopus(cl *ds.RecordPackage) error {
 	for _, ind := range cl.Indexes {
 		if len(ind.Fields) == 0 {
 			return &arerror.ErrCheckPackageIndexDecl{Pkg: cl.Namespace.PackageName, Index: ind.Name, Err: arerror.ErrCheckFieldIndexEmpty}
+		}
+	}
+
+	if len(cl.Fields) > 0 {
+		_, err := strconv.ParseInt(cl.Namespace.ObjectName, 10, 64)
+		if err != nil {
+			return &arerror.ErrCheckPackageNamespaceDecl{Pkg: cl.Namespace.PackageName, Name: cl.Namespace.ObjectName, Err: arerror.ErrCheckFieldInvalidFormat}
+		}
+	}
+
+	octopusProcAvailFormat := map[octopus.Format]bool{}
+	for _, form := range []octopus.Format{octopus.String, octopus.StringArray, octopus.ByteArray} {
+		octopusProcAvailFormat[form] = true
+	}
+
+	for _, fld := range cl.ProcInFields {
+		if _, ex := octopusProcAvailFormat[fld.Format]; !ex {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
+		}
+
+		if fld.Format != octopus.String && len(fld.Serializer) == 0 {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
 		}
 	}
 

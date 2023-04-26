@@ -396,6 +396,7 @@ func Test_checkProcFields(t *testing.T) {
 					ProcOutFields: []ds.ProcFieldDeclaration{
 						{
 							Name: "Foo",
+							Type: ds.OUT,
 						},
 					},
 				},
@@ -403,13 +404,36 @@ func Test_checkProcFields(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "invalid format",
+			name: "invalid input format",
+			args: args{
+				cl: ds.RecordPackage{
+					ProcOutFields: []ds.ProcFieldDeclaration{
+						{
+							Name:   "Foo",
+							Format: "int",
+							Type:   ds.OUT,
+						},
+					},
+					ProcInFields: []ds.ProcFieldDeclaration{
+						{
+							Name:   "Foo",
+							Format: "[]int",
+							Type:   ds.IN,
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid output format",
 			args: args{
 				cl: ds.RecordPackage{
 					ProcOutFields: []ds.ProcFieldDeclaration{
 						{
 							Name:   "Foo",
 							Format: "[]int",
+							Type:   ds.OUT,
 						},
 					},
 				},
@@ -446,25 +470,26 @@ func Test_checkProcFields(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "serializer not supported",
+			name: "normal input field",
 			args: args{
 				cl: ds.RecordPackage{
 					ProcInFields: []ds.ProcFieldDeclaration{
 						{
 							Name:   "Foo",
-							Format: "int",
+							Format: "[]string",
 							Type:   ds.IN,
-							Serializer: []string{
-								"fser",
-							},
 						},
 					},
-					SerializerMap: map[string]ds.SerializerDeclaration{
-						"fser": {},
+					ProcOutFields: []ds.ProcFieldDeclaration{
+						{
+							Name:   "Foo",
+							Format: "int",
+							Type:   ds.OUT,
+						},
 					},
 				},
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "serializer not declared",
@@ -474,12 +499,12 @@ func Test_checkProcFields(t *testing.T) {
 						{
 							Name:   "Foo",
 							Format: "int",
-							Type:   2,
+							Type:   ds.OUT,
 						},
 						{
 							Name:   "Foo",
 							Format: "int",
-							Type:   2,
+							Type:   ds.OUT,
 							Serializer: []string{
 								"fser",
 							},

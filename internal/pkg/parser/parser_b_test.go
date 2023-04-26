@@ -158,7 +158,7 @@ func TestParseProc(t *testing.T) {
 //ar:namespace:bar
 //ar:backend:octopus
 type ProcFieldsFoo struct {
-	InParams1    string  ` + "`" + `ar:"input"` + "`" + `
+	InParams1    []string  ` + "`" + `ar:"input"` + "`" + `
 	InOutParams2    string  ` + "`" + `ar:"input;output"` + "`" + `
 	Output  string ` + "`" + `ar:"output"` + "`" + `
 }
@@ -205,7 +205,7 @@ type ProcFieldsFoo struct {
 				Fields:    []ds.FieldDeclaration{},
 				FieldsMap: map[string]int{},
 				ProcInFields: []ds.ProcFieldDeclaration{
-					{Name: "InParams1", Format: "string", Type: 1, Serializer: []string{}},
+					{Name: "InParams1", Format: "[]string", Type: 1, Serializer: []string{}},
 					{Name: "InOutParams2", Format: "string", Type: 3, Serializer: []string{}},
 				},
 				ProcOutFields: []ds.ProcFieldDeclaration{

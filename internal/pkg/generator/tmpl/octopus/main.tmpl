@@ -131,20 +131,23 @@ func  (obj *{{ $PublicStructName }}) setParams(params {{ $PublicStructName }}Par
 func (obj *{{ $PublicStructName }}Params) arrayValues() ([]string, error)  {
 ret := []string{}
 {{ range $ind, $fstruct := .ProcInFieldList -}}
-    {{ $packerparam := packerParam $fstruct.Format -}}
     {{ $sname := $fstruct.Serializer.Name -}}
-	{{ $bvar :=  $packerparam.PackConvFunc $fstruct.Name -}}
+	{{ $bvar :=  $fstruct.Name -}}
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
 		{{ $serparams := $fstruct.Serializer.Params -}}
-	pvar, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}obj.{{ $bvar }})
+	pvar{{ $fstruct.Name }}, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}obj.{{ $bvar }})
 	if err != nil {
 		return nil, fmt.Errorf("error marshal param field {{ $fstruct.Name }}: %w", err)
 	}
 
-	ret = append(ret, pvar...)
+        {{ if eq $fstruct.Format "[]string" }}
+        ret = append(ret, pvar{{ $fstruct.Name }}...)
+	    {{ else }}
+	    ret = append(ret, string(pvar{{ $fstruct.Name }}))
+	    {{- end }}
 	{{- else -}}
-	ret = append(ret, obj.{{ $bvar }})
+	ret = append(ret, string(obj.{{ $fstruct.Name }}))
 	{{- end }}
 {{ end }}
 	return ret, nil

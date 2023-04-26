@@ -190,7 +190,7 @@ func TestGenerateOctopus(t *testing.T) {
 					ProcInFieldList: []ds.ProcFieldDeclaration{
 						{
 							Name:       "Input",
-							Format:     "string",
+							Format:     "[]string",
 							Type:       ds.IN,
 							Serializer: []string{},
 						},

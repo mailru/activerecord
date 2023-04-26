@@ -122,20 +122,22 @@ const (
 )
 
 const (
-	Uint8   Format = "uint8"
-	Uint16  Format = "uint16"
-	Uint32  Format = "uint32"
-	Uint64  Format = "uint64"
-	Uint    Format = "uint"
-	Int8    Format = "int8"
-	Int16   Format = "int16"
-	Int32   Format = "int32"
-	Int64   Format = "int64"
-	Int     Format = "int"
-	String  Format = "string"
-	Bool    Format = "bool"
-	Float32 Format = "float32"
-	Float64 Format = "float64"
+	Uint8       Format = "uint8"
+	Uint16      Format = "uint16"
+	Uint32      Format = "uint32"
+	Uint64      Format = "uint64"
+	Uint        Format = "uint"
+	Int8        Format = "int8"
+	Int16       Format = "int16"
+	Int32       Format = "int32"
+	Int64       Format = "int64"
+	Int         Format = "int"
+	String      Format = "string"
+	Bool        Format = "bool"
+	Float32     Format = "float32"
+	Float64     Format = "float64"
+	StringArray Format = "[]string"
+	ByteArray   Format = "[]byte"
 )
 
 var UnsignedFormat = []Format{Uint8, Uint16, Uint32, Uint64, Uint}
@@ -147,6 +149,12 @@ var AllFormat = append(append(append(
 	FloatFormat...),
 	DataFormat...),
 	Bool,
+)
+var AllProcFormat = append(append(append(
+	NumericFormat,
+	FloatFormat...),
+	DataFormat...),
+	Bool, StringArray, ByteArray,
 )
 
 func GetOpCodeName(op OpCode) string {

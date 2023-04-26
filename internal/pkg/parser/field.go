@@ -166,12 +166,22 @@ func ParseProcFields(dst *ds.RecordPackage, fields []*ast.Field) error {
 			Serializer: []string{},
 		}
 
+		if err := ParseProcFieldsTag(field, &newField); err != nil {
+			return fmt.Errorf("error ParseFieldsTag: %w", err)
+		}
+
 		switch t := field.Type.(type) {
 		case *ast.Ident:
 			newField.Format = octopus.Format(t.String())
 		case *ast.ArrayType:
-			if t.Elt.(*ast.Ident).Name != "byte" {
-				return &arerror.ErrParseTypeFieldDecl{Name: newField.Name, FieldType: t.Elt.(*ast.Ident).Name, Err: arerror.ErrParseFieldArrayOfNotByte}
+			if t.Elt.(*ast.Ident).Name != "byte" && t.Elt.(*ast.Ident).Name != "string" {
+				return &arerror.ErrParseTypeFieldDecl{Name: newField.Name, FieldType: t.Elt.(*ast.Ident).Name, Err: arerror.ErrParseProcFieldArraySlice}
+			}
+
+			// если входной параметр slice
+			if newField.Type == ds.IN && t.Len == nil {
+				newField.Format = octopus.Format(fmt.Sprintf("[]%s", t.Elt.(*ast.Ident).Name))
+				break
 			}
 
 			if t.Len == nil {
@@ -181,10 +191,6 @@ func ParseProcFields(dst *ds.RecordPackage, fields []*ast.Field) error {
 			return &arerror.ErrParseTypeFieldDecl{Name: newField.Name, FieldType: t.Elt.(*ast.Ident).Name, Err: arerror.ErrParseFieldBinary}
 		default:
 			return &arerror.ErrParseTypeFieldDecl{Name: newField.Name, FieldType: fmt.Sprintf("%T", t), Err: arerror.ErrUnknown}
-		}
-
-		if err := ParseProcFieldsTag(field, &newField); err != nil {
-			return fmt.Errorf("error ParseFieldsTag: %w", err)
 		}
 
 		if err := dst.AddProcField(newField); err != nil {
