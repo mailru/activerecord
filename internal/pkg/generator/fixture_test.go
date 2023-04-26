@@ -109,6 +109,114 @@ func TestGenerateFixture(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "simpleProcPkg",
+			want: nil,
+			args: args{
+				params: PkgData{
+					ARPkg:           packageName,
+					ARPkgTitle:      "Gift",
+					FieldList:       []ds.FieldDeclaration{},
+					FieldMap:        map[string]int{},
+					ProcInFieldList: []ds.ProcFieldDeclaration{},
+					ProcOutFieldList: []ds.ProcFieldDeclaration{
+						{
+							Name:       "Output",
+							Format:     "string",
+							Type:       ds.OUT,
+							Serializer: []string{},
+						},
+					},
+					Server:      ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11011"},
+					Container:   ds.NamespaceDeclaration{ObjectName: "simpleProc", PublicName: "Testmodel", PackageName: "testmodel"},
+					Indexes:     []ds.IndexDeclaration{},
+					Serializers: map[string]ds.SerializerDeclaration{},
+					Imports:     []ds.ImportDeclaration{},
+					Triggers:    map[string]ds.TriggerDeclaration{},
+					Flags:       map[string]ds.FlagDeclaration{},
+					AppInfo:     "",
+				},
+			},
+			wantStr: map[string][]string{
+				"fixture": {
+					`var giftStore map[gift.GiftParams]*gift.Gift`,
+					`func initGift() {`,
+					`func GetGiftByParams(params gift.GiftParams) *gift.Gift {`,
+					`type GiftProcedureMocker struct {}`,
+					`func GetGiftProcedureMocker() GiftProcedureMocker {`,
+					`func (m GiftProcedureMocker) ByFixture(ctx context.Context) octopus.FixtureType {`,
+					`func (m GiftProcedureMocker) ByMocks(ctx context.Context, mocks []octopus.MockEntities) octopus.FixtureType {`,
+				},
+			},
+		},
+		{
+			name: "procPkg",
+			want: nil,
+			args: args{
+				params: PkgData{
+					ARPkg:      packageName,
+					ARPkgTitle: "Gift",
+					FieldList:  []ds.FieldDeclaration{},
+					FieldMap:   map[string]int{},
+					ProcInFieldList: []ds.ProcFieldDeclaration{
+						{
+							Name:       "Input",
+							Format:     "string",
+							Type:       ds.IN,
+							Serializer: []string{},
+						},
+						{
+							Name:       "InputOutput",
+							Format:     "string",
+							Type:       ds.OUT,
+							Serializer: []string{},
+						},
+					},
+					ProcOutFieldList: []ds.ProcFieldDeclaration{
+						{
+							Name:       "InputOutput",
+							Format:     "string",
+							Type:       ds.OUT,
+							Serializer: []string{},
+						},
+						{
+							Name:       "Output",
+							Format:     "string",
+							Type:       ds.INOUT,
+							Serializer: []string{"s2i"},
+						},
+					},
+					Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11011"},
+					Container: ds.NamespaceDeclaration{ObjectName: "bar", PublicName: "Testmodel", PackageName: "testmodel"},
+					Indexes:   []ds.IndexDeclaration{},
+					Serializers: map[string]ds.SerializerDeclaration{
+						"s2i": {
+							Name:        "Output",
+							Pkg:         "github.com/mailru/activerecord/pkg/serializer",
+							Type:        "int",
+							ImportName:  "serializerOutput",
+							Marshaler:   "OutputMarshal",
+							Unmarshaler: "OutputUnmarshal",
+						},
+					},
+					Imports:  []ds.ImportDeclaration{},
+					Triggers: map[string]ds.TriggerDeclaration{},
+					Flags:    map[string]ds.FlagDeclaration{},
+					AppInfo:  "",
+				},
+			},
+			wantStr: map[string][]string{
+				"fixture": {
+					`var giftStore map[gift.GiftParams]*gift.Gift`,
+					`func initGift() {`,
+					`func GetGiftByParams(params gift.GiftParams) *gift.Gift {`,
+					`type GiftProcedureMocker struct {}`,
+					`func GetGiftProcedureMocker() GiftProcedureMocker {`,
+					`func (m GiftProcedureMocker) ByFixtureParams(ctx context.Context, params gift.GiftParams) octopus.FixtureType {`,
+					`func (m GiftProcedureMocker) ByParamsMocks(ctx context.Context, params gift.GiftParams, mocks []octopus.MockEntities) octopus.FixtureType {`,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

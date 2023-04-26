@@ -2,11 +2,84 @@ package octopus
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 
+	"github.com/mailru/activerecord/pkg/activerecord"
 	"github.com/mailru/activerecord/pkg/iproto/iproto"
 )
+
+// Box - возвращает коннектор для БД
+// TODO
+// - сделать статистику по используемым инстансам
+// - прикрутить локальный пингер и исключать недоступные инстансы
+func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType) (*Connection, error) {
+	configPath := "arcfg"
+
+	clusterInfo, err := activerecord.ConfigCacher().Get(
+		ctx,
+		configPath,
+		activerecord.MapGlobParam{
+			Timeout:  DefaultConnectionTimeout,
+			PoolSize: DefaultPoolSize,
+		},
+		func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
+			return NewOptions(
+				sic.Addr,
+				ServerModeType(sic.Mode),
+				WithTimeout(sic.Timeout, sic.Timeout),
+				WithPoolSize(sic.PoolSize),
+			)
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("can't get cluster %s info: %w", configPath, err)
+	}
+
+	if len(clusterInfo) < int(shard) {
+		return nil, fmt.Errorf("invalid shard num %d, max = %d", shard, len(clusterInfo))
+	}
+
+	var configBox activerecord.ShardInstance
+
+	switch instType {
+	case activerecord.ReplicaInstanceType:
+		if len(clusterInfo[shard].Replicas) == 0 {
+			return nil, fmt.Errorf("replicas not set")
+		}
+
+		configBox = clusterInfo[shard].NextReplica()
+	case activerecord.ReplicaOrMasterInstanceType:
+		if len(clusterInfo[shard].Replicas) != 0 {
+			configBox = clusterInfo[shard].NextReplica()
+			break
+		}
+
+		fallthrough
+	case activerecord.MasterInstanceType:
+		configBox = clusterInfo[shard].NextMaster()
+	}
+
+	conn, err := activerecord.ConnectionCacher().GetOrAdd(configBox, func(options interface{}) (activerecord.ConnectionInterface, error) {
+		octopusOpt, ok := options.(*ConnectionOptions)
+		if !ok {
+			return nil, fmt.Errorf("invalit type of options %T, want Options", options)
+		}
+
+		return GetConnection(ctx, octopusOpt)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error from connectionCacher: %w", err)
+	}
+
+	box, ok := conn.(*Connection)
+	if !ok {
+		return nil, fmt.Errorf("invalid connection type %T, want *octopus.Connection", conn)
+	}
+
+	return box, nil
+}
 
 func ProcessResp(respBytes []byte, cntFlag CountFlags) ([]TupleData, error) {
 	tupleCnt, respData, errResp := UnpackResopnseStatus(respBytes)

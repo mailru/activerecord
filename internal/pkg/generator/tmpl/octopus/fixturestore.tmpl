@@ -24,6 +24,7 @@ import (
 {{ $PublicStructName := .ARPkgTitle -}}
 {{ $fields := .FieldList }}
 {{ $procfields := .ProcOutFieldList }}
+{{ $procInLen := len .ProcInFieldList }}
 {{ $typePK := "" -}}
 {{ $fieldNamePK := "" -}}
 
@@ -69,17 +70,24 @@ func Get{{ $PublicStructName }}ProcedureMocker() {{ $PublicStructName }}Procedur
 	return {{ $PublicStructName }}ProcedureMocker{}
 }
 
-func (m {{ $PublicStructName }}ProcedureMocker) ByFixtureParams(ctx context.Context, params {{$PackageName}}.FooParams) octopus.FixtureType {
+func (m {{ $PublicStructName }}ProcedureMocker) ByFixture{{ if ne $procInLen 0 }}Params{{ end }}(ctx context.Context{{ if ne $procInLen 0 }}, params {{$PackageName}}.{{ $PublicStructName }}Params{{ end }}) octopus.FixtureType {
+	{{ if ne $procInLen 0 }}
 	return m.ByParamsMocks(ctx, params,
 		[]octopus.MockEntities{
 			Get{{$PublicStructName}}ByParams(params),
 		})
+	{{ else }}
+	return m.ByMocks(ctx,
+		[]octopus.MockEntities{
+			Get{{$PublicStructName}}ByParams({{$PackageName}}.{{$PublicStructName}}Params{}),
+		})
+	{{- end }}
 }
 
-func (m {{ $PublicStructName }}ProcedureMocker) ByParamsMocks(ctx context.Context, params {{$PackageName}}.FooParams, mocks []octopus.MockEntities) octopus.FixtureType {
+func (m {{ $PublicStructName }}ProcedureMocker) By{{ if ne $procInLen 0 }}Params{{ end }}Mocks(ctx context.Context{{ if ne $procInLen 0 }}, params {{$PackageName}}.{{ $PublicStructName }}Params{{ end }}, mocks []octopus.MockEntities) octopus.FixtureType {
 	oft, err := octopus.CreateCallFixture(
 		func(wsubME []octopus.MockEntities) []byte {
-			return {{$PackageName}}.MockCallRequest(ctx, params)
+			return {{$PackageName}}.MockCallRequest(ctx{{ if ne $procInLen 0 }}, params{{ end }})
 		},
 		mocks,
 	)

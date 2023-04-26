@@ -28,6 +28,7 @@ import (
 {{ $flags := .Flags }}
 {{ $fields := .FieldList }}
 {{ $procfields := .ProcOutFieldList }}
+{{ $procInLen := len .ProcInFieldList }}
 {{ $typePK := "" -}}
 {{ $fieldNamePK := "" -}}
 
@@ -56,7 +57,7 @@ type {{ $PublicStructName }}FT struct {
 func MarshalFixtures(objs []*{{$PublicStructName}}) ([]byte, error) {
 	fts := make([]{{$PublicStructName}}FT, 0, len(objs))
 	for _, obj := range objs {
-        params := obj.GetParams()
+        {{ if ne $procInLen 0 }}params := obj.GetParams(){{ end }}
 
         pk := {{$PublicStructName}}FTPK{
             {{- range $ind, $fstruct := .ProcInFieldList }}
