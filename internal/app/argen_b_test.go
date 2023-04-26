@@ -274,7 +274,7 @@ func TestArGen_Run(t *testing.T) {
 go 1.19
 
 require (
-	github.com/mailru/activerecord v0.9.3
+	github.com/mailru/activerecord v1.5.4
 )
 
 replace github.com/mailru/activerecord => ` + srcPath
@@ -319,7 +319,12 @@ import (
 func main() {
 	ctx := context.Background()
 	log.Printf("Start")
-	activerecord.InitActiveRecord()
+	activerecord.InitActiveRecord(
+		activerecord.WithConfig(activerecord.NewDefaultConfigFromMap(map[string]interface{}{
+			"arcfg/master":   "127.0.0.1:11111",
+			"arcfg/replica":  "127.0.0.1:11111",
+		})),
+)
 	` + gr.testGoMain + `
 	//activerecord.ConnectionCacher().CloseConnection(ctx)
 	fmt.Print("OK")
