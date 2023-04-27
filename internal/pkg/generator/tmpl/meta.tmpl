@@ -33,6 +33,7 @@ func (ns NSPackage) meta(n uint32) (SpaceMeta, bool) {
 {{ $nss := .Namespaces }}
 var NamespacePackages = NSPackage {
 {{ range $_, $ns := $nss -}}
+    {{ if $ns.Fields }}
     "{{ $ns.Namespace.ObjectName }}": {
         PackageName: "{{ $ns.Namespace.PackageName }}",
         Unpacker: func(ctx context.Context, tuple octopus.TupleData) (any, error) { 
@@ -71,6 +72,7 @@ var NamespacePackages = NSPackage {
             {{- end }}
         },
     },
+    {{ end }}
 {{ end }}
 }
 
