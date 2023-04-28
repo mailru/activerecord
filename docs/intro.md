@@ -15,7 +15,7 @@
 
 ## Пример
 
-Подсмотреть на пример можно в [https://github.com/mailru/activerecord-cookbook](activerecord-cookbook)
+Подсмотреть на пример можно в [activerecord-cookbook](https://github.com/mailru/activerecord-cookbook)
 
 ## Драйверы
 
@@ -23,7 +23,7 @@
 
 Используется для подключения к базам `octopus` и `tarantool` версии 1.5
 
-Описание `iproto` [https://github.com/Vespertinus/octopus/blob/master/doc/silverbox-protocol.txt](протокола) для работы с базой
+Описание `iproto` [протокола](https://github.com/Vespertinus/octopus/blob/master/doc/silverbox-protocol.txt) для работы с базой
 
 #### tarantool1.5
 
