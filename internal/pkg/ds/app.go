@@ -150,7 +150,7 @@ type FieldDeclaration struct {
 	PrimaryKey bool           // участвует ли поле в первичном ключе (при изменении таких полей необходимо делать delete + insert вместо update)
 	Mutators   []FieldMutator // список мутаторов (атомарных действий на уровне БД)
 	Size       int64          // Размер поля, используется только для строковых значений
-	Serializer Serializer     // Сериализатора для поля
+	Serializer Serializer     // Сериализаторы для поля
 	ObjectLink string         // является ли поле ссылкой на другую сущность
 }
 
