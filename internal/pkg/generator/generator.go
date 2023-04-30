@@ -55,7 +55,7 @@ func NewPkgData(appInfo string, cl ds.RecordPackage) PkgData {
 		FieldList:        cl.Fields,
 		FieldMap:         cl.FieldsMap,
 		ProcInFieldList:  cl.ProcInFields,
-		ProcOutFieldList: cl.ProcOutFields,
+		ProcOutFieldList: cl.ProcOutFields.List(),
 		FieldObject:      cl.FieldsObjectMap,
 		Server:           cl.Server,
 		Container:        cl.Namespace,

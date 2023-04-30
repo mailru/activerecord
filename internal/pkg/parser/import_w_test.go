@@ -43,6 +43,7 @@ func TestParseImport(t *testing.T) {
 				},
 				Backends:        []string{},
 				ProcFieldsMap:   map[string]int{},
+				ProcOutFields:   map[int]ds.ProcFieldDeclaration{},
 				Fields:          []ds.FieldDeclaration{},
 				FieldsMap:       map[string]int{},
 				FieldsObjectMap: map[string]ds.FieldObject{},

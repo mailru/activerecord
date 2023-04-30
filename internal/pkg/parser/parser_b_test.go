@@ -133,6 +133,7 @@ type TriggersFoo struct {
 				},
 				FlagMap:       map[string]ds.FlagDeclaration{},
 				ProcFieldsMap: map[string]int{},
+				ProcOutFields: map[int]ds.ProcFieldDeclaration{},
 			},
 		},
 	}
@@ -159,8 +160,8 @@ func TestParseProc(t *testing.T) {
 //ar:backend:octopus
 type ProcFieldsFoo struct {
 	InParams1    []string  ` + "`" + `ar:"input"` + "`" + `
-	InOutParams2    string  ` + "`" + `ar:"input;output"` + "`" + `
-	Output  string ` + "`" + `ar:"output"` + "`" + `
+	InOutParams2    string  ` + "`" + `ar:"input;output:1"` + "`" + `
+	Output  string ` + "`" + `ar:"output:0"` + "`" + `
 }
 `
 
@@ -206,11 +207,11 @@ type ProcFieldsFoo struct {
 				FieldsMap: map[string]int{},
 				ProcInFields: []ds.ProcFieldDeclaration{
 					{Name: "InParams1", Format: "[]string", Type: 1, Serializer: []string{}},
-					{Name: "InOutParams2", Format: "string", Type: 3, Serializer: []string{}},
+					{Name: "InOutParams2", Format: "string", Type: 3, Serializer: []string{}, OrderIndex: 1},
 				},
-				ProcOutFields: []ds.ProcFieldDeclaration{
-					{Name: "InOutParams2", Format: "string", Type: 3, Serializer: []string{}},
-					{Name: "Output", Format: "string", Type: 2, Serializer: []string{}},
+				ProcOutFields: ds.ProcFieldDeclarations{
+					1: {Name: "InOutParams2", Format: "string", Type: 3, Serializer: []string{}, OrderIndex: 1},
+					0: {Name: "Output", Format: "string", Type: 2, Serializer: []string{}, OrderIndex: 0},
 				},
 				ProcFieldsMap:   map[string]int{"InOutParams2": 1, "InParams1": 0, "Output": 2},
 				FieldsObjectMap: map[string]ds.FieldObject{},

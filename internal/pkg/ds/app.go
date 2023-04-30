@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mailru/activerecord/internal/pkg/arerror"
 	"github.com/mailru/activerecord/pkg/octopus"
 )
 
@@ -87,7 +88,7 @@ type RecordPackage struct {
 	TriggerMap      map[string]TriggerDeclaration    // Список триггеров используемых в сущности
 	FlagMap         map[string]FlagDeclaration       // Список флагов используемых в полях сущности
 	ProcInFields    []ProcFieldDeclaration           // Описание входных параметров процедуры, важна последовательность
-	ProcOutFields   []ProcFieldDeclaration           // Описание выходных параметров процедуры, важна последовательность
+	ProcOutFields   ProcFieldDeclarations            // Описание выходных параметров процедуры, важна последовательность
 	ProcFieldsMap   map[string]int                   // Обратный индекс от имен
 }
 
@@ -110,6 +111,7 @@ func NewRecordPackage() *RecordPackage {
 		TriggerMap:      map[string]TriggerDeclaration{},
 		FlagMap:         map[string]FlagDeclaration{},
 		ProcFieldsMap:   map[string]int{},
+		ProcOutFields:   map[int]ProcFieldDeclaration{},
 	}
 }
 
@@ -173,7 +175,25 @@ func (s Serializer) Params() string {
 	return ""
 }
 
+const (
+	ProcInputParam  = "input"
+	ProcOutputParam = "output"
+)
+
 type ProcParameterType uint8
+
+func (p ProcParameterType) String() string {
+	switch p {
+	case IN:
+		return ProcInputParam
+	case OUT:
+		return ProcOutputParam
+	case INOUT:
+		return fmt.Sprintf("%v/%v", ProcInputParam, ProcOutputParam)
+	default:
+		return ""
+	}
+}
 
 const (
 	_     ProcParameterType = iota
@@ -189,6 +209,54 @@ type ProcFieldDeclaration struct {
 	Type       ProcParameterType // тип параметра (IN, OUT, INOUT)
 	Size       int64             // Размер поля, используется только для строковых значений
 	Serializer Serializer        // Сериализатора для поля
+	OrderIndex int               // Порядковый номер параметра в сигнатуре вызова процедуры
+}
+
+// ProcFieldDeclarations Индекс порядкового значения полей процедуры
+type ProcFieldDeclarations map[int]ProcFieldDeclaration
+
+// Add Добавляет декларацию поля процедуры в список.
+// Возвращает ошибку, если декларация с таким порядком в [ProcFieldDeclarations] уже существует
+func (pfd ProcFieldDeclarations) Add(field ProcFieldDeclaration) error {
+	idx := field.OrderIndex
+
+	if _, ok := pfd[idx]; ok {
+		return arerror.ErrProcFieldDuplicateOrderIndex
+	}
+
+	pfd[idx] = field
+
+	return nil
+}
+
+// List список деклараций процедуры в описанном порядке описания
+func (pfd ProcFieldDeclarations) List() []ProcFieldDeclaration {
+	out := make([]ProcFieldDeclaration, len(pfd))
+	for i := range pfd {
+		out[i] = pfd[i]
+	}
+
+	return out
+}
+
+// Validate проверяет корректность декларируемых значений порядкового номера полей процедуры
+func (pfd ProcFieldDeclarations) Validate() bool {
+	if len(pfd) == 0 {
+		return true
+	}
+
+	var maxIdx int
+	for idx := range pfd {
+		if idx > maxIdx {
+			maxIdx = idx
+		}
+	}
+
+	if maxIdx >= len(pfd) {
+		return false
+	}
+
+	return true
 }
 
 // Тип и константы описывающие мутаторы для поля

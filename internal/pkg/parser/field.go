@@ -119,7 +119,7 @@ func ParseFields(dst *ds.RecordPackage, fields []*ast.Field) error {
 }
 
 // ParseProcFieldsTag парсинг тегов полей декларации процедуры
-func ParseProcFieldsTag(field *ast.Field, newfield *ds.ProcFieldDeclaration) error {
+func ParseProcFieldsTag(index int, field *ast.Field, newfield *ds.ProcFieldDeclaration) error {
 	tagParam, err := splitTag(field, NoCheckFlag, map[TagNameType]ParamValueRule{PrimaryKeyTag: ParamNotNeedValue, UniqueTag: ParamNotNeedValue})
 	if err != nil {
 		return &arerror.ErrParseTypeFieldDecl{Name: newfield.Name, FieldType: string(newfield.Format), Err: err}
@@ -134,6 +134,16 @@ func ParseProcFieldsTag(field *ast.Field, newfield *ds.ProcFieldDeclaration) err
 			case ProcOutputParamTag:
 				//результат бинарной операции 0|OUT => OUT; 1|OUT => INOUT (3); 2|OUT => OUT;
 				newfield.Type = newfield.Type | ds.OUT
+				orderIdx := index
+
+				if len(kv) == 2 {
+					orderIdx, err = strconv.Atoi(kv[1])
+					if err != nil {
+						return &arerror.ErrParseTypeFieldTagDecl{Name: newfield.Name, TagName: kv[0], TagValue: kv[1], Err: arerror.ErrParseTagValueInvalid}
+					}
+				}
+
+				newfield.OrderIndex = orderIdx
 			case SizeTag:
 				if kv[1] != "" {
 					size, err := strconv.ParseInt(kv[1], 10, 64)
@@ -166,7 +176,7 @@ func ParseProcFields(dst *ds.RecordPackage, fields []*ast.Field) error {
 			Serializer: []string{},
 		}
 
-		if err := ParseProcFieldsTag(field, &newField); err != nil {
+		if err := ParseProcFieldsTag(len(dst.ProcOutFields), field, &newField); err != nil {
 			return fmt.Errorf("error ParseFieldsTag: %w", err)
 		}
 

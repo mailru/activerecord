@@ -73,6 +73,10 @@ func checkFields(cl *ds.RecordPackage) error {
 		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckFieldsManyDecl}
 	}
 
+	if !cl.ProcOutFields.Validate() {
+		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckFieldsOrderDecl}
+	}
+
 	primaryFound := false
 
 	octopusAvailFormat := map[octopus.Format]bool{}
@@ -118,7 +122,7 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 	}
 
-	for _, fld := range cl.ProcOutFields {
+	for _, fld := range cl.ProcOutFields.List() {
 		if _, ex := octopusAvailFormat[fld.Format]; !ex {
 			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
 		}

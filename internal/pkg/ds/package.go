@@ -49,7 +49,9 @@ func (rc *RecordPackage) AddProcField(f ProcFieldDeclaration) error {
 	}
 	// добавляем поле в выходные параметры
 	if f.Type == OUT || f.Type == INOUT {
-		rc.ProcOutFields = append(rc.ProcOutFields, f)
+		if err := rc.ProcOutFields.Add(f); err != nil {
+			return &arerror.ErrParseTypeFieldDecl{Name: f.Name, FieldType: f.Type.String(), Err: err}
+		}
 	}
 
 	return nil
@@ -58,7 +60,7 @@ func (rc *RecordPackage) AddProcField(f ProcFieldDeclaration) error {
 // Добавление нового ссылочного поля
 func (rc *RecordPackage) AddFieldObject(fo FieldObject) error {
 	if _, ex := rc.FieldsObjectMap[fo.Name]; ex {
-		return &arerror.ErrParseTypeFieldStructDecl{Name: fo.Name, Err: arerror.ErrRedefined}
+		return &arerror.ErrParseTypeFieldDecl{Name: fo.Name, Err: arerror.ErrRedefined}
 	}
 
 	rc.FieldsObjectMap[fo.Name] = fo

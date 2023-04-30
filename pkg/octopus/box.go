@@ -14,8 +14,17 @@ import (
 // TODO
 // - сделать статистику по используемым инстансам
 // - прикрутить локальный пингер и исключать недоступные инстансы
-func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType) (*Connection, error) {
-	configPath := "arcfg"
+func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType, configPath string, optionCreator func(activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error)) (*Connection, error) {
+	if optionCreator == nil {
+		optionCreator = func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
+			return NewOptions(
+				sic.Addr,
+				ServerModeType(sic.Mode),
+				WithTimeout(sic.Timeout, sic.Timeout),
+				WithPoolSize(sic.PoolSize),
+			)
+		}
+	}
 
 	clusterInfo, err := activerecord.ConfigCacher().Get(
 		ctx,
@@ -24,20 +33,13 @@ func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType
 			Timeout:  DefaultConnectionTimeout,
 			PoolSize: DefaultPoolSize,
 		},
-		func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
-			return NewOptions(
-				sic.Addr,
-				ServerModeType(sic.Mode),
-				WithTimeout(sic.Timeout, sic.Timeout),
-				WithPoolSize(sic.PoolSize),
-			)
-		},
+		optionCreator,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("can't get cluster %s info: %w", configPath, err)
 	}
 
-	if len(clusterInfo) < int(shard) {
+	if len(clusterInfo) < shard {
 		return nil, fmt.Errorf("invalid shard num %d, max = %d", shard, len(clusterInfo))
 	}
 
