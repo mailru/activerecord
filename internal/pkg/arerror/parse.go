@@ -122,7 +122,7 @@ func (e *ErrParseTypeFieldTagDecl) Error() string {
 }
 
 var ErrParseFieldArrayOfNotByte = errors.New("support only array of byte")
-var ErrParseProcFieldArraySlice = errors.New("support only array|slice of byte|string")
+var ErrParseProcFieldArraySlice = errors.New("support array|slice of byte|string")
 var ErrParseFieldArrayNotSlice = errors.New("only array of byte not a slice")
 var ErrParseFieldBinary = errors.New("binary format not implemented")
 var ErrParseFieldMutatorInvalid = errors.New("invalid mutator")
