@@ -41,7 +41,7 @@ linters:
     - staticcheck # enable before push
     - gocyclo
 #    - dupl # - it's very slow, enable if you really know why you need it
-#    - gocognit
+    - gocognit
     - prealloc
     - gochecknoinits
 #    - wsl

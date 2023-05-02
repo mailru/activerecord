@@ -67,7 +67,7 @@ func checkNamespace(ns *ds.NamespaceDeclaration) error {
 // - есть первичный ключ
 // - имена сущностей на которые ссылаемся на могут пересекаться с именами полей
 //
-//nolint:gocyclo
+//nolint:gocognit,gocyclo
 func checkFields(cl *ds.RecordPackage) error {
 	if len(cl.Fields) > 0 && len(cl.ProcOutFields) > 0 {
 		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckFieldsManyDecl}

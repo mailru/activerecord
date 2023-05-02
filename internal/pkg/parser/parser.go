@@ -198,6 +198,8 @@ func parseGen(dst *ds.RecordPackage, genD *ast.GenDecl) error {
 }
 
 // parseDoc парсинг описания сервеной конфигурации в модели
+//
+//nolint:gocognit,gocyclo
 func parseDoc(dst *ds.RecordPackage, nodeName string, doc *ast.CommentGroup) error {
 	if doc == nil {
 		return arerror.ErrParseDocEmptyBoxDeclaration
