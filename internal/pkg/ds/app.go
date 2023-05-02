@@ -252,11 +252,7 @@ func (pfd ProcFieldDeclarations) Validate() bool {
 		}
 	}
 
-	if maxIdx >= len(pfd) {
-		return false
-	}
-
-	return true
+	return maxIdx < len(pfd)
 }
 
 // Тип и константы описывающие мутаторы для поля
