@@ -23,9 +23,84 @@ import (
 {{ $PackageName := .ARPkg -}}
 {{ $PublicStructName := .ARPkgTitle -}}
 {{ $fields := .FieldList }}
+{{ $procfields := .ProcOutFieldList }}
+{{ $procInLen := len .ProcInFieldList }}
 {{ $typePK := "" -}}
 {{ $fieldNamePK := "" -}}
 
+{{ if $procfields }}
+{{ $typePK := "string" -}}
+var {{$PackageName}}Once sync.Once
+var {{$PackageName}}Store map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}
+
+//go:embed data/{{$PackageName}}.yaml
+var {{$PackageName}}Source []byte
+
+func init{{$PublicStructName}}() {
+    {{$PackageName}}Once.Do(func() {
+        fixtures := {{$PackageName}}.UnmarshalFixtures({{$PackageName}}Source)
+
+        {{$PackageName}}Store = map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}{}
+        for _, f := range fixtures {
+            if _, ok := {{$PackageName}}Store[f.GetParams().PK()]; ok {
+                log.Fatalf("{{$PackageName}} fixture with params %v are duplicated", f.GetParams())
+            }
+            {{$PackageName}}Store[f.GetParams().PK()] = f
+        }
+    })
+}
+
+func Get{{$PublicStructName}}ByParams(params {{$PackageName}}.{{$PublicStructName}}Params) *{{$PackageName}}.{{$PublicStructName}} {
+    init{{$PublicStructName}}()
+
+    res, ex := {{$PackageName}}Store[params.PK()]
+    if !ex {
+        log.Fatalf("{{$PublicStructName}} fixture with params %v not found", params)
+    }
+
+    ctx := activerecord.Logger().SetLoggerValueToContext(context.Background(), map[string]interface{}{"Get{{$PublicStructName}}ByParams": params, "FixtureStore": "{{$PackageName}}Store"})
+
+    activerecord.Logger().Debug(ctx, {{$PackageName}}.{{$PublicStructName}}List([]*{{$PackageName}}.{{$PublicStructName}}{res}))
+
+    return res
+}
+
+type {{ $PublicStructName }}ProcedureMocker struct {}
+
+func Get{{ $PublicStructName }}ProcedureMocker() {{ $PublicStructName }}ProcedureMocker {
+	return {{ $PublicStructName }}ProcedureMocker{}
+}
+
+func (m {{ $PublicStructName }}ProcedureMocker) ByFixture{{ if ne $procInLen 0 }}Params{{ end }}(ctx context.Context{{ if ne $procInLen 0 }}, params {{$PackageName}}.{{ $PublicStructName }}Params{{ end }}) octopus.FixtureType {
+	{{ if ne $procInLen 0 }}
+	return m.ByParamsMocks(ctx, params,
+		[]octopus.MockEntities{
+			Get{{$PublicStructName}}ByParams(params),
+		})
+	{{ else }}
+	return m.ByMocks(ctx,
+		[]octopus.MockEntities{
+			Get{{$PublicStructName}}ByParams({{$PackageName}}.{{$PublicStructName}}Params{}),
+		})
+	{{- end }}
+}
+
+func (m {{ $PublicStructName }}ProcedureMocker) By{{ if ne $procInLen 0 }}Params{{ end }}Mocks(ctx context.Context{{ if ne $procInLen 0 }}, params {{$PackageName}}.{{ $PublicStructName }}Params{{ end }}, mocks []octopus.MockEntities) octopus.FixtureType {
+	oft, err := octopus.CreateCallFixture(
+		func(wsubME []octopus.MockEntities) []byte {
+			return {{$PackageName}}.MockCallRequest(ctx{{ if ne $procInLen 0 }}, params{{ end }})
+		},
+		mocks,
+	)
+	if err != nil {
+		activerecord.Logger().Fatal(ctx, fmt.Sprintf("Error create mock by params: %s", err))
+	}
+
+	return oft
+}
+{{ end }}
+
+{{ if $fields }}
 {{ range $num, $ind := .Indexes -}}
 {{ $lenfld := len $ind.Fields -}}
 	{{ if $ind.Primary }}
@@ -37,7 +112,6 @@ import (
         {{- $fieldNamePK = $ind.Name -}}
     {{ end }}
 {{ end }}
-
 
 {{ range $_, $mockOperation := split ",Update,InsertReplace" "," }}
 var {{$PackageName}}{{ $mockOperation }}Once sync.Once
@@ -114,7 +188,7 @@ func Update{{ $PublicStructName }}Fixture({{ $fieldNamePK }} {{ $typePK }}) {{ $
 {{- range $_, $fstruct := .FieldList}}
         {{/* Determine real filed type */}}
     	{{ $rtype := $fstruct.Format -}}
-    	{{ $sname := $fstruct.SerializerName -}}
+    	{{ $sname := $fstruct.Serializer.Name -}}
     	{{ if ne $sname "" -}}
     		{{ $serializer := index $serializers $sname -}}
     		{{ $rtype = $serializer.Type -}}
@@ -168,6 +242,7 @@ func (bf {{ $PublicStructName }}BuildableFixture) Build(ctx context.Context) (fx
 
     return octopus.CreateUpdateFixture(obj.MockUpdate(ctx), wrappedTrigger), promiseIsUsed
 }
+{{- end }}
 
 {{ range $num, $ind := .Indexes -}}
 {{ $lenfld := len $ind.Fields }}

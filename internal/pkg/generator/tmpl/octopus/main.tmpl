@@ -26,43 +26,285 @@ import (
 {{ $LinkedObject := .LinkedObject }}
 {{ $flags := .Flags }}
 {{ $fields := .FieldList }}
+{{ $procfields := .ProcOutFieldList }}
+{{ $procInLen := len .ProcInFieldList }}
+
+{{ if $fields }}
+    type {{ $PublicStructName }} struct {
+        octopus.BaseField
+    {{- range $ind, $fstruct := .FieldList -}}
+        {{ $rtype := $fstruct.Format -}}
+        {{ $serlen := len $fstruct.Serializer -}}
+        {{ if ne $serlen 0 -}}
+            {{ $sname := index $fstruct.Serializer 0 -}}
+            {{ $serializer := index $serializers $sname -}}
+            {{ $rtype = $serializer.Type -}}
+        {{ end }}
+        field{{ $fstruct.Name }} {{ $rtype -}}
+    {{ end }}
+    }
+
+    type {{ $PublicStructName }}List []*{{ $PublicStructName }}
+
+    const (
+        namespace uint32 = {{ .Container.ObjectName }}
+        cntFields uint32 = {{ len .FieldList }}
+    {{- range $fieldname, $flag := .Flags -}}
+        {{ range $i, $flagname := $flag.Flags }}
+        {{ $fieldname }}{{ $flagname }}Flag = 1 << {{ $i -}}
+        {{ end -}}
+    {{ end }}
+    )
+
+    {{ if .Triggers.RepairTuple.Params.Defaults -}}
+    var defaultValue = [][]byte{
+    {{- $notfirst := false -}}
+    {{ range $ind, $fstruct := .FieldList -}}
+        {{ $packerparam := packerParam $fstruct.Format -}}
+        {{ if $notfirst }},{{ end -}}
+        {{ $notfirst = true }}
+        {{ $packerparam.DefaultValue -}}
+    {{ end -}}
+    }
+    {{- end }}
+{{end}}
+
+{{ if $procfields }}
+// proc struct
 type {{ $PublicStructName }} struct {
-	octopus.BaseField
-{{- range $ind, $fstruct := .FieldList -}}
-	{{ $rtype := $fstruct.Format -}}
-	{{ $serlen := len $fstruct.Serializer -}}
-	{{ if ne $serlen 0 -}}
-		{{ $sname := index $fstruct.Serializer 0 -}}
-		{{ $serializer := index $serializers $sname -}}
-		{{ $rtype = $serializer.Type -}}
-	{{ end }}
-	field{{ $fstruct.Name }} {{ $rtype -}}
+    params {{ $PublicStructName }}Params
+{{- range $ind, $fstruct := .ProcOutFieldList }}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $serlen := len $fstruct.Serializer -}}
+    {{ if ne $serlen 0 -}}
+        {{ $sname := index $fstruct.Serializer 0 -}}
+        {{ $serializer := index $serializers $sname -}}
+        {{ $rtype = $serializer.Type -}}
+    {{ end -}}
+    field{{- $fstruct.Name }} {{ $rtype -}}
 {{ end }}
 }
 
 type {{ $PublicStructName }}List []*{{ $PublicStructName }}
 
 const (
-	namespace uint32 = {{ .Container.Num }}
-	cntFields uint32 = {{ len .FieldList }}
-{{- range $fieldname, $flag := .Flags -}}
-	{{ range $i, $flagname := $flag.Flags }}
-	{{ $fieldname }}{{ $flagname }}Flag = 1 << {{ $i -}}
-	{{ end -}}
-{{ end }}
-)
+    procName string = "{{ .Container.ObjectName }}"
+    cntOutFields uint32 = {{ len .ProcOutFieldList }}
+    )
 
-{{ if .Triggers.RepairTuple.Params.Defaults -}}
-var defaultValue = [][]byte{
-{{- $notfirst := false -}}
-{{ range $ind, $fstruct := .FieldList -}}
-	{{ $packerparam := packerParam $fstruct.Format -}}
-	{{ if $notfirst }},{{ end -}}
-	{{ $notfirst = true }}
-	{{ $packerparam.DefaultValue -}}
-{{ end -}} 
+{{- range $ind, $fstruct := .ProcOutFieldList -}}
+{{ $rtype := $fstruct.Format -}}
+{{ $sname := $fstruct.Serializer.Name -}}
+{{ if ne $sname "" -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $rtype = $serializer.Type -}}
+{{ end }}
+    func (obj *{{ $PublicStructName }}) Get{{ $fstruct.Name }}() {{ $rtype }} {
+        return obj.field{{ $fstruct.Name }}
+    }
+{{ end }}
+
+type {{ $PublicStructName }}Params struct {
+{{- range $ind, $fstruct := .ProcInFieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $serlen := len $fstruct.Serializer -}}
+    {{ if ne $serlen 0 -}}
+        {{ $sname := index $fstruct.Serializer 0 -}}
+        {{ $serializer := index $serializers $sname -}}
+        {{ $rtype = $serializer.Type -}}
+    {{ end }}
+    {{ $fstruct.Name }} {{ $rtype -}}
+{{ end }}
 }
-{{- end }}
+
+func (obj *{{ $PublicStructName }}) GetParams() {{ $PublicStructName }}Params {
+    return obj.params
+}
+
+func  (obj *{{ $PublicStructName }}) setParams(params {{ $PublicStructName }}Params) error {
+	obj.params = params
+
+	return nil
+}
+
+{{ if ne $procInLen 0 }}
+func (obj *{{ $PublicStructName }}Params) arrayValues() ([]string, error)  {
+ret := []string{}
+{{ range $ind, $fstruct := .ProcInFieldList -}}
+    {{ $sname := $fstruct.Serializer.Name -}}
+	{{ $bvar :=  $fstruct.Name -}}
+	{{ if ne $sname "" -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $serparams := $fstruct.Serializer.Params -}}
+	pvar{{ $fstruct.Name }}, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}obj.{{ $bvar }})
+	if err != nil {
+		return nil, fmt.Errorf("error marshal param field {{ $fstruct.Name }}: %w", err)
+	}
+
+        {{ if eq $fstruct.Format "[]string" }}
+        ret = append(ret, pvar{{ $fstruct.Name }}...)
+	    {{ else }}
+	    ret = append(ret, string(pvar{{ $fstruct.Name }}))
+	    {{- end }}
+	{{- else -}}
+	ret = append(ret, string(obj.{{ $fstruct.Name }}))
+	{{- end }}
+{{ end }}
+	return ret, nil
+}
+{{ end }}
+
+func (obj {{ $PublicStructName }}Params) PK() string {
+    {{ if ne $procInLen 0 }}
+	return fmt.Sprint(
+	{{ range $ind, $fstruct := .ProcInFieldList -}}
+		obj.{{ $fstruct.Name }},
+	{{ end -}}
+		)
+	{{ else }}
+	return ""
+	{{ end }}
+}
+
+func Call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) (*{{ $PublicStructName }}, error) {
+	logger := activerecord.Logger()
+	ctx = logger.SetLoggerValueToContext(ctx, map[string]interface{}{"LuaProc": procName})
+	metricTimer := activerecord.Metric().Timer("octopus", "{{ $PublicStructName }}")
+	metricErrCnt := activerecord.Metric().ErrorCount("octopus", "{{ $PublicStructName }}")
+
+    metricTimer.Timing(ctx, "call_proc")
+
+	connection, err := octopus.Box(ctx, 0, activerecord.ReplicaInstanceType, "arcfg", nil)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "call_proc_preparebox", 1)
+		logger.Error(ctx, fmt.Sprintf("Error get box '%s'", err))
+
+		return nil, err
+	}
+
+	var args []string
+	{{ if ne $procInLen 0 }}
+	args, err = params.arrayValues()
+	if err != nil {
+		metricErrCnt.Inc(ctx, "call_proc_preparebox", 1)
+		return nil, fmt.Errorf("Error parse args of procedure %s: %w", procName, err)
+	}
+	{{ end }}
+
+	td, err := octopus.CallLua(ctx, connection, procName, args...)
+	if err != nil {
+		metricErrCnt.Inc(ctx, "call_proc", 1)
+		return nil, fmt.Errorf("call lua procedure %s: %w", procName, err)
+	}
+
+    if len(td) != 1 {
+        return nil, fmt.Errorf("invalid response len from lua call: %d. Only one tuple supported", len(td))
+    }
+
+	ret, err := TupleToStruct(ctx, td[0])
+	if err != nil {
+		metricErrCnt.Inc(ctx, "call_proc_preparebox", 1)
+		logger.Error(ctx, "Error in response: ", err)
+
+		return nil, err
+	}
+
+	metricTimer.Finish(ctx, "call_proc")
+
+	activerecord.Logger().CollectQueries(ctx, CallMockerLogger({{ if ne $procInLen 0 }}params, {{ end }}{{ $PublicStructName }}List([]*{{ $PublicStructName }}{ret})))
+
+	return ret, nil
+}
+
+func TupleToStruct(ctx context.Context, tuple octopus.TupleData) (*{{ $PublicStructName }}, error) {
+    if tuple.Cnt < cntOutFields {
+        return nil, fmt.Errorf("not enought selected fields %d in response tuple: %d but expected %d fields", tuple.Cnt, tuple.Cnt, cntOutFields)
+    }
+
+	np := {{ $PublicStructName }}{}
+
+	{{ range $ind, $fstruct := .ProcOutFieldList -}}
+	val{{ $fstruct.Name }}, err := Unpack{{ $fstruct.Name -}}(bytes.NewReader(tuple.Data[{{$ind}}]))
+	if err != nil {
+		return nil, err
+	}
+
+	np.field{{ $fstruct.Name }} = val{{ $fstruct.Name }}
+	{{ end }}
+
+	return &np, nil
+}
+
+{{ range $ind, $fstruct := .ProcOutFieldList -}}
+	{{ $packerparam := packerParam $fstruct.Format -}}
+	{{ $rtype := $fstruct.Format -}}
+	{{ $sname := $fstruct.Serializer.Name -}}
+	{{ if ne $sname "" -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $rtype = $serializer.Type -}}
+	{{ end -}}
+func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {{ $rtype }}) error {
+	obj.field{{ $fstruct.Name }} = {{ $fstruct.Name}}
+
+	return nil
+}
+
+func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error) {
+	var {{ $fstruct.Name }} {{ if ne $packerparam.UnpackType "" }}{{ $packerparam.UnpackType }}{{ else }}{{ $fstruct.Format }}{{ end }}
+	{{ $isPointer := hasPrefix (printf "%s" $rtype) "*" }}
+
+	err := {{ $packerparam.UnpackFunc }}(r, &{{ $fstruct.Name }}, iproto.ModeDefault)
+	if err != nil {
+		errRet = fmt.Errorf("error unpack field {{ $fstruct.Name }} in tuple: '%w'", err)
+		return
+	}
+
+	bvar := {{ if ne $packerparam.UnpackConvFunc "" -}}
+		{{ $packerparam.UnpackConvFunc }}({{ $fstruct.Name }})
+	{{ else -}}
+		{{ $fstruct.Name }}
+	{{ end -}}
+
+	{{ $underlyingType := trimPrefix (printf "%s" $rtype) "*"}}
+	{{ if ne $sname "" -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $serparams := $fstruct.Serializer.Params }}
+
+	var svar {{ $underlyingType }}
+
+	err = {{ $serializer.ImportName }}.{{ $serializer.Unmarshaler }}({{ $serparams }}bvar, &svar)
+	if err != nil {
+		errRet = fmt.Errorf("error unmarshal field {{ $fstruct.Name }}: %w", err)
+		return
+	}
+
+	{{ else -}}
+	svar := bvar
+
+	{{ end -}}
+
+	return {{ if $isPointer }}&svar{{else}}svar{{end}}, nil
+}
+
+func pack{{ $fstruct.Name }}(w []byte, {{ $fstruct.Name }} {{ $rtype }}) ([]byte, error) {
+	{{ $bvar :=  $packerparam.PackConvFunc $fstruct.Name -}}
+	{{ if ne $sname "" -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $serparams := $fstruct.Serializer.Params -}}
+	pvar, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $bvar }})
+	if err != nil {
+		return nil, fmt.Errorf("error marshal field {{ $fstruct.Name }}: %w", err)
+	}
+	{{- else -}}
+	pvar := {{ $bvar }}
+	{{- end }}
+
+	return {{ $packerparam.PackFunc }}(w, pvar, iproto.ModeDefault), nil
+}
+{{ end }}
+// end proc struct
+
+{{end}}
 
 {{ if eq .Server.Conf "" -}}
 var boxOption, _ = octopus.NewOptions(
@@ -75,85 +317,13 @@ var clusterInfo = activerecord.NewClusterInfo(
 	activerecord.WithShard([]activerecord.OptionInterface{boxOption}, []activerecord.OptionInterface{}),
 ){{ end }}
 
-// box - возвращает коннектор для БД
-// TODO 
-// - унести в пакет pkg/octopus тут общий код нет смысла его нагенеривать
-// - сделать статистику по используемым инстансам
-// - прикрутить локальный пингер и исключать недоступные инстансы
-func box(ctx context.Context, shard int, instType activerecord.ShardInstanceType) (*octopus.Connection, error) {
-{{ if ne .Server.Conf "" -}}
-	configPath := "{{ .Server.Conf }}"
-
-	clusterInfo, err := activerecord.ConfigCacher().Get(
-		ctx,
-		configPath, 
-		activerecord.MapGlobParam{
-			Timeout: octopus.DefaultConnectionTimeout, 
-			PoolSize: octopus.DefaultPoolSize,
-		},
-		func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
-			return octopus.NewOptions(
-				sic.Addr,
-				octopus.ServerModeType(sic.Mode),
-				octopus.WithTimeout(sic.Timeout, sic.Timeout),
-				octopus.WithPoolSize(sic.PoolSize),
-			)
-		},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("can't get cluster %s info: %w", configPath, err)
-	}
-
-	if len(clusterInfo) < int(shard) {
-		return nil, fmt.Errorf("invalid shard num %d, max = %d", shard, len(clusterInfo))
-	}
-{{ end }}
-	var configBox activerecord.ShardInstance
-
-	switch instType {
-	case activerecord.ReplicaInstanceType:
-		if len(clusterInfo[shard].Replicas) == 0 {
-			return nil, fmt.Errorf("replicas not set")
-		}
-
-		configBox = clusterInfo[shard].NextReplica()
-	case activerecord.ReplicaOrMasterInstanceType:
-		if len(clusterInfo[shard].Replicas) != 0 {
-			configBox = clusterInfo[shard].NextReplica()
-			break
-		}
-
-		fallthrough
-	case activerecord.MasterInstanceType:
-		configBox = clusterInfo[shard].NextMaster()			
-	}
-
-	conn, err := activerecord.ConnectionCacher().GetOrAdd(configBox, func(options interface{}) (activerecord.ConnectionInterface, error) {
-		octopusOpt, ok := options.(*octopus.ConnectionOptions)
-		if !ok {
-			return nil, fmt.Errorf("invalit type of options %T, want Options", options)
-		}
-
-		return octopus.GetConnection(ctx, octopusOpt)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error from connectionCacher: %w", err)
-	}
-
-	box, ok := conn.(*octopus.Connection)
-	if !ok {
-		return nil, fmt.Errorf("invalid connection type %T, want *octopus.Connection", conn)
-	}
-
-	return box, nil
-}
-
 func New(ctx context.Context) *{{ $PublicStructName }} {
 	newObj := {{ $PublicStructName }}{}
+	{{- if $fields }}
 	newObj.BaseField.UpdateOps = []octopus.Ops{}
 	newObj.BaseField.ExtraFields = [][]byte{}
 	newObj.BaseField.Objects = map[string][]octopus.ModelStruct{}
-
+    {{ end }}
 	return &newObj
 }
 
@@ -182,6 +352,7 @@ func repairTuple(ctx context.Context, tuple *octopus.TupleData) error {
 }
 {{- end }}
 
+{{ if $fields }}
 func TupleToStruct(ctx context.Context, tuple octopus.TupleData) (*{{ $PublicStructName }}, error) {
 	np := New(ctx)
 
@@ -261,10 +432,12 @@ func NewFromBox(ctx context.Context, tuples []octopus.TupleData) ([]*{{ $PublicS
 
 	return ret, nil
 }
+{{ end -}}
+
 {{ range $ind, $fstruct := .FieldList -}}
 	{{ $packerparam := packerParam $fstruct.Format -}}
 	{{ $rtype := $fstruct.Format -}}
-	{{ $sname := $fstruct.SerializerName -}}
+	{{ $sname := $fstruct.Serializer.Name -}}
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
 		{{ $rtype = $serializer.Type -}}
@@ -273,7 +446,7 @@ func pack{{ $fstruct.Name }}(w []byte, {{ $fstruct.Name }} {{ $rtype }}) ([]byte
 	{{ $bvar :=  $packerparam.PackConvFunc $fstruct.Name -}}
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
-		{{ $serparams := $fstruct.SerializerParams -}}
+		{{ $serparams := $fstruct.Serializer.Params -}}
 	pvar, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $bvar }})
 	if err != nil {
 		return nil, fmt.Errorf("error marshal field {{ $fstruct.Name }}: %w", err)
@@ -304,7 +477,7 @@ func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error)
 	{{ $underlyingType := trimPrefix (printf "%s" $rtype) "*"}}
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
-		{{ $serparams := $fstruct.SerializerParams }}
+		{{ $serparams := $fstruct.Serializer.Params }}
 
 	var svar {{ $underlyingType }}
 	
@@ -455,6 +628,7 @@ func (obj *{{ $PublicStructName }}) Is{{ $fstruct.Name }}{{ $flag }}() bool {
 
 {{ end -}}
 
+{{ if $fields }}
 func selectBox (ctx context.Context, indexnum uint32, keysPacked [][][]byte, limiter activerecord.SelectorLimiter) ([]*{{ $PublicStructName }}, error) {
 	logger := activerecord.Logger()
 	ctx = logger.SetLoggerValueToContext(ctx, activerecord.ValueLogPrefix{"limiter": limiter.String()})
@@ -469,7 +643,7 @@ func selectBox (ctx context.Context, indexnum uint32, keysPacked [][][]byte, lim
 
 	logger.Debug(ctx, fmt.Sprintf("Select packed tuple: '% X'", w))
 
-	connection, err := box(ctx, 0, activerecord.ReplicaOrMasterInstanceType)
+	connection, err := octopus.Box(ctx, 0, activerecord.ReplicaOrMasterInstanceType, "arcfg", nil)
 	if err != nil {
 		metricErrCnt.Inc(ctx, "select_preparebox", 1)
 		logger.Error(ctx, fmt.Sprintf("Error get box '%s'", err))
@@ -532,7 +706,9 @@ func selectBox (ctx context.Context, indexnum uint32, keysPacked [][][]byte, lim
 
 	return nps, nil
 }
+{{ end }}
 
+{{ if $fields }} // indexes
 {{ $pktype := "" }}
 {{ $pklenfld := 1 }}
 {{ $pkind := index .Indexes 0 }}
@@ -550,7 +726,7 @@ func (obj *{{ $PublicStructName }}) Primary() {{ $ind.Type }} {
 		{{ $ifield.Name }}: obj.Get{{ $ifield.Name }}(),
 			{{- end }}
 	}
-		{{ else }} 
+		{{ else }}
 			{{- range $_, $fieldNum := $ind.Fields }}
 				{{- $ifield := index $fields $fieldNum }}
 	return obj.Get{{ $ifield.Name }}()
@@ -596,7 +772,7 @@ func PackKeyIndex{{ $ind.Name }}(ctx context.Context, keys []{{ $ind.Type }}) ([
 				{{ if ne $serlen 0 }}
 					{{ $sname := index $sfield.Serializer 0 -}}
 					{{ $serializer := index $serializers $sname -}}
-					{{ $serparams := $sfield.SerializerParams -}}
+					{{ $serparams := $sfield.Serializer.Params -}}
 					skey, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $packparam }})
 					if err != nil {
 						return nil, err
@@ -661,7 +837,7 @@ func UnpackKeyIndex{{ $ind.Name }}(packedKeys [][][]byte) ([]{{ $ind.Type }}, er
 				{{ if ne $serlen 0 }}
 					{{ $sname := index $sfield.Serializer 0 -}}
 					{{ $serializer := index $serializers $sname -}}
-					{{ $serparams := $sfield.SerializerParams -}}
+					{{ $serparams := $sfield.Serializer.Params -}}
 					skey, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $packparam }})
 					if err != nil {
 						return nil, err
@@ -727,6 +903,7 @@ func {{ $ind.Selector }}(ctx context.Context, key {{ $ind.Type }}{{ if not $ind.
 	{{- end }}
 }
 {{ end }}
+{{ end }}// end indexes
 {{ range $name, $fobj := .FieldObject -}}
 {{ $linkedobj := index $LinkedObject $fobj.ObjectName }}
 func (obj *{{ $PublicStructName }}) Get{{ $name }}(ctx context.Context) ({{ if not $fobj.Unique }}[]{{ end }}*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}, error){
@@ -772,6 +949,7 @@ func (obj *{{ $PublicStructName }}) Get{{ $name }}(ctx context.Context) ({{ if n
 
 {{ end -}}
 
+{{ if $fields }}
 func (obj *{{ $PublicStructName }}) Equal (anotherObjI any) bool {
 	anotherObj, ok := anotherObjI.(*{{ $PublicStructName }})
 	if !ok {
@@ -859,7 +1037,7 @@ func (obj *{{ $PublicStructName }}) Delete(ctx context.Context) error {
 	w := octopus.PackDelete(namespace, pk)
 	log.Printf("Delete packed tuple: '%X'\n", w)
 
-	connection, err := box(ctx, 0, activerecord.MasterInstanceType)
+	connection, err := octopus.Box(ctx, 0, activerecord.MasterInstanceType, "arcfg", nil)
 	if err != nil {
 		metricErrCnt.Inc(ctx, "delete_preparebox", 1)
 		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
@@ -936,7 +1114,7 @@ func (obj *{{ $PublicStructName }}) Update(ctx context.Context) error {
 
 	log.Printf("Update packed tuple: '%X'\n", w)
 
-	connection, err := box(ctx, 0, activerecord.MasterInstanceType)
+	connection, err := octopus.Box(ctx, 0, activerecord.MasterInstanceType, "arcfg", nil)
 	if err != nil {
 		metricErrCnt.Inc(ctx, "update_preparebox", 1)
 		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
@@ -1058,7 +1236,7 @@ func (obj *{{ $PublicStructName }}) insertReplace(ctx context.Context, insertMod
 	metricTimer.Timing(ctx, "insertreplace_pack")
 	logger.Trace(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Insert packed tuple: '%X'", w))
 
-	connection, err := box(ctx, 0, activerecord.MasterInstanceType)
+	connection, err := octopus.Box(ctx, 0, activerecord.MasterInstanceType, "arcfg", nil)
 	if err != nil {
 		metricErrCnt.Inc(ctx, "insertreplace_preparebox", 1)
 		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
@@ -1104,3 +1282,4 @@ func (obj *{{ $PublicStructName }}) insertReplace(ctx context.Context, insertMod
 
 	return nil
 }
+{{ end }}

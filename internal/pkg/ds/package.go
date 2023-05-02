@@ -34,10 +34,33 @@ func (rc *RecordPackage) AddField(f FieldDeclaration) error {
 	return nil
 }
 
+// Добавление нового параметра процедуры в результирующий пакет
+func (rc *RecordPackage) AddProcField(f ProcFieldDeclaration) error {
+	// Проверка на то, что имя не дублируется
+	if _, ex := rc.ProcFieldsMap[f.Name]; ex {
+		return &arerror.ErrParseTypeFieldDecl{Name: f.Name, FieldType: string(f.Format), Err: arerror.ErrRedefined}
+	}
+
+	// добавляем поле и не забываем про обратный индекс
+	rc.ProcFieldsMap[f.Name] = len(rc.ProcFieldsMap)
+	// добавляем поле во входные параметры
+	if f.Type == IN || f.Type == INOUT {
+		rc.ProcInFields = append(rc.ProcInFields, f)
+	}
+	// добавляем поле в выходные параметры
+	if f.Type == OUT || f.Type == INOUT {
+		if err := rc.ProcOutFields.Add(f); err != nil {
+			return &arerror.ErrParseTypeFieldDecl{Name: f.Name, FieldType: f.Type.String(), Err: err}
+		}
+	}
+
+	return nil
+}
+
 // Добавление нового ссылочного поля
 func (rc *RecordPackage) AddFieldObject(fo FieldObject) error {
 	if _, ex := rc.FieldsObjectMap[fo.Name]; ex {
-		return &arerror.ErrParseTypeFieldStructDecl{Name: fo.Name, Err: arerror.ErrRedefined}
+		return &arerror.ErrParseTypeFieldDecl{Name: fo.Name, Err: arerror.ErrRedefined}
 	}
 
 	rc.FieldsObjectMap[fo.Name] = fo

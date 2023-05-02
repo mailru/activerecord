@@ -17,9 +17,82 @@ import (
 {{ $pkgName := .ARPkg }}
 {{ $PublicStructName := .ARPkgTitle -}}
 {{ $fields := .FieldList }}
+{{ $procfields := .ProcOutFieldList }}
+{{ $procInLen := len .ProcInFieldList }}
 {{ $serializers := .Serializers -}}
 {{ $fidx := .FieldMap }}
 
+{{ if $procfields }}
+func (obj *{{ $PublicStructName }}) MockSelectResponse() ([][]byte, error) {
+	tuple := [][]byte{}
+
+	var data []byte
+
+	var err error
+
+{{ range $ind, $fstruct := .ProcOutFieldList -}}
+	data, err = pack{{ $fstruct.Name }}([]byte{}, obj.Get{{ $fstruct.Name }}())
+	if err != nil {
+		return nil, err
+	}
+
+	tuple = append(tuple, data)
+{{ end }}
+	return tuple, nil
+}
+
+func MockCallRequest(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) []byte {
+	log := activerecord.Logger()
+	ctx = log.SetLoggerValueToContext(ctx, map[string]interface{}{ {{ if ne $procInLen 0 }}"MockCallRequest": params, {{ end }}"Proc": "{{ $PublicStructName }}"})
+
+	{{ if ne $procInLen 0 }}
+	args, err := params.arrayValues()
+	if err != nil {
+		activerecord.Logger().Fatal(ctx, fmt.Sprintf("Error call mock request by params: %s", err))
+	}
+	{{ end }}
+
+	return octopus.PackLua(procName{{ if ne $procInLen 0 }}, args...{{ end }})
+}
+
+func (obj *{{ $PublicStructName }}) RepoSelector(ctx context.Context) (any, error) {
+	data, err := Call(ctx{{ if ne $procInLen 0 }}, obj.params{{ end }})
+	if err != nil {
+		return nil, err
+	}
+
+	if data == nil {
+		return nil, fmt.Errorf("call {{ $PublicStructName }} with params %v: %w", obj.params, activerecord.ErrNoData)
+	}
+
+	return data, err
+}
+
+func CallMockerLogger({{ if ne $procInLen 0 }}params {{ $PublicStructName }}Params, {{ end }}res {{ $PublicStructName }}List) func() (activerecord.MockerLogger, error) {
+return func() (activerecord.MockerLogger, error){
+
+		mockerName := "mocker{{ $PublicStructName }}ByParams"
+		mocker := "fixture.Get{{ $PublicStructName }}ProcedureMocker()"
+
+        {{ if ne $procInLen 0 }}
+        fixture := "ps := {{$PublicStructName}}Params{ \n"
+        {{- range $ind, $fstruct := .ProcInFieldList }}
+            fixture += "{{$fstruct.Name}}: params.{{$fstruct.Name}},\n"
+        {{- end }}
+        fixture += "}\n"
+		fixture += mocker
+		fixture += ".ByFixtureParams(ctx, ps)"
+		{{ else }}
+		fixture := mocker
+		fixture += ".ByFixture(ctx)"
+		{{ end }}
+
+		return activerecord.MockerLogger{MockerName: mockerName, Mockers: mocker, FixturesSelector: fixture, ResultName: "{{ $pkgName }}", Results: res}, nil
+	}
+}
+{{- end }}
+
+{{ if $fields }}
 func (obj *{{ $PublicStructName }}) MockSelectResponse() ([][]byte, error) {
 	tuple := [][]byte{}
 	
@@ -38,7 +111,7 @@ func (obj *{{ $PublicStructName }}) MockSelectResponse() ([][]byte, error) {
 {{ end }}
 	return tuple, nil
 }
-
+{{ if $fields }}
 {{ $pktype := "" }}
 {{ $pklenfld := 1 }}
 {{ $pkind := index .Indexes 0 }}
@@ -83,7 +156,7 @@ func (obj *{{ $PublicStructName }}) Mock{{ $ind.Selector }}Request(ctx context.C
 			{{ $serializer := index $serializers $sname -}}
 			{{ $rtype := $serializer.Type -}}
 func serialize{{ $sfield.Name}}(ctx context.Context, v{{ $sfield.Name}} {{ $rtype }}) {{ $sfield.Format }} {
-	v, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $fstruct.SerializerParams }} v{{ $sfield.Name}})
+	v, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $fstruct.Serializer.Params }} v{{ $sfield.Name}})
 	if err != nil {
 		activerecord.Logger().Fatal(ctx, err)
 	}
@@ -112,7 +185,7 @@ func (obj *{{ $PublicStructName }}) Mock{{ $ind.Selector }}sRequest(ctx context.
 				{{ $packparam := printf "key.%s" $sfield.Name -}}
 				{{ $fi := index $fidx $sfield.Name }}
 				{{ $fstruct := index $fields $fi }}
-				{{ $serlen := len $fstruct.Serializer -}}				
+				{{ $serlen := len $fstruct.Serializer -}}
 				data, err = pack{{ $sfield.Name }}([]byte{}, {{ $packparam }})
 				if err != nil {
 					log.Fatal(ctx, err)
@@ -162,7 +235,7 @@ return func() (activerecord.MockerLogger, error){
 					{{ if ne $serlen 0 }}
 						{{ $sname := index $sfield.Serializer 0 -}}
 						{{ $serializer := index $serializers $sname -}}
-						{{ $serparams := $sfield.SerializerParams -}}
+						{{ $serparams := $sfield.Serializer.Params -}}
 						skey, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $packparam }})
 						if err != nil {
 							return activerecord.MockerLogger{}, err
@@ -220,15 +293,17 @@ return func() (activerecord.MockerLogger, error){
 				{{ end }}
 				pks += "},"
 				{{ else }}
-					{{ $ifield := index $pkind.Fields 0 -}}
-					{{ $sfield := index $fields $ifield -}}
-					{{ $packerparam := packerParam $sfield.Format }}
-					{{- $tostr := $packerparam.ToString }}
-					{{- $conv := index $tostr 0 }}
-					{{ if ne $conv " " }}
-				pks += {{ index $tostr 0 }}r.Primary(){{ index $tostr 1 }} + ",\n"
-					{{ else }}
-				pks += "\"" + r.Primary() + "\",\n"
+				    {{ if $pkind.Fields }}
+                        {{ $ifield := index $pkind.Fields 0 -}}
+                        {{ $sfield := index $fields $ifield -}}
+                        {{ $packerparam := packerParam $sfield.Format }}
+                        {{- $tostr := $packerparam.ToString }}
+                        {{- $conv := index $tostr 0 }}
+                        {{ if ne $conv " " }}
+                    pks += {{ index $tostr 0 }}r.Primary(){{ index $tostr 1 }} + ",\n"
+                        {{ else }}
+                    pks += "\"" + r.Primary() + "\",\n"
+                        {{ end }}
 					{{ end }}
 				{{ end }}
 			}
@@ -245,7 +320,7 @@ return func() (activerecord.MockerLogger, error){
 }
 
 {{ end }}
-
+{{ end }}
 func (obj *{{ $PublicStructName }}) RepoSelector(ctx context.Context) (any, error) {
 	data, err := SelectByPrimary(ctx, obj.Primary())
 	if err != nil {
@@ -321,3 +396,4 @@ func (obj *{{ $PublicStructName }}) mockInsertReplace(ctx context.Context, inser
 
 	return w
 }
+{{- end }}

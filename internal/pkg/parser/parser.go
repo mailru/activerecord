@@ -16,6 +16,7 @@ type StructNameType string
 
 const (
 	Fields       StructNameType = "Fields"
+	ProcFields   StructNameType = "ProcFields"
 	FieldsObject StructNameType = "FieldsObject"
 	Indexes      StructNameType = "Indexes"
 	IndexParts   StructNameType = "IndexParts"
@@ -27,14 +28,16 @@ const (
 type TagNameType string
 
 const (
-	SelectorTag   TagNameType = "selector"
-	PrimaryKeyTag TagNameType = "primary_key"
-	UniqueTag     TagNameType = "unique"
-	MutatorsTag   TagNameType = "mutators"
-	SizeTag       TagNameType = "size"
-	SerializerTag TagNameType = "serializer"
-	FieldsTag     TagNameType = "fields"
-	OrderDescTag  TagNameType = "orderdesc"
+	SelectorTag        TagNameType = "selector"
+	PrimaryKeyTag      TagNameType = "primary_key"
+	UniqueTag          TagNameType = "unique"
+	MutatorsTag        TagNameType = "mutators"
+	SizeTag            TagNameType = "size"
+	SerializerTag      TagNameType = "serializer"
+	FieldsTag          TagNameType = "fields"
+	OrderDescTag       TagNameType = "orderdesc"
+	ProcInputParamTag  TagNameType = "input"
+	ProcOutputParamTag TagNameType = "output"
 )
 
 type TypeName string
@@ -101,6 +104,8 @@ func parseStructNameType(dst *ds.RecordPackage, nodeName string, curr *ast.Struc
 		return ParseTrigger(dst, curr.Fields.List)
 	case Flags:
 		return ParseFlags(dst, curr.Fields.List)
+	case ProcFields:
+		return ParseProcFields(dst, curr.Fields.List)
 	default:
 		return arerror.ErrUnknown
 	}
@@ -112,13 +117,16 @@ func parseStructType(dst *ds.RecordPackage, name string, doc *ast.CommentGroup, 
 		return &arerror.ErrParseGenDecl{Name: name, Err: err}
 	}
 
-	if nodeName == "Fields" {
-		dst.Namespace.PublicName = public
-		dst.Namespace.PackageName = private
-
-		if err = parseDoc(dst, doc); err != nil {
+	switch StructNameType(nodeName) {
+	case Fields:
+		fallthrough
+	case ProcFields:
+		if err = parseDoc(dst, nodeName, doc); err != nil {
 			return err
 		}
+
+		dst.Namespace.PublicName = public
+		dst.Namespace.PackageName = private
 	}
 
 	if err = parseStructNameType(dst, nodeName, curr); err != nil {
@@ -190,7 +198,9 @@ func parseGen(dst *ds.RecordPackage, genD *ast.GenDecl) error {
 }
 
 // parseDoc парсинг описания сервеной конфигурации в модели
-func parseDoc(dst *ds.RecordPackage, doc *ast.CommentGroup) error {
+//
+//nolint:gocognit,gocyclo
+func parseDoc(dst *ds.RecordPackage, nodeName string, doc *ast.CommentGroup) error {
 	if doc == nil {
 		return arerror.ErrParseDocEmptyBoxDeclaration
 	}
@@ -218,12 +228,18 @@ func parseDoc(dst *ds.RecordPackage, doc *ast.CommentGroup) error {
 
 					dst.Server.Timeout = timeout
 				case "namespace":
-					nsnum, err := strconv.ParseInt(kv[1], 10, 64)
-					if err != nil {
+					switch StructNameType(nodeName) {
+					case Fields:
+						fallthrough
+					case ProcFields:
+						if len(kv[1]) == 0 {
+							return &arerror.ErrParseDocDecl{Name: kv[0], Value: kv[1], Err: arerror.ErrParseDocNamespaceDecl}
+						}
+
+						dst.Namespace.ObjectName = kv[1]
+					default:
 						return &arerror.ErrParseDocDecl{Name: kv[0], Value: kv[1], Err: arerror.ErrParseDocNamespaceDecl}
 					}
-
-					dst.Namespace.Num = nsnum
 				case "backend":
 					dst.Backends = strings.Split(kv[1], ",")
 				default:

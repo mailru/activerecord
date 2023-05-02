@@ -14,6 +14,7 @@ var ErrIndexNotExist = errors.New("index not exists")
 var ErrParseNodeNameUnknown = errors.New("unknown node name")
 var ErrParseNodeNameInvalid = errors.New("invalid struct name")
 var ErrParseFuncDeclNotSupported = errors.New("func declaration not implemented")
+var ErrProcFieldDuplicateOrderIndex = errors.New("field order index is duplicate")
 
 // Описание ошибки парсинга
 type ErrParseGenDecl struct {
@@ -122,6 +123,7 @@ func (e *ErrParseTypeFieldTagDecl) Error() string {
 }
 
 var ErrParseFieldArrayOfNotByte = errors.New("support only array of byte")
+var ErrParseProcFieldArraySlice = errors.New("support array|slice of byte|string")
 var ErrParseFieldArrayNotSlice = errors.New("only array of byte not a slice")
 var ErrParseFieldBinary = errors.New("binary format not implemented")
 var ErrParseFieldMutatorInvalid = errors.New("invalid mutator")

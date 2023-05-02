@@ -76,7 +76,7 @@ type TriggersFoo struct {
 			},
 			wantErr: false,
 			want: &ds.RecordPackage{
-				Namespace: ds.NamespaceDeclaration{Num: 2, PublicName: "Foo", PackageName: "foo"},
+				Namespace: ds.NamespaceDeclaration{ObjectName: "2", PublicName: "Foo", PackageName: "foo"},
 				Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11111"},
 				Fields: []ds.FieldDeclaration{
 					{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Size: 5, Serializer: []string{}},
@@ -131,7 +131,9 @@ type TriggersFoo struct {
 						Params:     map[string]bool{"Defaults": true},
 					},
 				},
-				FlagMap: map[string]ds.FlagDeclaration{},
+				FlagMap:       map[string]ds.FlagDeclaration{},
+				ProcFieldsMap: map[string]int{},
+				ProcOutFields: map[int]ds.ProcFieldDeclaration{},
 			},
 		},
 	}
@@ -142,6 +144,96 @@ type TriggersFoo struct {
 				return
 			}
 
+			assert.Check(t, cmp.DeepEqual(tt.want, tt.args.rc), "Invalid response, test `%s`", tt.name)
+		})
+	}
+}
+
+func TestParseProc(t *testing.T) {
+	tempDirs := testutil.InitTmps()
+	defer tempDirs.Defer()
+
+	textTestPkg := `package repository
+
+//ar:serverHost:127.0.0.1;serverPort:11111;serverTimeout:500
+//ar:namespace:bar
+//ar:backend:octopus
+type ProcFieldsFoo struct {
+	InParams1    []string  ` + "`" + `ar:"input"` + "`" + `
+	InOutParams2    string  ` + "`" + `ar:"input;output:1"` + "`" + `
+	Output  string ` + "`" + `ar:"output:0"` + "`" + `
+}
+`
+
+	srcRoot, err := tempDirs.AddTempDir()
+	if err != nil {
+		t.Errorf("can't initialize directory: %s", err)
+		return
+	}
+
+	src := filepath.Join(srcRoot, "model/repository/decl")
+
+	if err = os.MkdirAll(src, 0755); err != nil {
+		t.Errorf("prepare test files error: %s", err)
+		return
+	}
+
+	if err = os.WriteFile(filepath.Join(src, "foo.go"), []byte(textTestPkg), 0644); err != nil {
+		t.Errorf("prepare test files error: %s", err)
+		return
+	}
+
+	type args struct {
+		srcFileName string
+		rc          *ds.RecordPackage
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		want    *ds.RecordPackage
+	}{
+		{
+			name: "simple proc decl",
+			args: args{
+				srcFileName: filepath.Join(src, "foo.go"),
+				rc:          ds.NewRecordPackage(),
+			},
+			wantErr: false,
+			want: &ds.RecordPackage{
+				Namespace: ds.NamespaceDeclaration{ObjectName: "bar", PublicName: "Foo", PackageName: "foo"},
+				Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11111"},
+				Fields:    []ds.FieldDeclaration{},
+				FieldsMap: map[string]int{},
+				ProcInFields: []ds.ProcFieldDeclaration{
+					{Name: "InParams1", Format: "[]string", Type: 1, Serializer: []string{}},
+					{Name: "InOutParams2", Format: "string", Type: 3, Serializer: []string{}, OrderIndex: 1},
+				},
+				ProcOutFields: ds.ProcFieldDeclarations{
+					1: {Name: "InOutParams2", Format: "string", Type: 3, Serializer: []string{}, OrderIndex: 1},
+					0: {Name: "Output", Format: "string", Type: 2, Serializer: []string{}, OrderIndex: 0},
+				},
+				ProcFieldsMap:   map[string]int{"InOutParams2": 1, "InParams1": 0, "Output": 2},
+				FieldsObjectMap: map[string]ds.FieldObject{},
+				Indexes:         []ds.IndexDeclaration{},
+				IndexMap:        map[string]int{},
+				SelectorMap:     map[string]int{},
+				Backends:        []string{"octopus"},
+				SerializerMap:   map[string]ds.SerializerDeclaration{},
+				Imports:         []ds.ImportDeclaration{},
+				ImportMap:       map[string]int{},
+				ImportPkgMap:    map[string]int{},
+				TriggerMap:      map[string]ds.TriggerDeclaration{},
+				FlagMap:         map[string]ds.FlagDeclaration{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := parser.Parse(tt.args.srcFileName, tt.args.rc); (err != nil) != tt.wantErr {
+				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 			assert.Check(t, cmp.DeepEqual(tt.want, tt.args.rc), "Invalid response, test `%s`", tt.name)
 		})
 	}

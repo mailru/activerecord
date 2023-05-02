@@ -42,13 +42,15 @@ func Test_parseDoc(t *testing.T) {
 					Timeout: 500,
 				},
 				Namespace: ds.NamespaceDeclaration{
-					Num:         5,
+					ObjectName:  "5",
 					PublicName:  "",
 					PackageName: "",
 				},
 				Backends:        []string{"octopus"},
 				Fields:          []ds.FieldDeclaration{},
 				FieldsMap:       map[string]int{},
+				ProcFieldsMap:   map[string]int{},
+				ProcOutFields:   map[int]ds.ProcFieldDeclaration{},
 				FieldsObjectMap: map[string]ds.FieldObject{},
 				Indexes:         []ds.IndexDeclaration{},
 				IndexMap:        map[string]int{},
@@ -90,7 +92,7 @@ func Test_parseDoc(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := parseDoc(tt.args.dst, tt.args.docs); (err != nil) != tt.wantErr {
+			if err := parseDoc(tt.args.dst, string(Fields), tt.args.docs); (err != nil) != tt.wantErr {
 				t.Errorf("parseDoc() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -111,7 +113,7 @@ func Test_parseGen(t *testing.T) {
 	w := ds.NewRecordPackage()
 	w.Backends = []string{"octopus"}
 	w.Namespace = ds.NamespaceDeclaration{
-		Num:         5,
+		ObjectName:  "5",
 		PublicName:  "Baz",
 		PackageName: "baz",
 	}
@@ -123,7 +125,7 @@ func Test_parseGen(t *testing.T) {
 	wLinked := ds.NewRecordPackage()
 	wLinked.Backends = []string{"octopus"}
 	wLinked.Namespace = ds.NamespaceDeclaration{
-		Num:         5,
+		ObjectName:  "5",
 		PublicName:  "Foo",
 		PackageName: "foo",
 	}
@@ -364,7 +366,9 @@ func Test_parseAst(t *testing.T) {
 			wantErr: false,
 			want: &ds.RecordPackage{
 				Server:          ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11011"},
-				Namespace:       ds.NamespaceDeclaration{Num: 5, PublicName: "Baz", PackageName: "baz"},
+				Namespace:       ds.NamespaceDeclaration{ObjectName: "5", PublicName: "Baz", PackageName: "baz"},
+				ProcFieldsMap:   map[string]int{},
+				ProcOutFields:   map[int]ds.ProcFieldDeclaration{},
 				Fields:          []ds.FieldDeclaration{},
 				FieldsMap:       map[string]int{},
 				FieldsObjectMap: map[string]ds.FieldObject{},

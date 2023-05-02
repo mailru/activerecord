@@ -31,7 +31,7 @@ func TestGenerate(t *testing.T) {
 						Timeout: 500,
 					},
 					Namespace: ds.NamespaceDeclaration{
-						Num:         5,
+						ObjectName:  "5",
 						PublicName:  "Bar",
 						PackageName: "bar",
 					},

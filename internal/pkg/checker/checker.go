@@ -2,6 +2,7 @@ package checker
 
 import (
 	"log"
+	"strconv"
 
 	"github.com/mailru/activerecord/internal/pkg/arerror"
 	"github.com/mailru/activerecord/internal/pkg/ds"
@@ -65,7 +66,17 @@ func checkNamespace(ns *ds.NamespaceDeclaration) error {
 // - сериализуемые поля не могут быть ссылками на другие сущности
 // - есть первичный ключ
 // - имена сущностей на которые ссылаемся на могут пересекаться с именами полей
+//
+//nolint:gocognit,gocyclo
 func checkFields(cl *ds.RecordPackage) error {
+	if len(cl.Fields) > 0 && len(cl.ProcOutFields) > 0 {
+		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckFieldsManyDecl}
+	}
+
+	if !cl.ProcOutFields.Validate() {
+		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckFieldsOrderDecl}
+	}
+
 	primaryFound := false
 
 	octopusAvailFormat := map[octopus.Format]bool{}
@@ -111,7 +122,48 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 	}
 
-	if !primaryFound {
+	for _, fld := range cl.ProcOutFields.List() {
+		if _, ex := octopusAvailFormat[fld.Format]; !ex {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
+		}
+
+		if len(fld.Serializer) > 0 {
+			if _, ex := cl.SerializerMap[fld.Serializer[0]]; !ex {
+				return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
+			}
+		}
+
+		if fld.Type == 0 {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldTypeNotFound}
+		}
+	}
+
+	octopusProcAvailFormat := map[octopus.Format]bool{}
+	for _, form := range octopus.AllProcFormat {
+		octopusProcAvailFormat[form] = true
+	}
+
+	for _, fld := range cl.ProcInFields {
+		if _, ex := octopusProcAvailFormat[fld.Format]; !ex {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
+		}
+
+		if len(fld.Serializer) > 0 {
+			if _, ex := cl.SerializerMap[fld.Serializer[0]]; !ex {
+				return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
+			}
+		}
+
+		if fld.Type == 0 {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldTypeNotFound}
+		}
+	}
+
+	if len(cl.Fields) == 0 && len(cl.ProcOutFields) == 0 {
+		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckFieldsEmpty}
+	}
+
+	if len(cl.Fields) > 0 && !primaryFound {
 		return &arerror.ErrCheckPackageIndexDecl{Pkg: cl.Namespace.PackageName, Index: "primary", Err: arerror.ErrIndexNotExist}
 	}
 
@@ -154,6 +206,7 @@ func Check(files map[string]*ds.RecordPackage, linkedObjects map[string]string) 
 	return nil
 }
 
+//nolint:gocognit,gocyclo
 func checkOctopus(cl *ds.RecordPackage) error {
 	if cl.Server.Host == "" && cl.Server.Conf == "" {
 		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckServerEmpty}
@@ -176,6 +229,28 @@ func checkOctopus(cl *ds.RecordPackage) error {
 	for _, ind := range cl.Indexes {
 		if len(ind.Fields) == 0 {
 			return &arerror.ErrCheckPackageIndexDecl{Pkg: cl.Namespace.PackageName, Index: ind.Name, Err: arerror.ErrCheckFieldIndexEmpty}
+		}
+	}
+
+	if len(cl.Fields) > 0 {
+		_, err := strconv.ParseInt(cl.Namespace.ObjectName, 10, 64)
+		if err != nil {
+			return &arerror.ErrCheckPackageNamespaceDecl{Pkg: cl.Namespace.PackageName, Name: cl.Namespace.ObjectName, Err: arerror.ErrCheckFieldInvalidFormat}
+		}
+	}
+
+	octopusProcAvailFormat := map[octopus.Format]bool{}
+	for _, form := range []octopus.Format{octopus.String, octopus.StringArray, octopus.ByteArray} {
+		octopusProcAvailFormat[form] = true
+	}
+
+	for _, fld := range cl.ProcInFields {
+		if _, ex := octopusProcAvailFormat[fld.Format]; !ex {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
+		}
+
+		if fld.Format != octopus.String && len(fld.Serializer) == 0 {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
 		}
 	}
 

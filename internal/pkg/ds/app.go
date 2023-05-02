@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mailru/activerecord/internal/pkg/arerror"
 	"github.com/mailru/activerecord/pkg/octopus"
 )
 
@@ -56,7 +57,7 @@ func (i *AppInfo) String() string {
 
 // Структура для описания неймспейса сущности
 type NamespaceDeclaration struct {
-	Num         int64
+	ObjectName  string
 	PublicName  string
 	PackageName string
 	ModuleName  string
@@ -86,6 +87,9 @@ type RecordPackage struct {
 	ImportPkgMap    map[string]int                   // Обратный индекс от пакетов к импортам
 	TriggerMap      map[string]TriggerDeclaration    // Список триггеров используемых в сущности
 	FlagMap         map[string]FlagDeclaration       // Список флагов используемых в полях сущности
+	ProcInFields    []ProcFieldDeclaration           // Описание входных параметров процедуры, важна последовательность
+	ProcOutFields   ProcFieldDeclarations            // Описание выходных параметров процедуры, важна последовательность
+	ProcFieldsMap   map[string]int                   // Обратный индекс от имен
 }
 
 // Конструктор для RecordPackage, инициализирует ссылочные типы
@@ -106,6 +110,8 @@ func NewRecordPackage() *RecordPackage {
 		SerializerMap:   map[string]SerializerDeclaration{},
 		TriggerMap:      map[string]TriggerDeclaration{},
 		FlagMap:         map[string]FlagDeclaration{},
+		ProcFieldsMap:   map[string]int{},
+		ProcOutFields:   map[int]ProcFieldDeclaration{},
 	}
 }
 
@@ -136,34 +142,117 @@ type IndexDeclaration struct {
 	Partial   bool                  // Признак того, что индекс частичный
 }
 
-// Тип описывающий поле в сущности
+// Serializer Сериализаторы для поля
+type Serializer []string
+
+// FieldDeclaration Тип описывающий поле в сущности
 type FieldDeclaration struct {
 	Name       string         // Название поля
 	Format     octopus.Format // формат поля
 	PrimaryKey bool           // участвует ли поле в первичном ключе (при изменении таких полей необходимо делать delete + insert вместо update)
 	Mutators   []FieldMutator // список мутаторов (атомарных действий на уровне БД)
 	Size       int64          // Размер поля, используется только для строковых значений
-	Serializer []string       // Сериализатора для поля
+	Serializer Serializer     // Сериализаторы для поля
 	ObjectLink string         // является ли поле ссылкой на другую сущность
 }
 
-// Метод возвращающий имя сериализатора, если он установлен, иначе пустую строку
-func (f *FieldDeclaration) SerializerName() string {
-	if len(f.Serializer) > 0 {
-		return f.Serializer[0]
+// Name возвращает имя сериализатора, если он установлен, иначе пустую строку
+func (s Serializer) Name() string {
+	if len(s) > 0 {
+		return s[0]
 	}
 
 	return ""
 }
 
-// Параметры передаваемые при сериализации. Используется, когда на уровне декларирования
+// Params Параметры передаваемые при сериализации. Используется, когда на уровне декларирования
 // известно, что сериализатор/десериализатор требует дополнительных константных значений
-func (f *FieldDeclaration) SerializerParams() string {
-	if len(f.Serializer) > 1 {
-		return `"` + strings.Join(f.Serializer[1:], `", "`) + `", `
+func (s Serializer) Params() string {
+	if len(s) > 1 {
+		return `"` + strings.Join(s[1:], `", "`) + `", `
 	}
 
 	return ""
+}
+
+const (
+	ProcInputParam  = "input"
+	ProcOutputParam = "output"
+)
+
+type ProcParameterType uint8
+
+func (p ProcParameterType) String() string {
+	switch p {
+	case IN:
+		return ProcInputParam
+	case OUT:
+		return ProcOutputParam
+	case INOUT:
+		return fmt.Sprintf("%v/%v", ProcInputParam, ProcOutputParam)
+	default:
+		return ""
+	}
+}
+
+const (
+	_     ProcParameterType = iota
+	IN                      //тип входного параметра процедуры
+	OUT                     //тип выходного параметра процедуры
+	INOUT                   //тип одновременно и входного и выходного параметра процедуры
+)
+
+// ProcFieldDeclaration Тип описывающий поле процедуры
+type ProcFieldDeclaration struct {
+	Name       string            // Название поля
+	Format     octopus.Format    // формат поля
+	Type       ProcParameterType // тип параметра (IN, OUT, INOUT)
+	Size       int64             // Размер поля, используется только для строковых значений
+	Serializer Serializer        // Сериализатора для поля
+	OrderIndex int               // Порядковый номер параметра в сигнатуре вызова процедуры
+}
+
+// ProcFieldDeclarations Индекс порядкового значения полей процедуры
+type ProcFieldDeclarations map[int]ProcFieldDeclaration
+
+// Add Добавляет декларацию поля процедуры в список.
+// Возвращает ошибку, если декларация с таким порядком в [ProcFieldDeclarations] уже существует
+func (pfd ProcFieldDeclarations) Add(field ProcFieldDeclaration) error {
+	idx := field.OrderIndex
+
+	if _, ok := pfd[idx]; ok {
+		return arerror.ErrProcFieldDuplicateOrderIndex
+	}
+
+	pfd[idx] = field
+
+	return nil
+}
+
+// List список деклараций процедуры в описанном порядке описания
+func (pfd ProcFieldDeclarations) List() []ProcFieldDeclaration {
+	out := make([]ProcFieldDeclaration, len(pfd))
+	for i := range pfd {
+		out[i] = pfd[i]
+	}
+
+	return out
+}
+
+// Validate проверяет корректность декларируемых значений порядкового номера полей процедуры
+func (pfd ProcFieldDeclarations) Validate() bool {
+	if len(pfd) == 0 {
+		return true
+	}
+
+	var maxIdx int
+	for idx := range pfd {
+		if idx > maxIdx {
+			maxIdx = idx
+		}
+	}
+
+	return maxIdx < len(pfd)
 }
 
 // Тип и константы описывающие мутаторы для поля

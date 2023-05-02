@@ -23,12 +23,18 @@ type FieldMeta struct {
     Unpacker func(packedField []byte) (any, error)
 }
 
-type NSPackage map[uint32]SpaceMeta 
+type NSPackage map[string]SpaceMeta
+
+func (ns NSPackage) meta(n uint32) (SpaceMeta, bool) {
+	v, ok := ns[strconv.Itoa(int(n))]
+	return v, ok
+}
 
 {{ $nss := .Namespaces }}
 var NamespacePackages = NSPackage {
 {{ range $_, $ns := $nss -}}
-    {{ $ns.Namespace.Num }}: {
+    {{ if $ns.Fields }}
+    "{{ $ns.Namespace.ObjectName }}": {
         PackageName: "{{ $ns.Namespace.PackageName }}",
         Unpacker: func(ctx context.Context, tuple octopus.TupleData) (any, error) { 
             obj, err := {{ $ns.Namespace.PackageName }}.TupleToStruct(ctx, tuple)
@@ -47,6 +53,7 @@ var NamespacePackages = NSPackage {
             {{- end }}
         },
         Indexes: map[string]IndexMeta{
+        {{ if $ns.Indexes }}
         {{- $pk := index $ns.Indexes 0 }}
         {{- range $num, $ind := $ns.Indexes }}
             {{- if $ind.Primary }}{{ $pk = $ind }}{{ end }}
@@ -55,17 +62,22 @@ var NamespacePackages = NSPackage {
                 Unpacker: func(packedKeys [][][]byte) (any, error) { return {{ $ns.Namespace.PackageName }}.UnpackKeyIndex{{ $ind.Name }}(packedKeys)},
             },
         {{- end }}
+        {{- end }}
         },
         PK: IndexMeta{
+            {{ if $ns.Indexes }}
+            {{- $pk := index $ns.Indexes 0 }}
             Name: "{{ $pk.Name }}",
             Unpacker: func(packedKeys [][][]byte) (any, error) { return {{ $ns.Namespace.PackageName }}.UnpackKeyIndex{{ $pk.Name }}(packedKeys)},
+            {{- end }}
         },
     },
+    {{ end }}
 {{ end }}
 }
 
 func (n NSPackage) GetSelectDebugInfo(ns uint32, indexnum uint32, offset uint32, limit uint32, keys [][][]byte) string {
-    spacemeta, ex := n[ns]
+    spacemeta, ex := n.meta(ns)
     if !ex {
         return fmt.Sprintf("unknown space %d, index: %d, offset: %d, limit: %d, Keys: %+v", ns, indexnum, offset, limit, keys)
     }
@@ -84,7 +96,7 @@ func (n NSPackage) GetSelectDebugInfo(ns uint32, indexnum uint32, offset uint32,
 }
 
 func (n NSPackage) GetUpdateDebugInfo(ns uint32, primaryKey [][]byte, updateOps []octopus.Ops) string {
-    spacemeta, ex := n[ns]
+    spacemeta, ex := n.meta(ns)
     if !ex {
         return fmt.Sprintf("unknown space %d, primaryKey: %+v, updateOps: %+v", ns, primaryKey, updateOps)
     }
@@ -109,7 +121,7 @@ func (n NSPackage) GetUpdateDebugInfo(ns uint32, primaryKey [][]byte, updateOps 
 }
 
 func (n NSPackage) GetDeleteDebugInfo(ns uint32, primaryKey [][]byte) string {
-    spacemeta, ex := n[ns]
+    spacemeta, ex := n.meta(ns)
     if !ex {
         return fmt.Sprintf("unknown space %d, primaryKey: %+v", ns, primaryKey)
     }
@@ -125,7 +137,7 @@ func (n NSPackage) GetDeleteDebugInfo(ns uint32, primaryKey [][]byte) string {
 func (n NSPackage) GetInsertDebugInfo(ns uint32, needRetVal bool, insertMode octopus.InsertMode, tuple octopus.TupleData) string {
     strMode := octopus.GetInsertModeName(insertMode)
 
-    spacemeta, ex := n[ns]
+    spacemeta, ex := n.meta(ns)
     if !ex {
         return fmt.Sprintf("unknown space %d, insertMode: %s, tuple: %+v", ns, strMode, tuple)
     }

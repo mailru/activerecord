@@ -27,9 +27,99 @@ import (
 {{ $LinkedObject := .LinkedObject }}
 {{ $flags := .Flags }}
 {{ $fields := .FieldList }}
+{{ $procfields := .ProcOutFieldList }}
+{{ $procInLen := len .ProcInFieldList }}
 {{ $typePK := "" -}}
 {{ $fieldNamePK := "" -}}
 
+{{ if $procfields }}
+type {{ $PublicStructName }}FTPK struct {
+    {{- range $ind, $fstruct := .ProcInFieldList }}
+        {{ $rtype := $fstruct.Format -}}
+        {{ $serlen := len $fstruct.Serializer -}}
+        {{ if ne $serlen 0 -}}
+            {{ $sname := index $fstruct.Serializer 0 -}}
+            {{ $serializer := index $serializers $sname -}}
+            {{ $rtype = $serializer.Type -}}
+        {{ end }}
+	    {{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}"`
+	{{- end }}
+}
+
+type {{ $PublicStructName }}FT struct {
+    Params {{ $PublicStructName }}FTPK `yaml:"params"`
+{{- range $ind, $fstruct := .ProcOutFieldList -}}
+	{{ $rtype := $fstruct.Format -}}
+	{{ $serlen := len $fstruct.Serializer -}}
+	{{ if ne $serlen 0 -}}
+		{{ $sname := index $fstruct.Serializer 0 -}}
+		{{ $serializer := index $serializers $sname -}}
+		{{ $rtype = $serializer.Type -}}
+	{{ end }}
+	{{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}"`
+{{- end }}
+}
+
+func MarshalFixtures(objs []*{{$PublicStructName}}) ([]byte, error) {
+	fts := make([]{{$PublicStructName}}FT, 0, len(objs))
+	for _, obj := range objs {
+        {{ if ne $procInLen 0 }}params := obj.GetParams(){{ end }}
+
+        pk := {{$PublicStructName}}FTPK{
+            {{- range $ind, $fstruct := .ProcInFieldList }}
+                {{$fstruct.Name}}: params.{{$fstruct.Name}},
+            {{- end }}
+        }
+		fts = append(fts, {{$PublicStructName}}FT{
+		    Params: pk,
+            {{- range $ind, $fstruct := .ProcOutFieldList }}
+			{{$fstruct.Name}}: obj.Get{{$fstruct.Name}}(),
+			{{- end }}
+		})
+	}
+	return yaml.Marshal(fts)
+}
+
+func UnmarshalFixtures(source []byte) []*{{$PublicStructName}} {
+    var fixtures []{{$PublicStructName}}FT
+
+    if err := yaml.Unmarshal(source, &fixtures); err != nil {
+        log.Fatalf("unmarshal {{$PublicStructName}}FT fixture: %v", err)
+    }
+
+    objs := make([]*{{$PublicStructName}}, 0, len(fixtures))
+
+    for _, ft := range fixtures {
+
+        o := New(context.Background())
+        o.setParams({{$PublicStructName}}Params{
+            {{- range $ind, $fstruct := .ProcInFieldList }}
+            {{$fstruct.Name}}: ft.Params.{{$fstruct.Name}},
+            {{- end }}
+        })
+
+        {{- range $ind, $fstruct := .ProcOutFieldList }}
+        if err := o.Set{{$fstruct.Name}}(ft.{{$fstruct.Name}}); err != nil {
+            log.Fatalf("can't set value %v to field {{$fstruct.Name}} of {{$PublicStructName}} fixture: %s", ft.{{$fstruct.Name}}, err)
+        }
+        {{- end }}
+
+        objs = append(objs, o)
+    }
+
+    return objs
+}
+{{ end }}
+
+func (objs {{$PublicStructName}}List) String() string {
+	o, err := MarshalFixtures(objs)
+	if err != nil {
+		activerecord.Logger().Fatal(context.Background(), err)
+	}
+	return string(o)
+}
+
+{{ if $fields }}
 {{ range $num, $ind := .Indexes -}}
 {{ $lenfld := len $ind.Fields -}}
 	{{ if $ind.Primary }}
@@ -41,7 +131,6 @@ import (
         {{- $fieldNamePK = $ind.Name -}}
     {{ end }}
 {{ end }}
-
 
 type {{ $PublicStructName }}FT struct {
 {{- range $ind, $fstruct := .FieldList -}}
@@ -90,14 +179,6 @@ func UnmarshalFixtures(source []byte) []*{{$PublicStructName}} {
     }
 
     return objs
-}
-
-func (objs {{$PublicStructName}}List) String() string {
-	o, err := MarshalFixtures(objs)
-	if err != nil {
-		activerecord.Logger().Fatal(context.Background(), err)
-	}
-	return string(o)
 }
 
 {{/* Отдельный тип фикстур, чтобы не было пересечения по PrimaryKey для update, select, delete... фикстур в yaml */}}
@@ -203,3 +284,4 @@ func SetFixtureUpdateOptions(obj *{{$PublicStructName}}, updateOptions  []{{$Pub
     {{- end }}
     }
 }
+{{ end }}

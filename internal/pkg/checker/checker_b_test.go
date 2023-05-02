@@ -11,7 +11,7 @@ import (
 func TestCheck(t *testing.T) {
 	rpFoo := ds.NewRecordPackage()
 	rpFoo.Backends = []string{"octopus"}
-	rpFoo.Namespace = ds.NamespaceDeclaration{Num: 0, PackageName: "foo", PublicName: "Foo"}
+	rpFoo.Namespace = ds.NamespaceDeclaration{ObjectName: "0", PackageName: "foo", PublicName: "Foo"}
 	rpFoo.Server = ds.ServerDeclaration{Host: "127.0.0.1", Port: "11011"}
 
 	err := rpFoo.AddField(ds.FieldDeclaration{
@@ -56,12 +56,31 @@ func TestCheck(t *testing.T) {
 
 	rpInvalidFormat := ds.NewRecordPackage()
 	rpInvalidFormat.Backends = []string{"octopus"}
-	rpInvalidFormat.Namespace = ds.NamespaceDeclaration{Num: 0, PackageName: "invform", PublicName: "InvalidFormat"}
+	rpInvalidFormat.Namespace = ds.NamespaceDeclaration{ObjectName: "0", PackageName: "invform", PublicName: "InvalidFormat"}
 	rpInvalidFormat.Server = ds.ServerDeclaration{Host: "127.0.0.1", Port: "11011"}
 
 	err = rpInvalidFormat.AddField(ds.FieldDeclaration{
 		Name:       "ID",
-		Format:     octopus.Format("byte"),
+		Format:     "byte",
+		PrimaryKey: true,
+		Mutators:   []ds.FieldMutator{},
+		Size:       0,
+		Serializer: []string{},
+		ObjectLink: "",
+	})
+	if err != nil {
+		t.Errorf("can't prepare test data: %s", err)
+		return
+	}
+
+	onInvalidFormat := ds.NewRecordPackage()
+	onInvalidFormat.Backends = []string{"octopus"}
+	onInvalidFormat.Namespace = ds.NamespaceDeclaration{ObjectName: "invalid", PackageName: "invform", PublicName: "InvalidFormat"}
+	onInvalidFormat.Server = ds.ServerDeclaration{Host: "127.0.0.1", Port: "11011", Conf: "box"}
+
+	err = onInvalidFormat.AddField(ds.FieldDeclaration{
+		Name:       "ID",
+		Format:     "byte",
 		PrimaryKey: true,
 		Mutators:   []ds.FieldMutator{},
 		Size:       0,
@@ -102,6 +121,14 @@ func TestCheck(t *testing.T) {
 			name: "wrong octopus format",
 			args: args{
 				files:         map[string]*ds.RecordPackage{"invalid": rpInvalidFormat},
+				linkedObjects: map[string]string{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "wrong octopus namespace objectname format",
+			args: args{
+				files:         map[string]*ds.RecordPackage{"invalid": onInvalidFormat},
 				linkedObjects: map[string]string{},
 			},
 			wantErr: true,
