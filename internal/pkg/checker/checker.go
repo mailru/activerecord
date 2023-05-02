@@ -206,6 +206,7 @@ func Check(files map[string]*ds.RecordPackage, linkedObjects map[string]string) 
 	return nil
 }
 
+//nolint:gocognit,gocyclo
 func checkOctopus(cl *ds.RecordPackage) error {
 	if cl.Server.Host == "" && cl.Server.Conf == "" {
 		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckServerEmpty}
