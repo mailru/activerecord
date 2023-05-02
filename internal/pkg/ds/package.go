@@ -41,7 +41,7 @@ func (rc *RecordPackage) AddProcField(f ProcFieldDeclaration) error {
 		return &arerror.ErrParseTypeFieldDecl{Name: f.Name, FieldType: string(f.Format), Err: arerror.ErrRedefined}
 	}
 
-	// добавляем поле и не забываем про обратны индекс
+	// добавляем поле и не забываем про обратный индекс
 	rc.ProcFieldsMap[f.Name] = len(rc.ProcFieldsMap)
 	// добавляем поле во входные параметры
 	if f.Type == IN || f.Type == INOUT {
