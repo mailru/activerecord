@@ -812,7 +812,7 @@ func UnpackKeyIndex{{ $ind.Name }}(packedKeys [][][]byte) ([]{{ $ind.Type }}, er
 		{{ else }}
 		{{- $fieldNum := index $ind.Fields 0 }}
 		{{- $ifield := index $fields $fieldNum }}
-		newIField, err := Unpack{{ $ifield.Name }}(bytes.NewReader(packedKey[{{$num}}]))
+		newIField, err := Unpack{{ $ifield.Name }}(bytes.NewReader(packedKey[0]))
 		if err != nil {
 			return nil, fmt.Errorf("can't unpack index: %s", err)
 		}
