@@ -163,6 +163,16 @@ func WithPoolSize(size int) ConnectionOption {
 	})
 }
 
+// WithPoolLogger - опция для логера конекшен пула
+func WithPoolLogger(logger iproto.Logger) ConnectionOption {
+	return optionConnectionFunc(func(octopusCfg *ConnectionOptions) error {
+		octopusCfg.poolCfg.Logger = logger
+		octopusCfg.poolCfg.ChannelConfig.Logger = logger
+
+		return octopusCfg.UpdateHash("L", logger)
+	})
+}
+
 type MockServerLogger interface {
 	Debug(fmt string, args ...any)
 	DebugSelectRequest(ns uint32, indexnum uint32, offset uint32, limit uint32, keys [][][]byte)
@@ -193,6 +203,13 @@ func WithHost(host, port string) MockServerOption {
 func WithLogger(logger MockServerLogger) MockServerOption {
 	return optionFunc(func(oms *MockServer) error {
 		oms.logger = logger
+		return nil
+	})
+}
+
+func WithIprotoLogger(logger iproto.Logger) MockServerOption {
+	return optionFunc(func(oms *MockServer) error {
+		oms.iprotoLogger = logger
 		return nil
 	})
 }

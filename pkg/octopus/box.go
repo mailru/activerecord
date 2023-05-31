@@ -22,6 +22,7 @@ func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType
 				ServerModeType(sic.Mode),
 				WithTimeout(sic.Timeout, sic.Timeout),
 				WithPoolSize(sic.PoolSize),
+				WithPoolLogger(activerecord.IprotoLogger{}),
 			)
 		}
 	}

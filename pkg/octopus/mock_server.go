@@ -47,8 +47,10 @@ type MockServer struct {
 	// Канал сигнализирующий об остановке сервера
 	stopServ chan struct{}
 
-	// Функция для логирования работы сервера
+	// Функция для логирования работы мок сервера
 	logger MockServerLogger
+
+	iprotoLogger iproto.Logger
 }
 
 type RepositoryDebugMeta interface {
@@ -120,6 +122,12 @@ func (l *DefaultLogger) DebugInsertRequest(ns uint32, needRetVal bool, insertMod
 	l.Debug("Inserty: Space: %d, need return value: %t, insertMode: %b, tuple: % X", ns, needRetVal, insertMode, tuple)
 }
 
+type NopIprotoLogger struct{}
+
+func (l NopIprotoLogger) Printf(ctx context.Context, fmt string, v ...interface{}) {}
+
+func (l NopIprotoLogger) Debugf(ctx context.Context, fmt string, v ...interface{}) {}
+
 func InitMockServer(opts ...MockServerOption) (*MockServer, error) {
 	oms := &MockServer{
 		oft:      []FixtureType{},
@@ -129,6 +137,10 @@ func InitMockServer(opts ...MockServerOption) (*MockServer, error) {
 	}
 
 	oms.logger = &DefaultLogger{}
+
+	if oms.iprotoLogger == nil {
+		oms.iprotoLogger = &NopIprotoLogger{}
+	}
 
 	for _, opt := range opts {
 		err := opt.apply(oms)
@@ -150,9 +162,13 @@ func InitMockServer(opts ...MockServerOption) (*MockServer, error) {
 	oms.ln = ln
 	oms.port = strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
 
-	oms.srv = &iproto.Server{ChannelConfig: &iproto.ChannelConfig{
-		Handler: iproto.HandlerFunc(oms.Handler),
-	}}
+	oms.srv = &iproto.Server{
+		ChannelConfig: &iproto.ChannelConfig{
+			Handler: iproto.HandlerFunc(oms.Handler),
+			Logger:  oms.iprotoLogger,
+		},
+		Log: oms.iprotoLogger,
+	}
 
 	return oms, nil
 }
