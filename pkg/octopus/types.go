@@ -53,6 +53,23 @@ const (
 	RequestTypeCall   RequetsTypeType = 22
 )
 
+func (r RequetsTypeType) String() string {
+	switch r {
+	case RequestTypeInsert:
+		return "Insert"
+	case RequestTypeSelect:
+		return "Select"
+	case RequestTypeUpdate:
+		return "Update"
+	case RequestTypeDelete:
+		return "Delete"
+	case RequestTypeCall:
+		return "Call"
+	default:
+		return "(unknown)"
+	}
+}
+
 type InsertMode uint8
 
 const (

@@ -174,7 +174,7 @@ func InitMockServer(opts ...MockServerOption) (*MockServer, error) {
 }
 
 func (oms *MockServer) Handler(ctx context.Context, c iproto.Conn, p iproto.Packet) {
-	oms.logger.Debug("% X (% X)", p.Header, p.Data)
+	oms.iprotoLogger.Debugf(ctx, "% X (% X)", p.Header, p.Data)
 
 	resp, found := oms.ProcessRequest(uint8(p.Header.Msg), p.Data)
 	if !found {
@@ -192,41 +192,99 @@ func (oms *MockServer) Handler(ctx context.Context, c iproto.Conn, p iproto.Pack
 }
 
 func (oms *MockServer) DebugFixtureNotFound(msg uint8, req []byte) {
-	switch RequetsTypeType(msg) {
-	case RequestTypeSelect:
-		space, indexnum, offset, limit, keys, err := UnpackSelect(req)
+	reqNs, err := oms.DebugFixtureRequest(msg, req, nil)
+	if err != nil {
+		oms.logger.Debug("error while unpack request fixture %s", err)
+	}
+
+	oms.logger.Debug("---dump of '%s' fixture requests that a setup in mockserver on space: %d---", RequetsTypeType(msg), reqNs)
+	for _, fix := range oms.oft {
+		if fix.Msg == RequetsTypeType(msg) {
+			if _, err := oms.DebugFixtureRequest(msg, fix.Request, func(ns uint32) bool {
+				return ns == reqNs
+			}); err != nil {
+				oms.logger.Debug("error while unpack setup fixture %s", err)
+			}
+		}
+	}
+	oms.logger.Debug("---------------------------------------------------------------------------------")
+}
+
+/*
+func (oms *MockServer) DumpFixturesResponse() {
+	for _, fix := range oms.oft {
+		reqNs, err := oms.DebugFixtureRequest(uint8(fix.Msg), fix.Request, nil)
 		if err != nil {
-			oms.logger.Debug("error while unpack select (% X): %s", req, err)
-			return
+			oms.logger.Debug("error while unpack request fixture %s", err)
 		}
 
-		oms.logger.DebugSelectRequest(space, indexnum, offset, limit, keys)
+		oms.DebugFixtureResponse(reqNs, uint8(fix.Msg), fix.Response)
+	}
+}
+
+func (oms *MockServer) DebugFixtureResponse(ns uint32, msg uint8, respBytes []byte) {
+	tuplesData, err := ProcessResp(respBytes, 0)
+	if err != nil {
+		oms.logger.Debug("error while unpack request fixture %s", err)
+	}
+
+	switch RequetsTypeType(msg) {
+	case RequestTypeSelect:
+		oms.logger.DebugSelectResponse(ns, tuplesData)
+	default:
+		oms.logger.Debug("Request type %d not support debug message", msg)
+	}
+
+}*/
+
+func (oms *MockServer) DebugFixtureRequest(msg uint8, req []byte, filter func(ns uint32) bool) (ns uint32, err error) {
+	switch RequetsTypeType(msg) {
+	case RequestTypeSelect:
+		ns, indexnum, offset, limit, keys, err := UnpackSelect(req)
+		if err != nil {
+			return 0, fmt.Errorf("error while unpack select (% X): %w", req, err)
+		}
+
+		if filter == nil || filter(ns) {
+			oms.logger.DebugSelectRequest(ns, indexnum, offset, limit, keys)
+		}
+
+		return ns, nil
 	case RequestTypeUpdate:
 		ns, primaryKey, updateOps, err := UnpackUpdate(req)
 		if err != nil {
-			oms.logger.Debug("error while unpack update (% X): %s", req, err)
-			return
+			return 0, fmt.Errorf("error while unpack update (% X): %w", req, err)
 		}
 
-		oms.logger.DebugUpdateRequest(ns, primaryKey, updateOps)
+		if filter == nil || filter(ns) {
+			oms.logger.DebugUpdateRequest(ns, primaryKey, updateOps)
+		}
+
+		return ns, nil
 	case RequestTypeInsert:
 		ns, needRetVal, insertMode, tuple, err := UnpackInsertReplace(req)
 		if err != nil {
-			oms.logger.Debug("error while unpack insert (% X): %s", req, err)
-			return
+			return 0, fmt.Errorf("error while unpack insert (% X): %w", req, err)
 		}
 
-		oms.logger.DebugInsertRequest(ns, needRetVal, insertMode, TupleData{Cnt: uint32(len(tuple)), Data: tuple})
+		if filter == nil || filter(ns) {
+			oms.logger.DebugInsertRequest(ns, needRetVal, insertMode, TupleData{Cnt: uint32(len(tuple)), Data: tuple})
+		}
+
+		return ns, nil
 	case RequestTypeDelete:
 		ns, primaryKey, err := UnpackDelete(req)
 		if err != nil {
-			oms.logger.Debug("error while unpack delete (% X): %s", req, err)
-			return
+			return 0, fmt.Errorf("error while unpack delete (% X): %w", req, err)
 		}
 
-		oms.logger.DebugDeleteRequest(ns, primaryKey)
+		if filter == nil || filter(ns) {
+			oms.logger.DebugDeleteRequest(ns, primaryKey)
+		}
+
+		return ns, nil
 	default:
-		oms.logger.Debug("Request type %d not support debug message", msg)
+		return 0, fmt.Errorf("Request type %d not support debug message", msg)
 	}
 }
 
