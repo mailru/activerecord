@@ -68,7 +68,7 @@ func (l *DefaultLogger) Debug(fmt string, args ...any) {
 	log.Printf("DEBUG: "+fmt, args...)
 }
 
-func (l *DefaultLogger) DebugSelectRequest(ns uint32, indexnum uint32, offset uint32, limit uint32, keys [][][]byte) {
+func (l *DefaultLogger) DebugSelectRequest(ns uint32, indexnum uint32, offset uint32, limit uint32, keys [][][]byte, fixture ...SelectMockFixture) {
 	if l.DebugMeta != nil {
 		l.Debug("Select: " + l.DebugMeta.GetSelectDebugInfo(ns, indexnum, offset, limit, keys))
 		return
@@ -89,7 +89,7 @@ func (l *DefaultLogger) DebugSelectRequest(ns uint32, indexnum uint32, offset ui
 	l.Debug("Select: Space: %d, index: %d, offset: %d, limit: %d, Keys: %s", ns, indexnum, offset, limit, keyStr)
 }
 
-func (l *DefaultLogger) DebugUpdateRequest(ns uint32, primaryKey [][]byte, updateOps []Ops) {
+func (l *DefaultLogger) DebugUpdateRequest(ns uint32, primaryKey [][]byte, updateOps []Ops, fixture ...UpdateMockFixture) {
 	if l.DebugMeta != nil {
 		l.Debug("Update: " + l.DebugMeta.GetUpdateDebugInfo(ns, primaryKey, updateOps))
 		return
@@ -104,7 +104,7 @@ func (l *DefaultLogger) DebugUpdateRequest(ns uint32, primaryKey [][]byte, updat
 	l.Debug("Update: Space: %d, pk: %+v, updateOps: %s", ns, primaryKey, opsStr)
 }
 
-func (l *DefaultLogger) DebugDeleteRequest(ns uint32, primaryKey [][]byte) {
+func (l *DefaultLogger) DebugDeleteRequest(ns uint32, primaryKey [][]byte, fixture ...DeleteMockFixture) {
 	if l.DebugMeta != nil {
 		l.Debug("Delete: " + l.DebugMeta.GetDeleteDebugInfo(ns, primaryKey))
 		return
@@ -113,13 +113,17 @@ func (l *DefaultLogger) DebugDeleteRequest(ns uint32, primaryKey [][]byte) {
 	l.Debug("Delete: Space: %d, pk: %+v", ns, primaryKey)
 }
 
-func (l *DefaultLogger) DebugInsertRequest(ns uint32, needRetVal bool, insertMode InsertMode, tuple TupleData) {
+func (l *DefaultLogger) DebugInsertRequest(ns uint32, needRetVal bool, insertMode InsertMode, tuple TupleData, fixture ...InsertMockFixture) {
 	if l.DebugMeta != nil {
 		l.Debug("Insert: " + l.DebugMeta.GetInsertDebugInfo(ns, needRetVal, insertMode, tuple))
 		return
 	}
 
 	l.Debug("Inserty: Space: %d, need return value: %t, insertMode: %b, tuple: % X", ns, needRetVal, insertMode, tuple)
+}
+
+func (l *DefaultLogger) DebugCallRequest(procName string, args [][]byte, fixtures ...CallMockFixture) {
+
 }
 
 type NopIprotoLogger struct{}
@@ -192,99 +196,196 @@ func (oms *MockServer) Handler(ctx context.Context, c iproto.Conn, p iproto.Pack
 }
 
 func (oms *MockServer) DebugFixtureNotFound(msg uint8, req []byte) {
-	reqNs, err := oms.DebugFixtureRequest(msg, req, nil)
-	if err != nil {
-		oms.logger.Debug("error while unpack request fixture %s", err)
-	}
-
-	oms.logger.Debug("---dump of '%s' fixture requests that a setup in mockserver on space: %d---", RequetsTypeType(msg), reqNs)
-	for _, fix := range oms.oft {
-		if fix.Msg == RequetsTypeType(msg) {
-			if _, err := oms.DebugFixtureRequest(msg, fix.Request, func(ns uint32) bool {
-				return ns == reqNs
-			}); err != nil {
-				oms.logger.Debug("error while unpack setup fixture %s", err)
-			}
-		}
-	}
-	oms.logger.Debug("---------------------------------------------------------------------------------")
-}
-
-/*
-func (oms *MockServer) DumpFixturesResponse() {
-	for _, fix := range oms.oft {
-		reqNs, err := oms.DebugFixtureRequest(uint8(fix.Msg), fix.Request, nil)
-		if err != nil {
-			oms.logger.Debug("error while unpack request fixture %s", err)
-		}
-
-		oms.DebugFixtureResponse(reqNs, uint8(fix.Msg), fix.Response)
-	}
-}
-
-func (oms *MockServer) DebugFixtureResponse(ns uint32, msg uint8, respBytes []byte) {
-	tuplesData, err := ProcessResp(respBytes, 0)
-	if err != nil {
-		oms.logger.Debug("error while unpack request fixture %s", err)
-	}
-
 	switch RequetsTypeType(msg) {
 	case RequestTypeSelect:
-		oms.logger.DebugSelectResponse(ns, tuplesData)
+		reqNs, indexnum, offset, limit, keys, err := UnpackSelect(req)
+		if err != nil {
+			oms.logger.Debug("error while unpack select (% X): %s", req, err)
+			return
+		}
+
+		var fixtures []SelectMockFixture
+
+		for _, fxt := range oms.oft {
+			// only "Select" fixture type
+			if fxt.Msg != RequetsTypeType(msg) {
+				continue
+			}
+
+			ns, idxNum, ofs, lmt, keysFxt, err := UnpackSelect(fxt.Request)
+			if err != nil {
+				oms.logger.Debug("error while unpack select (% X): %s", fxt.Request, err)
+				return
+			}
+
+			// only namespace for requestType "Select"
+			if reqNs != ns {
+				continue
+			}
+
+			selectFxt := SelectMockFixture{
+				indexnum: idxNum,
+				offset:   ofs,
+				limit:    lmt,
+				keys:     keysFxt,
+			}
+
+			if selectFxt.respTuples, err = ProcessResp(fxt.Response, 0); err != nil {
+				oms.logger.Debug("error while unpack select response (% X): %s", fxt.Response, err)
+				return
+			}
+
+			fixtures = append(fixtures, selectFxt)
+		}
+
+		oms.logger.DebugSelectRequest(reqNs, indexnum, offset, limit, keys, fixtures...)
+	case RequestTypeUpdate:
+		reqNs, primaryKey, updateOps, err := UnpackUpdate(req)
+		if err != nil {
+			oms.logger.Debug("error while unpack update (% X): %s", req, err)
+			return
+		}
+
+		var fixtures []UpdateMockFixture
+
+		for _, fxt := range oms.oft {
+			// only "Update" fixture type
+			if fxt.Msg != RequetsTypeType(msg) {
+				continue
+			}
+
+			ns, pk, ops, err := UnpackUpdate(fxt.Request)
+			if err != nil {
+				oms.logger.Debug("error while unpack select (% X): %s", fxt.Request, err)
+				return
+			}
+
+			// only namespace of requestType "Update"
+			if reqNs != ns {
+				continue
+			}
+
+			updateFxt := UpdateMockFixture{
+				primaryKey: pk,
+				updateOps:  ops,
+			}
+
+			fixtures = append(fixtures, updateFxt)
+		}
+
+		oms.logger.DebugUpdateRequest(reqNs, primaryKey, updateOps, fixtures...)
+	case RequestTypeInsert:
+		reqNs, needRetVal, insertMode, reqTuple, err := UnpackInsertReplace(req)
+		if err != nil {
+			oms.logger.Debug("error while unpack insert (% X): %s", req, err)
+			return
+		}
+
+		var fixtures []InsertMockFixture
+
+		for _, fxt := range oms.oft {
+			// only "Insert" fixture type
+			if fxt.Msg != RequetsTypeType(msg) {
+				continue
+			}
+
+			ns, fxtNeedRetVal, mode, tuple, err := UnpackInsertReplace(fxt.Request)
+			if err != nil {
+				oms.logger.Debug("error while unpack insert (% X): %s", fxt.Request, err)
+				return
+			}
+
+			// only namespace of requestType "Insert"
+			if reqNs != ns {
+				continue
+			}
+
+			insertFxt := InsertMockFixture{
+				needRetVal: fxtNeedRetVal,
+				insertMode: mode,
+				tuple:      TupleData{Cnt: uint32(len(tuple)), Data: tuple},
+			}
+
+			fixtures = append(fixtures, insertFxt)
+		}
+
+		oms.logger.DebugInsertRequest(reqNs, needRetVal, insertMode, TupleData{Cnt: uint32(len(reqTuple)), Data: reqTuple}, fixtures...)
+	case RequestTypeDelete:
+		reqNs, primaryKey, err := UnpackDelete(req)
+		if err != nil {
+			oms.logger.Debug("error while unpack delete (% X): %s", req, err)
+			return
+		}
+
+		var fixtures []DeleteMockFixture
+
+		for _, fxt := range oms.oft {
+			// only "Delete" fixture type
+			if fxt.Msg != RequetsTypeType(msg) {
+				continue
+			}
+
+			ns, pk, err := UnpackDelete(fxt.Request)
+			if err != nil {
+				oms.logger.Debug("error while unpack delete (% X): %s", fxt.Request, err)
+				return
+			}
+
+			// only namespace of requestType "Delete"
+			if reqNs != ns {
+				continue
+			}
+
+			deleteFxt := DeleteMockFixture{
+				primaryKey: pk,
+			}
+
+			fixtures = append(fixtures, deleteFxt)
+		}
+
+		oms.logger.DebugDeleteRequest(reqNs, primaryKey, fixtures...)
+	case RequestTypeCall:
+		reqProcName, args, err := UnpackLua(req)
+		if err != nil {
+			oms.logger.Debug("error while unpack call proc (% X): %s", req, err)
+			return
+		}
+
+		var fixtures []CallMockFixture
+
+		for _, fxt := range oms.oft {
+			// only "Call" fixture type
+			if fxt.Msg != RequetsTypeType(msg) {
+				continue
+			}
+
+			procName, fixArgs, err := UnpackLua(fxt.Request)
+			if err != nil {
+				oms.logger.Debug("error while unpack select (% X): %s", fxt.Request, err)
+				return
+			}
+
+			// filter by name
+			if reqProcName != procName {
+				continue
+			}
+
+			callFxt := CallMockFixture{
+				procName: procName,
+				args:     fixArgs,
+			}
+
+			if callFxt.respTuples, err = ProcessResp(fxt.Response, 0); err != nil {
+				oms.logger.Debug("error while unpack call proc response (% X): %s", fxt.Response, err)
+				return
+			}
+
+			fixtures = append(fixtures, callFxt)
+		}
+
+		oms.logger.DebugCallRequest(reqProcName, args, fixtures...)
 	default:
 		oms.logger.Debug("Request type %d not support debug message", msg)
-	}
-
-}*/
-
-func (oms *MockServer) DebugFixtureRequest(msg uint8, req []byte, filter func(ns uint32) bool) (ns uint32, err error) {
-	switch RequetsTypeType(msg) {
-	case RequestTypeSelect:
-		ns, indexnum, offset, limit, keys, err := UnpackSelect(req)
-		if err != nil {
-			return 0, fmt.Errorf("error while unpack select (% X): %w", req, err)
-		}
-
-		if filter == nil || filter(ns) {
-			oms.logger.DebugSelectRequest(ns, indexnum, offset, limit, keys)
-		}
-
-		return ns, nil
-	case RequestTypeUpdate:
-		ns, primaryKey, updateOps, err := UnpackUpdate(req)
-		if err != nil {
-			return 0, fmt.Errorf("error while unpack update (% X): %w", req, err)
-		}
-
-		if filter == nil || filter(ns) {
-			oms.logger.DebugUpdateRequest(ns, primaryKey, updateOps)
-		}
-
-		return ns, nil
-	case RequestTypeInsert:
-		ns, needRetVal, insertMode, tuple, err := UnpackInsertReplace(req)
-		if err != nil {
-			return 0, fmt.Errorf("error while unpack insert (% X): %w", req, err)
-		}
-
-		if filter == nil || filter(ns) {
-			oms.logger.DebugInsertRequest(ns, needRetVal, insertMode, TupleData{Cnt: uint32(len(tuple)), Data: tuple})
-		}
-
-		return ns, nil
-	case RequestTypeDelete:
-		ns, primaryKey, err := UnpackDelete(req)
-		if err != nil {
-			return 0, fmt.Errorf("error while unpack delete (% X): %w", req, err)
-		}
-
-		if filter == nil || filter(ns) {
-			oms.logger.DebugDeleteRequest(ns, primaryKey)
-		}
-
-		return ns, nil
-	default:
-		return 0, fmt.Errorf("Request type %d not support debug message", msg)
 	}
 }
 

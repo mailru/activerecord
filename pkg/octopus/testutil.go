@@ -201,3 +201,32 @@ func UnpackSelect(data []byte) (ns, indexnum, offset, limit uint32, keys [][][]b
 
 	return
 }
+
+type SelectMockFixture struct {
+	indexnum   uint32
+	offset     uint32
+	limit      uint32
+	keys       [][][]byte
+	respTuples []TupleData
+}
+
+type InsertMockFixture struct {
+	needRetVal bool
+	insertMode InsertMode
+	tuple      TupleData
+}
+
+type UpdateMockFixture struct {
+	primaryKey [][]byte
+	updateOps  []Ops
+}
+
+type DeleteMockFixture struct {
+	primaryKey [][]byte
+}
+
+type CallMockFixture struct {
+	procName   string
+	args       [][]byte
+	respTuples []TupleData
+}

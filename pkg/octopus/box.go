@@ -151,18 +151,6 @@ func ProcessResp(respBytes []byte, cntFlag CountFlags) ([]TupleData, error) {
 	return tuplesData, nil
 }
 
-func PackSelect(ns, indexnum, offset, limit uint32, keys [][][]byte) []byte {
-	w := make([]byte, 0, SpaceLen+IndexLen+OffsetLen+LimitLen+PackedTuplesLen(keys))
-
-	w = PackSpace(w, ns)
-	w = PackIndexNum(w, indexnum)
-	w = PackOffset(w, offset)
-	w = PackLimit(w, limit)
-	w = PackTuples(w, keys)
-
-	return w
-}
-
 func PackInsertReplace(ns uint32, insertMode InsertMode, tuple [][]byte) []byte {
 	w := make([]byte, 0, SpaceLen+FlagsLen+FieldNumLen+PackedTupleLen(tuple))
 
@@ -194,6 +182,18 @@ func UnpackInsertReplace(data []byte) (ns uint32, needRetVal bool, insertMode In
 	}
 
 	return
+}
+
+func PackSelect(ns, indexnum, offset, limit uint32, keys [][][]byte) []byte {
+	w := make([]byte, 0, SpaceLen+IndexLen+OffsetLen+LimitLen+PackedTuplesLen(keys))
+
+	w = PackSpace(w, ns)
+	w = PackIndexNum(w, indexnum)
+	w = PackOffset(w, offset)
+	w = PackLimit(w, limit)
+	w = PackTuples(w, keys)
+
+	return w
 }
 
 func PackUpdate(ns uint32, primaryKey [][]byte, updateOps []Ops) []byte {
@@ -320,4 +320,28 @@ func PackLua(name string, args ...string) []byte {
 	}
 
 	return w
+}
+
+func UnpackLua(data []byte) (name string, args [][]byte, err error) {
+	r := bytes.NewReader(data)
+
+	var v uint32
+
+	if err = iproto.UnpackUint32(r, &v, iproto.ModeDefault); err != nil || v != 0 {
+		return name, args, fmt.Errorf("can't unpack as call lua procedure: %w", err)
+	}
+
+	var procName []byte
+
+	if err = iproto.UnpackBytes(r, &procName, iproto.ModeBER); err != nil {
+		return name, args, fmt.Errorf("can't unpack lua procedure name: %w", err)
+	}
+
+	if args, err = UnpackTuple(r); err != nil {
+		err = fmt.Errorf("can't unpack lua procedure args: %s", err)
+		return
+	}
+
+	return string(procName), args, nil
+
 }
