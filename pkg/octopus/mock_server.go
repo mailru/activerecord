@@ -195,6 +195,10 @@ func (oms *MockServer) Handler(ctx context.Context, c iproto.Conn, p iproto.Pack
 	}
 }
 
+// DebugFixtureNotFound Prepares data for detailed content logging in human readable format
+// and call the MockServerLogger function on a specific RequestType
+//
+//nolint:gocognit
 func (oms *MockServer) DebugFixtureNotFound(msg uint8, req []byte) {
 	switch RequetsTypeType(msg) {
 	case RequestTypeSelect:
