@@ -97,11 +97,11 @@ func TestMockServer_ProcessRequest(t *testing.T) {
 			wantEx: false,
 			mocks: func(t *testing.T) {
 				logger.EXPECT().DebugSelectRequest(uint32(1), uint32(0), uint32(0), uint32(1), keysPacked, SelectMockFixture{
-					indexnum:   0,
-					offset:     0,
-					limit:      10,
-					keys:       keysPacked,
-					respTuples: []TupleData{{Cnt: uint32(2), Data: [][]byte{[]byte("f1"), []byte("f2")}}},
+					Indexnum:   0,
+					Offset:     0,
+					Limit:      10,
+					Keys:       keysPacked,
+					RespTuples: []TupleData{{Cnt: uint32(2), Data: [][]byte{[]byte("f1"), []byte("f2")}}},
 				})
 			},
 		},
@@ -131,9 +131,9 @@ func TestMockServer_ProcessRequest(t *testing.T) {
 					"foo",
 					[][]byte{},
 					CallMockFixture{
-						procName:   "foo",
-						args:       [][]byte{[]byte("a1"), []byte("a2")},
-						respTuples: []TupleData{{Cnt: uint32(2), Data: [][]byte{[]byte("status"), []byte("data")}}},
+						ProcName:   "foo",
+						Args:       [][]byte{[]byte("a1"), []byte("a2")},
+						RespTuples: []TupleData{{Cnt: uint32(2), Data: [][]byte{[]byte("status"), []byte("data")}}},
 					},
 				)
 			},
@@ -157,9 +157,9 @@ func TestMockServer_ProcessRequest(t *testing.T) {
 			wantEx: false,
 			mocks: func(t *testing.T) {
 				logger.EXPECT().DebugInsertRequest(uint32(2), true, InsertModeInserOrReplace, TupleData{Cnt: uint32(1), Data: [][]byte{[]byte("i2")}}, InsertMockFixture{
-					needRetVal: true,
-					insertMode: InsertModeInserOrReplace,
-					tuple:      TupleData{Cnt: uint32(1), Data: [][]byte{[]byte("i1")}},
+					NeedRetVal: true,
+					InsertMode: InsertModeInserOrReplace,
+					Tuple:      TupleData{Cnt: uint32(1), Data: [][]byte{[]byte("i1")}},
 				})
 			},
 		},
@@ -209,8 +209,8 @@ func TestMockServer_ProcessRequest(t *testing.T) {
 						},
 					},
 					UpdateMockFixture{
-						primaryKey: pk,
-						updateOps: []Ops{
+						PrimaryKey: pk,
+						UpdateOps: []Ops{
 							{
 								Field: 1,
 								Op:    OpSet,

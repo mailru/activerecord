@@ -54,10 +54,10 @@ type MockServer struct {
 }
 
 type RepositoryDebugMeta interface {
-	GetSelectDebugInfo(ns uint32, indexnum uint32, offset uint32, limit uint32, keys [][][]byte) string
-	GetUpdateDebugInfo(ns uint32, primaryKey [][]byte, updateOps []Ops) string
-	GetInsertDebugInfo(ns uint32, needRetVal bool, insertMode InsertMode, tuple TupleData) string
-	GetDeleteDebugInfo(ns uint32, primaryKey [][]byte) string
+	GetSelectDebugInfo(ns uint32, indexnum uint32, offset uint32, limit uint32, keys [][][]byte, fixture ...SelectMockFixture) string
+	GetUpdateDebugInfo(ns uint32, primaryKey [][]byte, updateOps []Ops, fixture ...UpdateMockFixture) string
+	GetInsertDebugInfo(ns uint32, needRetVal bool, insertMode InsertMode, tuple TupleData, fixture ...InsertMockFixture) string
+	GetDeleteDebugInfo(ns uint32, primaryKey [][]byte, fixture ...DeleteMockFixture) string
 }
 
 type DefaultLogger struct {
@@ -228,13 +228,13 @@ func (oms *MockServer) DebugFixtureNotFound(msg uint8, req []byte) {
 			}
 
 			selectFxt := SelectMockFixture{
-				indexnum: idxNum,
-				offset:   ofs,
-				limit:    lmt,
-				keys:     keysFxt,
+				Indexnum: idxNum,
+				Offset:   ofs,
+				Limit:    lmt,
+				Keys:     keysFxt,
 			}
 
-			if selectFxt.respTuples, err = ProcessResp(fxt.Response, 0); err != nil {
+			if selectFxt.RespTuples, err = ProcessResp(fxt.Response, 0); err != nil {
 				oms.logger.Debug("error while unpack select response (% X): %s", fxt.Response, err)
 				return
 			}
@@ -270,8 +270,8 @@ func (oms *MockServer) DebugFixtureNotFound(msg uint8, req []byte) {
 			}
 
 			updateFxt := UpdateMockFixture{
-				primaryKey: pk,
-				updateOps:  ops,
+				PrimaryKey: pk,
+				UpdateOps:  ops,
 			}
 
 			fixtures = append(fixtures, updateFxt)
@@ -305,9 +305,9 @@ func (oms *MockServer) DebugFixtureNotFound(msg uint8, req []byte) {
 			}
 
 			insertFxt := InsertMockFixture{
-				needRetVal: fxtNeedRetVal,
-				insertMode: mode,
-				tuple:      TupleData{Cnt: uint32(len(tuple)), Data: tuple},
+				NeedRetVal: fxtNeedRetVal,
+				InsertMode: mode,
+				Tuple:      TupleData{Cnt: uint32(len(tuple)), Data: tuple},
 			}
 
 			fixtures = append(fixtures, insertFxt)
@@ -341,7 +341,7 @@ func (oms *MockServer) DebugFixtureNotFound(msg uint8, req []byte) {
 			}
 
 			deleteFxt := DeleteMockFixture{
-				primaryKey: pk,
+				PrimaryKey: pk,
 			}
 
 			fixtures = append(fixtures, deleteFxt)
@@ -375,11 +375,11 @@ func (oms *MockServer) DebugFixtureNotFound(msg uint8, req []byte) {
 			}
 
 			callFxt := CallMockFixture{
-				procName: procName,
-				args:     fixArgs,
+				ProcName: procName,
+				Args:     fixArgs,
 			}
 
-			if callFxt.respTuples, err = ProcessResp(fxt.Response, 0); err != nil {
+			if callFxt.RespTuples, err = ProcessResp(fxt.Response, 0); err != nil {
 				oms.logger.Debug("error while unpack call proc response (% X): %s", fxt.Response, err)
 				return
 			}
