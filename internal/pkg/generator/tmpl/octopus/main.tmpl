@@ -167,6 +167,14 @@ func (obj {{ $PublicStructName }}Params) PK() string {
 }
 
 func Call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) (*{{ $PublicStructName }}, error) {
+    return call(ctx, params, activerecord.ReplicaOrMasterInstanceType)
+}
+
+func CallOnMaster(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) (*{{ $PublicStructName }}, error) {
+    return call(ctx, params, activerecord.MasterInstanceType)
+}
+
+func call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}, instanceType activerecord.ShardInstanceType) (*{{ $PublicStructName }}, error) {
 	logger := activerecord.Logger()
 	ctx = logger.SetLoggerValueToContext(ctx, map[string]interface{}{"LuaProc": procName})
 	metricTimer := activerecord.Metric().Timer("octopus", "{{ $PublicStructName }}")
@@ -174,7 +182,7 @@ func Call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructNa
 
     metricTimer.Timing(ctx, "call_proc")
 
-	connection, err := octopus.Box(ctx, 0, activerecord.ReplicaInstanceType, "arcfg", nil)
+	connection, err := octopus.Box(ctx, 0, instanceType, "arcfg", nil)
 	if err != nil {
 		metricErrCnt.Inc(ctx, "call_proc_preparebox", 1)
 		logger.Error(ctx, fmt.Sprintf("Error get box '%s'", err))
