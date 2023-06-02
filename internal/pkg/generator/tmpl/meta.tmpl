@@ -33,7 +33,6 @@ func (ns NSPackage) meta(n uint32) (SpaceMeta, bool) {
 {{ $nss := .Namespaces }}
 var NamespacePackages = NSPackage {
 {{ range $_, $ns := $nss -}}
-    {{ if $ns.Fields }}
     "{{ $ns.Namespace.ObjectName }}": {
         PackageName: "{{ $ns.Namespace.PackageName }}",
         Unpacker: func(ctx context.Context, tuple octopus.TupleData) (any, error) { 
@@ -72,7 +71,6 @@ var NamespacePackages = NSPackage {
             {{- end }}
         },
     },
-    {{ end }}
 {{ end }}
 }
 
@@ -82,8 +80,8 @@ func (n NSPackage) GetSelectDebugInfo(ns uint32, indexnum uint32, offset uint32,
 		return fmt.Sprintf("unknown space %d, index: %d, offset: %d, limit: %d, Keys: %+v", ns, indexnum, offset, limit, keys)
 	}
 
-	fmtStr := "\n\n\n Select Request // " + n.formatSelectMockFixture(ns, spacemeta, indexnum, offset, limit, keys) + " //\n"
-	fmtStr = fmt.Sprintf("%s\n-------Dump all %s 'Select' fixtures-------\n", fmtStr, spacemeta.PackageName)
+	fmtStr := "\n" + n.formatSelectMockFixture(ns, spacemeta, indexnum, offset, limit, keys) + "\n"
+	fmtStr = fmt.Sprintf("%s\n--------------Installed 'Select' fixtures %s --------------\n", fmtStr, spacemeta.PackageName)
 	for _, f := range fixture {
 		fmtStr = fmtStr + "\n" + n.formatSelectMockFixture(ns, spacemeta, f.Indexnum, f.Offset, f.Limit, f.Keys) + " \n"
 
@@ -98,7 +96,7 @@ func (n NSPackage) GetSelectDebugInfo(ns uint32, indexnum uint32, offset uint32,
 		}
 	}
 
-	fmtStr = fmtStr + "------------------------------------------------\n\n\n\n"
+	fmtStr =  fmt.Sprintf("%s\n--------------End Installed 'Select' fixtures %s-----------\n\n\n\n", fmtStr, spacemeta.PackageName)
 
 	return fmtStr
 }
@@ -123,13 +121,13 @@ func (n NSPackage) GetUpdateDebugInfo(ns uint32, primaryKey [][]byte, updateOps 
 		return fmt.Sprintf("unknown space %d, primaryKey: %+v, updateOps: %+v", ns, primaryKey, updateOps)
 	}
 
-	fmtStr := "\n\n\n Update Request // " + n.formatUpdateMockFixture(ns, spacemeta, primaryKey, updateOps) + " //\n"
-	fmtStr = fmt.Sprintf("%s\n-------Dump all %s 'Update' fixtures-------\n", fmtStr, spacemeta.PackageName)
+	fmtStr := "\n" + n.formatUpdateMockFixture(ns, spacemeta, primaryKey, updateOps) + "\n"
+	fmtStr = fmt.Sprintf("%s\n--------------Installed 'Update' fixtures %s --------------\n", fmtStr, spacemeta.PackageName)
 	for _, f := range fixture {
 		fmtStr = fmtStr + "\n" + n.formatUpdateMockFixture(ns, spacemeta, f.PrimaryKey, f.UpdateOps) + "\n"
 	}
 
-	fmtStr = fmtStr + "------------------------------------------------\n\n\n\n"
+	fmtStr =  fmt.Sprintf("%s\n--------------End Installed 'Update' fixtures %s-----------\n\n\n\n", fmtStr, spacemeta.PackageName)
 
 	return fmtStr
 }
@@ -148,6 +146,11 @@ func (n NSPackage) formatUpdateMockFixture(ns uint32, spacemeta SpaceMeta, prima
 			val = fmt.Sprintf("% X (can't unpack: %s)", op.Value, err)
 		}
 
+		jsonRaw, err := json.Marshal(val)
+		if err == nil {
+			val = string(jsonRaw)
+		}
+
 		updateFields += fmt.Sprintf("%s %s <= `%v`; ", octopus.GetOpCodeName(op.Op), spacemeta.Fields[op.Field].Name, val)
 	}
 
@@ -160,13 +163,13 @@ func (n NSPackage) GetDeleteDebugInfo(ns uint32, primaryKey [][]byte, fixture ..
 		return fmt.Sprintf("unknown space %d, primaryKey: %+v", ns, primaryKey)
 	}
 
-	fmtStr := "\n\n\n Delete Request // " + n.formatDeleteMockFixture(ns, spacemeta, primaryKey) + " //\n"
-	fmtStr = fmt.Sprintf("%s\n-------Dump all %s 'Delete' fixtures-------\n", fmtStr, spacemeta.PackageName)
+	fmtStr := "\n" + n.formatDeleteMockFixture(ns, spacemeta, primaryKey) + "\n"
+	fmtStr = fmt.Sprintf("%s\n--------------Installed 'Delete' fixtures %s --------------\n", fmtStr, spacemeta.PackageName)
 	for _, f := range fixture {
 		fmtStr = fmtStr + "\n" + n.formatDeleteMockFixture(ns, spacemeta, f.PrimaryKey) + "\n"
 	}
 
-	fmtStr = fmtStr + "------------------------------------------------\n\n\n\n"
+	fmtStr =  fmt.Sprintf("%s\n--------------End Installed 'Delete' fixtures %s-----------\n\n\n\n", fmtStr, spacemeta.PackageName)
 
 	return fmtStr
 }
@@ -188,13 +191,13 @@ func (n NSPackage) GetInsertDebugInfo(ns uint32, needRetVal bool, insertMode oct
 		return fmt.Sprintf("unknown space %d, insertMode: %s, tuple: %+v", ns, strMode, tuple)
 	}
 
-	fmtStr := "\n\n\n Insert Request // " + n.formatInsertMockFixture(ns, spacemeta, needRetVal, insertMode, tuple) + " //\n"
-	fmtStr = fmt.Sprintf("%s\n-------Dump all %s 'Insert' fixtures-------\n", fmtStr, spacemeta.PackageName)
+	fmtStr := "\n" + n.formatInsertMockFixture(ns, spacemeta, needRetVal, insertMode, tuple) + "\n"
+	fmtStr = fmt.Sprintf("%s\n--------------Installed 'Insert' fixtures %s --------------\n", fmtStr, spacemeta.PackageName)
 	for _, f := range fixture {
 		fmtStr = fmtStr + "\n" + n.formatInsertMockFixture(ns, spacemeta, f.NeedRetVal, f.InsertMode, f.Tuple) + "\n"
 	}
 
-	fmtStr = fmtStr + "------------------------------------------------\n\n\n\n"
+	fmtStr =  fmt.Sprintf("%s\n--------------End Installed 'Insert' fixtures %s------------\n\n\n\n", fmtStr, spacemeta.PackageName)
 
 	return fmtStr
 }
@@ -208,4 +211,41 @@ func (n NSPackage) formatInsertMockFixture(ns uint32, spacemeta SpaceMeta, needR
 	}
 
 	return fmt.Sprintf("Space: %d (%s), insertMode: %s, tuple: \n%s", ns, spacemeta.PackageName, strMode, strObj)
+}
+
+
+func (n NSPackage) GetCallDebugInfo(ns string, args [][]byte, fixture ...octopus.CallMockFixture) string {
+	spacemeta, ex := n[ns]
+	if !ex {
+		return fmt.Sprintf("unknown procedure %s, arguments: %+v", ns, args)
+	}
+
+	fmtStr := "\n" + n.formatCallMockFixture(ns, args) + "\n"
+	fmtStr = fmt.Sprintf("%s\n--------------Installed 'Call' fixtures %s --------------\n", fmtStr, spacemeta.PackageName)
+	for _, f := range fixture {
+		fmtStr = fmtStr + "\n" + n.formatCallMockFixture(ns, f.Args) + " \n"
+
+		for _, tuple := range f.RespTuples {
+			strRespObj, err := spacemeta.Unpacker(context.TODO(), tuple)
+			if err != nil {
+				return fmt.Sprintf("Procedure: %s, tuple: %+v (err unpack: %s)", ns, tuple, err)
+			}
+
+			fmtStr = fmtStr + "\n" + fmt.Sprintf("%s", strRespObj) + "\n"
+		}
+	}
+
+	fmtStr = fmt.Sprintf("%s\n--------------End Installed 'Call' fixtures %s-----------\n\n\n\n", fmtStr, spacemeta.PackageName)
+
+	return fmtStr
+}
+
+func (n NSPackage) formatCallMockFixture(ns string, args [][]byte) string {
+	var unpackedArgs []string
+
+	for _, arg := range args {
+		unpackedArgs = append(unpackedArgs, string(arg))
+	}
+
+	return fmt.Sprintf("Procedure: %s, arguments: %s", ns, unpackedArgs)
 }

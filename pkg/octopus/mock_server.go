@@ -58,6 +58,7 @@ type RepositoryDebugMeta interface {
 	GetUpdateDebugInfo(ns uint32, primaryKey [][]byte, updateOps []Ops, fixture ...UpdateMockFixture) string
 	GetInsertDebugInfo(ns uint32, needRetVal bool, insertMode InsertMode, tuple TupleData, fixture ...InsertMockFixture) string
 	GetDeleteDebugInfo(ns uint32, primaryKey [][]byte, fixture ...DeleteMockFixture) string
+	GetCallDebugInfo(procName string, args [][]byte, fixture ...CallMockFixture) string
 }
 
 type DefaultLogger struct {
