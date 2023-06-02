@@ -163,12 +163,24 @@ func WithPoolSize(size int) ConnectionOption {
 	})
 }
 
+// WithPoolLogger - опция для логера конекшен пула
+func WithPoolLogger(logger iproto.Logger) ConnectionOption {
+	return optionConnectionFunc(func(octopusCfg *ConnectionOptions) error {
+		octopusCfg.poolCfg.Logger = logger
+		octopusCfg.poolCfg.ChannelConfig.Logger = logger
+
+		return octopusCfg.UpdateHash("L", logger)
+	})
+}
+
+//go:generate mockery --name MockServerLogger --with-expecter=true  --inpackage
 type MockServerLogger interface {
 	Debug(fmt string, args ...any)
-	DebugSelectRequest(ns uint32, indexnum uint32, offset uint32, limit uint32, keys [][][]byte)
-	DebugUpdateRequest(ns uint32, primaryKey [][]byte, updateOps []Ops)
-	DebugInsertRequest(ns uint32, needRetVal bool, insertMode InsertMode, tuple TupleData)
-	DebugDeleteRequest(ns uint32, primaryKey [][]byte)
+	DebugSelectRequest(ns uint32, indexnum uint32, offset uint32, limit uint32, keys [][][]byte, fixtures ...SelectMockFixture)
+	DebugUpdateRequest(ns uint32, primaryKey [][]byte, updateOps []Ops, fixtures ...UpdateMockFixture)
+	DebugInsertRequest(ns uint32, needRetVal bool, insertMode InsertMode, tuple TupleData, fixtures ...InsertMockFixture)
+	DebugDeleteRequest(ns uint32, primaryKey [][]byte, fixtures ...DeleteMockFixture)
+	DebugCallRequest(procName string, args [][]byte, fixtures ...CallMockFixture)
 }
 
 type MockServerOption interface {
@@ -193,6 +205,13 @@ func WithHost(host, port string) MockServerOption {
 func WithLogger(logger MockServerLogger) MockServerOption {
 	return optionFunc(func(oms *MockServer) error {
 		oms.logger = logger
+		return nil
+	})
+}
+
+func WithIprotoLogger(logger iproto.Logger) MockServerOption {
+	return optionFunc(func(oms *MockServer) error {
+		oms.iprotoLogger = logger
 		return nil
 	})
 }
