@@ -33,6 +33,7 @@ func (ns NSPackage) meta(n uint32) (SpaceMeta, bool) {
 {{ $nss := .Namespaces }}
 var NamespacePackages = NSPackage {
 {{ range $_, $ns := $nss -}}
+    {{ $serializers := $ns.SerializerMap -}}
     "{{ $ns.Namespace.ObjectName }}": {
         PackageName: "{{ $ns.Namespace.PackageName }}",
         Unpacker: func(ctx context.Context, tuple octopus.TupleData) (any, error) { 
@@ -45,9 +46,21 @@ var NamespacePackages = NSPackage {
         },
         Fields: []FieldMeta{
             {{- range $_, $field := $ns.Fields }}
+            {{ $sname := $field.Serializer.Name }}
             {
                 Name: "{{ $field.Name }}",
-                Unpacker: func(packedField []byte) (any, error){ return {{ $ns.Namespace.PackageName }}.Unpack{{ $field.Name }}(bytes.NewReader(packedField)) },
+                Unpacker: func(packedField []byte) (any, error){
+                    {{ if ne $sname "" -}}
+                    field, err :=  {{ $ns.Namespace.PackageName }}.Unpack{{ $field.Name }}(bytes.NewReader(packedField))
+                    if err != nil {
+                        return nil, err
+                    }
+
+                    return {{ $ns.Namespace.PackageName }}.Marshal{{ $field.Name }}(field)
+                    {{- else }}
+                    return {{ $ns.Namespace.PackageName }}.Unpack{{ $field.Name }}(bytes.NewReader(packedField))
+                    {{- end }}
+                },
             },
             {{- end }}
         },
@@ -144,11 +157,6 @@ func (n NSPackage) formatUpdateMockFixture(ns uint32, spacemeta SpaceMeta, prima
 		val, err := spacemeta.Fields[op.Field].Unpacker(op.Value)
 		if err != nil {
 			val = fmt.Sprintf("% X (can't unpack: %s)", op.Value, err)
-		}
-
-		jsonRaw, err := json.Marshal(val)
-		if err == nil {
-			val = string(jsonRaw)
 		}
 
 		updateFields += fmt.Sprintf("%s %s <= `%v`; ", octopus.GetOpCodeName(op.Op), spacemeta.Fields[op.Field].Name, val)

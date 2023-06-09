@@ -449,6 +449,17 @@ func NewFromBox(ctx context.Context, tuples []octopus.TupleData) ([]*{{ $PublicS
 	{{ if ne $sname "" -}}
 		{{ $serializer := index $serializers $sname -}}
 		{{ $rtype = $serializer.Type -}}
+func Marshal{{ $fstruct.Name }}({{ $fstruct.Name }} {{ $rtype }}) (any, error) {
+    {{ $serparams := $fstruct.Serializer.Params -}}
+    {{ $bvar :=  $packerparam.PackConvFunc $fstruct.Name -}}
+    pvar, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $bvar }})
+    if err != nil {
+        return nil, fmt.Errorf("error marshal field {{ $fstruct.Name }}: %w", err)
+    }
+
+    return pvar, nil
+}
+
 	{{ end -}}
 func pack{{ $fstruct.Name }}(w []byte, {{ $fstruct.Name }} {{ $rtype }}) ([]byte, error) {
 	{{ $bvar :=  $packerparam.PackConvFunc $fstruct.Name -}}
