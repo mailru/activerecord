@@ -226,8 +226,21 @@ func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string, pkgFixture
 
 	ret := make([]GenerateFile, 0, 1)
 
-	params := NewPkgData(appInfo, cl)
-	params.ARPkg = pkg
+	params := FixturePkgData{
+		FixturePkg:       pkgFixture,
+		ARPkg:            pkg,
+		ARPkgTitle:       cl.Namespace.PublicName,
+		FieldList:        cl.Fields,
+		FieldMap:         cl.FieldsMap,
+		FieldObject:      cl.FieldsObjectMap,
+		ProcInFieldList:  cl.ProcInFields,
+		ProcOutFieldList: cl.ProcOutFields.List(),
+		Container:        cl.Namespace,
+		Indexes:          cl.Indexes,
+		Serializers:      cl.SerializerMap,
+		Imports:          cl.Imports,
+		AppInfo:          appInfo,
+	}
 
 	log.Printf("Generate package (%v)", cl)
 

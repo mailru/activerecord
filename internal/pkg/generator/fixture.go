@@ -9,13 +9,27 @@ import (
 	"text/template"
 
 	"github.com/mailru/activerecord/internal/pkg/arerror"
+	"github.com/mailru/activerecord/internal/pkg/ds"
 	"github.com/mailru/activerecord/pkg/iproto/util/text"
 )
 
-//go:embed tmpl/octopus/fixturestore.tmpl
-var tmpl string
+type FixturePkgData struct {
+	FixturePkg       string
+	ARPkg            string
+	ARPkgTitle       string
+	FieldList        []ds.FieldDeclaration
+	FieldMap         map[string]int
+	FieldObject      map[string]ds.FieldObject
+	ProcInFieldList  []ds.ProcFieldDeclaration
+	ProcOutFieldList []ds.ProcFieldDeclaration
+	Container        ds.NamespaceDeclaration
+	Indexes          []ds.IndexDeclaration
+	Serializers      map[string]ds.SerializerDeclaration
+	Imports          []ds.ImportDeclaration
+	AppInfo          string
+}
 
-func generateFixture(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGeneratorPhases) {
+func generateFixture(params FixturePkgData) (map[string]bytes.Buffer, *arerror.ErrGeneratorPhases) {
 	fixtureWriter := bytes.Buffer{}
 
 	fixtureFile := bufio.NewWriter(&fixtureWriter)
@@ -34,7 +48,10 @@ func generateFixture(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGener
 	return ret, nil
 }
 
-func GenerateFixtureTmpl(dstFile io.Writer, params PkgData) *arerror.ErrGeneratorPhases {
+//go:embed tmpl/octopus/fixturestore.tmpl
+var tmpl string
+
+func GenerateFixtureTmpl(dstFile io.Writer, params FixturePkgData) *arerror.ErrGeneratorPhases {
 	templatePackage, err := template.New(TemplateName).Funcs(templateFuncs).Funcs(OctopusTemplateFuncs).Parse(disclaimer + tmpl)
 	if err != nil {
 		tmplLines, errgetline := getTmplErrorLine(strings.SplitAfter(disclaimer+tmpl, "\n"), err.Error())

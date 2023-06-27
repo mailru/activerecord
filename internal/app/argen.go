@@ -46,7 +46,6 @@ type ArGen struct {
 	modName            string
 	fileToRemove       map[string]bool
 	dstFixture         string
-	pkgFixture         string
 }
 
 // Пропускает этап генерации сторов фикстур,
@@ -63,7 +62,6 @@ func Init(ctx context.Context, appInfo *ds.AppInfo, srcDir, dstDir, fixtureDir, 
 		src:            srcDir,
 		dst:            dstDir,
 		dstFixture:     fixtureDir,
-		pkgFixture:     "proc_fixture",
 		srcEntry:       []fs.DirEntry{},
 		dstEntry:       []fs.DirEntry{},
 		packagesParsed: map[string]*ds.RecordPackage{},
@@ -262,12 +260,12 @@ func (a *ArGen) generate() error {
 		}
 
 		// Процесс генерации
-		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, a.pkgFixture)
+		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, filepath.Base(a.dstFixture))
 		if genErr != nil {
 			return fmt.Errorf("generate %s fixture store error: %w", name, genErr)
 		}
 
-		if err := a.saveGenerateResult(name, a.dstFixture, genRes); err != nil {
+		if err := a.saveGenerateResult(name, filepath.Dir(a.dstFixture), genRes); err != nil {
 			return fmt.Errorf("error save generated %s fixture result: %w", name, err)
 		}
 	}
@@ -427,13 +425,14 @@ func (a *ArGen) prepareDir() error {
 
 // Подготавливает файлы стораджей для сгенерированных сторов фикстур
 func (a *ArGen) prepareFixturesStorage() error {
+	dir, pkg := filepath.Split(a.dstFixture)
 	var err error
 
-	if !rxPathValidator.MatchString(a.dstFixture) {
+	if !rxPathValidator.MatchString(dir) {
 		return fmt.Errorf("invaliv path for fixture generation")
 	}
 
-	storePath := filepath.Join(a.dstFixture, "data")
+	storePath := filepath.Join(dir, pkg, "data")
 	// Проверка существования папки для хранилища фикстур, если нет то создаём
 	_, err = os.ReadDir(storePath)
 	if err != nil {
