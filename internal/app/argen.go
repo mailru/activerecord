@@ -46,6 +46,7 @@ type ArGen struct {
 	modName            string
 	fileToRemove       map[string]bool
 	dstFixture         string
+	pkgFixture         string
 }
 
 // Пропускает этап генерации сторов фикстур,
@@ -62,6 +63,7 @@ func Init(ctx context.Context, appInfo *ds.AppInfo, srcDir, dstDir, fixtureDir, 
 		src:            srcDir,
 		dst:            dstDir,
 		dstFixture:     fixtureDir,
+		pkgFixture:     "proc_fixture",
 		srcEntry:       []fs.DirEntry{},
 		dstEntry:       []fs.DirEntry{},
 		packagesParsed: map[string]*ds.RecordPackage{},
@@ -260,7 +262,7 @@ func (a *ArGen) generate() error {
 		}
 
 		// Процесс генерации
-		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name)
+		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, a.pkgFixture)
 		if genErr != nil {
 			return fmt.Errorf("generate %s fixture store error: %w", name, genErr)
 		}
@@ -431,7 +433,7 @@ func (a *ArGen) prepareFixturesStorage() error {
 		return fmt.Errorf("invaliv path for fixture generation")
 	}
 
-	storePath := filepath.Join(a.dstFixture, "fixture", "data")
+	storePath := filepath.Join(a.dstFixture, "data")
 	// Проверка существования папки для хранилища фикстур, если нет то создаём
 	_, err = os.ReadDir(storePath)
 	if err != nil {

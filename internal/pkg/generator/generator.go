@@ -221,7 +221,7 @@ func ErrorLine(errIn error, genData string) error {
 	return errors.Wrap(errIn, "cant parse error message")
 }
 
-func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string) ([]GenerateFile, error) {
+func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string, pkgFixture string) ([]GenerateFile, error) {
 	var generated map[string]bytes.Buffer
 
 	ret := make([]GenerateFile, 0, 1)
@@ -241,7 +241,7 @@ func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string) ([]Generat
 
 	for _, data := range generated {
 		genRes := GenerateFile{
-			Dir:  "fixture",
+			Dir:  pkgFixture,
 			Name: cl.Namespace.PackageName + "_gen.go",
 		}
 
