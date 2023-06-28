@@ -252,6 +252,8 @@ func (a *ArGen) generate() error {
 		return fmt.Errorf("prepare fixture store error: %s", err)
 	}
 
+	dir, pkg := filepath.Split(a.dstFixture)
+
 	for name, cl := range a.packagesParsed {
 		// Подготовка информации по ссылкам на другие пакеты
 		err := a.prepareFixtureGenerate(cl, name)
@@ -260,12 +262,12 @@ func (a *ArGen) generate() error {
 		}
 
 		// Процесс генерации
-		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, filepath.Base(a.dstFixture))
+		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, pkg)
 		if genErr != nil {
 			return fmt.Errorf("generate %s fixture store error: %w", name, genErr)
 		}
 
-		if err := a.saveGenerateResult(name, filepath.Dir(a.dstFixture), genRes); err != nil {
+		if err := a.saveGenerateResult(name, dir, genRes); err != nil {
 			return fmt.Errorf("error save generated %s fixture result: %w", name, err)
 		}
 	}
@@ -425,12 +427,13 @@ func (a *ArGen) prepareDir() error {
 
 // Подготавливает файлы стораджей для сгенерированных сторов фикстур
 func (a *ArGen) prepareFixturesStorage() error {
-	dir, pkg := filepath.Split(a.dstFixture)
 	var err error
 
-	if !rxPathValidator.MatchString(dir) {
+	if !rxPathValidator.MatchString(a.dstFixture) {
 		return fmt.Errorf("invaliv path for fixture generation")
 	}
+
+	dir, pkg := filepath.Split(a.dstFixture)
 
 	storePath := filepath.Join(dir, pkg, "data")
 	// Проверка существования папки для хранилища фикстур, если нет то создаём
