@@ -433,9 +433,7 @@ func (a *ArGen) prepareFixturesStorage() error {
 		return fmt.Errorf("invaliv path for fixture generation")
 	}
 
-	dir, pkg := filepath.Split(a.dstFixture)
-
-	storePath := filepath.Join(dir, pkg, "data")
+	storePath := filepath.Join(a.dstFixture, "data")
 	// Проверка существования папки для хранилища фикстур, если нет то создаём
 	_, err = os.ReadDir(storePath)
 	if err != nil {
