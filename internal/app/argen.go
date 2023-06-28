@@ -446,8 +446,14 @@ func (a *ArGen) prepareFixturesStorage() error {
 		}
 	}
 	// Для всех генерируемых сущностей создаем файлы для хранения фикстур, если они еще не существуют
-	for name := range a.packagesParsed {
-		for _, fixtureType := range []string{"", "_update", "_insert_replace"} {
+	for name, p := range a.packagesParsed {
+		typeNames := []string{""}
+		// Если не процедура, создаем файлы для фикстур операций модификации данных
+		if len(p.ProcFieldsMap) == 0 {
+			typeNames = []string{"", "_update", "_insert_replace"}
+		}
+
+		for _, fixtureType := range typeNames {
 			storagePath := filepath.Join(storePath, name+fixtureType+".yaml")
 
 			if _, err = os.Stat(storagePath); os.IsNotExist(err) {
