@@ -221,13 +221,26 @@ func ErrorLine(errIn error, genData string) error {
 	return errors.Wrap(errIn, "cant parse error message")
 }
 
-func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string) ([]GenerateFile, error) {
+func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string, pkgFixture string) ([]GenerateFile, error) {
 	var generated map[string]bytes.Buffer
 
 	ret := make([]GenerateFile, 0, 1)
 
-	params := NewPkgData(appInfo, cl)
-	params.ARPkg = pkg
+	params := FixturePkgData{
+		FixturePkg:       pkgFixture,
+		ARPkg:            pkg,
+		ARPkgTitle:       cl.Namespace.PublicName,
+		FieldList:        cl.Fields,
+		FieldMap:         cl.FieldsMap,
+		FieldObject:      cl.FieldsObjectMap,
+		ProcInFieldList:  cl.ProcInFields,
+		ProcOutFieldList: cl.ProcOutFields.List(),
+		Container:        cl.Namespace,
+		Indexes:          cl.Indexes,
+		Serializers:      cl.SerializerMap,
+		Imports:          cl.Imports,
+		AppInfo:          appInfo,
+	}
 
 	log.Printf("Generate package (%v)", cl)
 
@@ -241,7 +254,7 @@ func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string) ([]Generat
 
 	for _, data := range generated {
 		genRes := GenerateFile{
-			Dir:  "fixture",
+			Dir:  pkgFixture,
 			Name: cl.Namespace.PackageName + "_gen.go",
 		}
 

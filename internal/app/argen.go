@@ -252,6 +252,8 @@ func (a *ArGen) generate() error {
 		return fmt.Errorf("prepare fixture store error: %s", err)
 	}
 
+	dir, pkg := filepath.Split(a.dstFixture)
+
 	for name, cl := range a.packagesParsed {
 		// Подготовка информации по ссылкам на другие пакеты
 		err := a.prepareFixtureGenerate(cl, name)
@@ -260,12 +262,12 @@ func (a *ArGen) generate() error {
 		}
 
 		// Процесс генерации
-		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name)
+		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, pkg)
 		if genErr != nil {
 			return fmt.Errorf("generate %s fixture store error: %w", name, genErr)
 		}
 
-		if err := a.saveGenerateResult(name, a.dstFixture, genRes); err != nil {
+		if err := a.saveGenerateResult(name, dir, genRes); err != nil {
 			return fmt.Errorf("error save generated %s fixture result: %w", name, err)
 		}
 	}
@@ -431,7 +433,7 @@ func (a *ArGen) prepareFixturesStorage() error {
 		return fmt.Errorf("invaliv path for fixture generation")
 	}
 
-	storePath := filepath.Join(a.dstFixture, "fixture", "data")
+	storePath := filepath.Join(a.dstFixture, "data")
 	// Проверка существования папки для хранилища фикстур, если нет то создаём
 	_, err = os.ReadDir(storePath)
 	if err != nil {
@@ -445,8 +447,14 @@ func (a *ArGen) prepareFixturesStorage() error {
 		}
 	}
 	// Для всех генерируемых сущностей создаем файлы для хранения фикстур, если они еще не существуют
-	for name := range a.packagesParsed {
-		for _, fixtureType := range []string{"", "_update", "_insert_replace"} {
+	for name, p := range a.packagesParsed {
+		typeNames := []string{""}
+		// Если не процедура, создаем файлы для фикстур операций модификации данных
+		if len(p.ProcFieldsMap) == 0 {
+			typeNames = []string{"", "_update", "_insert_replace"}
+		}
+
+		for _, fixtureType := range typeNames {
 			storagePath := filepath.Join(storePath, name+fixtureType+".yaml")
 
 			if _, err = os.Stat(storagePath); os.IsNotExist(err) {
