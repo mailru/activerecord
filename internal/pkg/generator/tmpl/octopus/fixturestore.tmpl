@@ -113,7 +113,7 @@ func (m {{ $PublicStructName }}ProcedureMocker) By{{ if ne $procInLen 0 }}Params
     {{ end }}
 {{ end }}
 
-{{ range $_, $mockOperation := split ",Update,InsertReplace" "," }}
+{{ range $_, $mockOperation := split ",Update,InsertReplace,Delete" "," }}
 var {{$PackageName}}{{ $mockOperation }}Once sync.Once
 var {{$PackageName}}{{ $mockOperation }}Store map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}
 
@@ -149,6 +149,14 @@ func Get{{$mockOperation}}{{$PublicStructName}}By{{$fieldNamePK}}({{$fieldNamePK
     return res
 }
 {{ end }}
+
+func GetDelete{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Context, {{ $fieldNamePK }} {{$typePK}}, trigger func(types []octopus.FixtureType) []octopus.FixtureType) (fx octopus.FixtureType, promiseIsUsed func () bool) {
+    obj := GetDelete{{$PublicStructName}}By{{$fieldNamePK}}({{ $fieldNamePK }})
+
+    wrappedTrigger, promiseIsUsed := octopus.WrapTriggerWithOnUsePromise(trigger)
+
+    return octopus.CreateDeleteFixture(obj.MockDelete(ctx), wrappedTrigger), promiseIsUsed
+}
 
 func GetUpdate{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Context, {{ $fieldNamePK }} {{$typePK}}, trigger func(types []octopus.FixtureType) []octopus.FixtureType) (fx octopus.FixtureType, promiseIsUsed func () bool) {
     obj := GetUpdate{{$PublicStructName}}By{{$fieldNamePK}}({{ $fieldNamePK }})

@@ -99,6 +99,28 @@ func CreateUpdateFixture(reqData []byte, trigger func([]FixtureType) []FixtureTy
 	return oft
 }
 
+func CreateDeleteFixture(reqData []byte, trigger func([]FixtureType) []FixtureType) FixtureType {
+	newID := atomic.AddUint32(&fixtureID, 1)
+
+	dummyRespBytes := [][][]byte{{{'0'}}}
+
+	respData, err := PackResopnseStatus(RcOK, dummyRespBytes)
+	if err != nil {
+		log.Fatalf("error while pack delete response: %s", err)
+	}
+
+	oft := FixtureType{
+		ID:       newID,
+		Msg:      RequestTypeDelete,
+		Request:  reqData,
+		Response: respData,
+		RespObjs: nil,
+		Trigger:  trigger,
+	}
+
+	return oft
+}
+
 func CreateInsertOrReplaceFixture(entity MockEntities, reqData []byte, trigger func([]FixtureType) []FixtureType) FixtureType {
 	newID := atomic.AddUint32(&fixtureID, 1)
 

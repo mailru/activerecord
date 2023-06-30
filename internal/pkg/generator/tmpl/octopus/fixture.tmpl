@@ -283,3 +283,7 @@ func SetFixtureUpdateOptions(obj *{{$PublicStructName}}, updateOptions  []{{$Pub
     }
 }
 {{ end }}
+
+func UnmarshalDeleteFixtures(source []byte) []*{{$PublicStructName}} {
+	return UnmarshalFixtures(source)
+}
