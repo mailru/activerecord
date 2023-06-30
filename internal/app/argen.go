@@ -451,7 +451,7 @@ func (a *ArGen) prepareFixturesStorage() error {
 		typeNames := []string{""}
 		// Если не процедура, создаем файлы для фикстур операций модификации данных
 		if len(p.ProcFieldsMap) == 0 {
-			typeNames = []string{"", "_update", "_insert_replace", "_delete"}
+			typeNames = []string{"", "_update", "_insert_replace"}
 		}
 
 		for _, fixtureType := range typeNames {

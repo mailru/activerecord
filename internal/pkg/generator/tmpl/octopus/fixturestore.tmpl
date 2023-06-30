@@ -113,7 +113,7 @@ func (m {{ $PublicStructName }}ProcedureMocker) By{{ if ne $procInLen 0 }}Params
     {{ end }}
 {{ end }}
 
-{{ range $_, $mockOperation := split ",Update,InsertReplace,Delete" "," }}
+{{ range $_, $mockOperation := split ",Update,InsertReplace" "," }}
 var {{$PackageName}}{{ $mockOperation }}Once sync.Once
 var {{$PackageName}}{{ $mockOperation }}Store map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}
 
@@ -150,8 +150,25 @@ func Get{{$mockOperation}}{{$PublicStructName}}By{{$fieldNamePK}}({{$fieldNamePK
 }
 {{ end }}
 
-func GetDelete{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Context, {{ $fieldNamePK }} {{$typePK}}, trigger func(types []octopus.FixtureType) []octopus.FixtureType) (fx octopus.FixtureType, promiseIsUsed func () bool) {
-    obj := GetDelete{{$PublicStructName}}By{{$fieldNamePK}}({{ $fieldNamePK }})
+func GetDelete{{$PublicStructName}}FixtureByPrimaryKey(ctx context.Context, pk {{ $typePK }}, trigger func(types []octopus.FixtureType) []octopus.FixtureType) (fx octopus.FixtureType, promiseIsUsed func () bool) {
+    obj := {{$PackageName}}.New(ctx)
+    {{ range $num, $ind := .Indexes -}}
+    {{ $lenfld := len $ind.Fields }}
+        {{ if $ind.Primary }}
+            {{ if ne $lenfld 1 }}
+                {{ range $_, $fieldNum := $ind.Fields }}
+                    {{- $ifield := index $fields $fieldNum }}
+                    if err := obj.Set{{ $ifield.Name }}(pk.{{ $ifield.Name }}); err != nil {
+                        log.Fatalf("Set{{ $ifield.Name }} error: %v", err)
+                    }
+                {{ end }}
+            {{ else }}
+                if err := obj.Set{{ $fieldNamePK }}(pk); err != nil {
+                    log.Fatalf("Set{{ $fieldNamePK }} error: %v", err)
+                }
+            {{ end }}
+        {{ end }}
+    {{ end }}
 
     wrappedTrigger, promiseIsUsed := octopus.WrapTriggerWithOnUsePromise(trigger)
 
