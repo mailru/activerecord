@@ -1012,6 +1012,15 @@ func (obj *{{ $PublicStructName }}) PrimaryString() string {
 	return strings.Join(ret, ", ")
 }
 
+{{ $pktype := "" }}
+{{ $pklenfld := 1 }}
+{{ $pkind := index .Indexes 0 }}
+{{ range $num, $ind := .Indexes -}}
+{{ $lenfld := len $ind.Fields -}}
+	{{ if $ind.Primary }}
+		{{ $pktype = $ind.Type }}
+		{{ $pklenfld = len $ind.Fields }}
+		{{ $pkind = $ind }}
 func (obj *{{ $PublicStructName }}) packPk() ([][]byte, error) {
 	packedPk := [][]byte{}
 
@@ -1019,21 +1028,34 @@ func (obj *{{ $PublicStructName }}) packPk() ([][]byte, error) {
 		data []byte
 		err error
 	)
+		{{ if ne $lenfld 1 }}
+			{{- range $_, $fieldNum := $ind.Fields }}
+				{{- $ifield := index $fields $fieldNum }}
 
-	{{- range $ind, $fstruct := .FieldList }}
-		{{- if $fstruct.PrimaryKey }}
+					data, err = pack{{ $ifield.Name }}([]byte{}, obj.Get{{ $ifield.Name }}())
+                	if err != nil {
+                		return [][]byte{}, err
+                	}
 
-	data, err = pack{{ $fstruct.Name }}([]byte{}, obj.Get{{ $fstruct.Name }}())
-	if err != nil {
-		return [][]byte{}, err
-	}
+                	packedPk = append(packedPk, data)
+			{{- end }}
+		{{ else }}
+			{{- range $_, $fieldNum := $ind.Fields }}
+				{{- $ifield := index $fields $fieldNum }}
 
-	packedPk = append(packedPk, data)
-		{{- end }}
-	{{- end }}
+					data, err = pack{{ $ifield.Name }}([]byte{}, obj.Get{{ $ifield.Name }}())
+                	if err != nil {
+                		return [][]byte{}, err
+                	}
 
-	return packedPk, nil
+                	packedPk = append(packedPk, data)
+			{{- end }}
+		{{ end }}
+
+		return packedPk, nil
 }
+	{{ end }}
+{{ end }}
 
 func (obj *{{ $PublicStructName }}) Delete(ctx context.Context) error {
 	logger := activerecord.Logger()
