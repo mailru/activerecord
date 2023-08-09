@@ -115,6 +115,10 @@ func (n NSPackage) GetSelectDebugInfo(ns uint32, indexnum uint32, offset uint32,
 }
 
 func (n NSPackage) formatSelectMockFixture(ns uint32, spacemeta SpaceMeta, indexnum uint32, offset uint32, limit uint32, keys [][][]byte) string {
+    if len(keys) == 0 {
+        return fmt.Sprintf("Space: %d (%s), index: %d, offset: %d, limit: %d, Empty Key Values", ns, spacemeta.PackageName, indexnum, offset, limit)
+    }
+
 	ind, ex := spacemeta.Indexes[fmt.Sprintf("%d.%d", indexnum, len(keys[0]))]
 	if !ex {
 		return fmt.Sprintf("space %d (%s), unknown index: %d (%d.%d), offset: %d, limit: %d, Keys: %+v", ns, spacemeta.PackageName, indexnum, indexnum, len(keys[0]), offset, limit, keys)
