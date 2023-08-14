@@ -155,15 +155,7 @@ ret := []string{}
 {{ end }}
 
 func (obj {{ $PublicStructName }}Params) PK() string {
-    {{ if ne $procInLen 0 }}
-	return fmt.Sprint(
-	{{ range $ind, $fstruct := .ProcInFieldList -}}
-		obj.{{ $fstruct.Name }},
-	{{ end -}}
-		)
-	{{ else }}
-	return ""
-	{{ end }}
+    return fmt.Sprint(obj.arrayValues())
 }
 
 func Call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) (*{{ $PublicStructName }}, error) {
