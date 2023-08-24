@@ -155,15 +155,15 @@ ret := []string{}
 {{ end }}
 
 func (obj {{ $PublicStructName }}Params) PK() string {
-    return fmt.Sprint(obj.arrayValues())
+    return fmt.Sprint({{ if ne $procInLen 0 }}obj.arrayValues(){{ end }})
 }
 
 func Call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) (*{{ $PublicStructName }}, error) {
-    return call(ctx, params, activerecord.ReplicaOrMasterInstanceType)
+    return call(ctx{{ if ne $procInLen 0 }}, params{{ end }}, activerecord.ReplicaOrMasterInstanceType)
 }
 
 func CallOnMaster(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) (*{{ $PublicStructName }}, error) {
-    return call(ctx, params, activerecord.MasterInstanceType)
+    return call(ctx{{ if ne $procInLen 0 }}, params{{ end }}, activerecord.MasterInstanceType)
 }
 
 func call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}, instanceType activerecord.ShardInstanceType) (*{{ $PublicStructName }}, error) {
