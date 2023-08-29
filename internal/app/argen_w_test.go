@@ -671,7 +671,7 @@ type TriggersFoo struct {
 			wantErr: false,
 			want: map[string]*ds.RecordPackage{
 				"foo": {
-					Namespace: ds.NamespaceDeclaration{ObjectName: "2", PublicName: "Foo", PackageName: "foo"},
+					Namespace: ds.NamespaceDeclaration{ObjectName: "2", PublicName: "Foo", PackageName: "foo", ModuleName: "testmod"},
 					Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11111"},
 					Fields: []ds.FieldDeclaration{
 						{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Size: 5, Serializer: []string{}},
@@ -727,7 +727,10 @@ type TriggersFoo struct {
 							Params:     map[string]bool{"Defaults": true},
 						},
 					},
-					FlagMap: map[string]ds.FlagDeclaration{}},
+					FlagMap:               map[string]ds.FlagDeclaration{},
+					MutatorMap:            map[string]ds.MutatorDeclaration{},
+					ImportStructFieldsMap: map[string][]ds.PartialFieldDeclaration{},
+				},
 			},
 		},
 	}

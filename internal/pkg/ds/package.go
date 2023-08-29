@@ -211,3 +211,23 @@ func (rc *RecordPackage) AddFlag(f FlagDeclaration) error {
 
 	return nil
 }
+
+func (rc *RecordPackage) AddMutator(m MutatorDeclaration) error {
+	if _, ex := rc.MutatorMap[m.Name]; ex {
+		return &arerror.ErrParseMutatorDecl{Name: m.Name, Err: arerror.ErrRedefined}
+	}
+
+	rc.MutatorMap[m.Name] = m
+
+	return nil
+}
+
+func (rc *RecordPackage) AddPartialField(m MutatorDeclaration) error {
+	if _, ex := rc.MutatorMap[m.Name]; ex {
+		return &arerror.ErrParseMutatorDecl{Name: m.Name, Err: arerror.ErrRedefined}
+	}
+
+	rc.MutatorMap[m.Name] = m
+
+	return nil
+}

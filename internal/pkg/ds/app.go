@@ -72,46 +72,50 @@ type ServerDeclaration struct {
 
 // Структура описывающая отдельную сущность представленную в декларативном файле
 type RecordPackage struct {
-	Server          ServerDeclaration                // Описание сервера
-	Namespace       NamespaceDeclaration             // Описание неймспейса/таблицы
-	Fields          []FieldDeclaration               // Описание полей, важна последовательность для некоторых хранилищ
-	FieldsMap       map[string]int                   // Обратный индекс от имен к полям
-	FieldsObjectMap map[string]FieldObject           // Обратный индекс по имени для ссылок на другие сущности
-	Indexes         []IndexDeclaration               // Список индексов, важна последовательность для некоторых хранилищ
-	IndexMap        map[string]int                   // Обратный индекс от имён для индексов
-	SelectorMap     map[string]int                   // Список селекторов, используется для контроля дублей
-	Backends        []string                         // Список бекендов для которых надо сгенерировать пакеты (сейчас допустим один и только один)
-	SerializerMap   map[string]SerializerDeclaration // Список сериализаторов используемых в этой сущности
-	Imports         []ImportDeclaration              // Список необходимых дополнительных импортов, формируется из директивы import
-	ImportMap       map[string]int                   // Обратный индекс от имен по импортам
-	ImportPkgMap    map[string]int                   // Обратный индекс от пакетов к импортам
-	TriggerMap      map[string]TriggerDeclaration    // Список триггеров используемых в сущности
-	FlagMap         map[string]FlagDeclaration       // Список флагов используемых в полях сущности
-	ProcInFields    []ProcFieldDeclaration           // Описание входных параметров процедуры, важна последовательность
-	ProcOutFields   ProcFieldDeclarations            // Описание выходных параметров процедуры, важна последовательность
-	ProcFieldsMap   map[string]int                   // Обратный индекс от имен
+	Server                ServerDeclaration                    // Описание сервера
+	Namespace             NamespaceDeclaration                 // Описание неймспейса/таблицы
+	Fields                []FieldDeclaration                   // Описание полей, важна последовательность для некоторых хранилищ
+	FieldsMap             map[string]int                       // Обратный индекс от имен к полям
+	FieldsObjectMap       map[string]FieldObject               // Обратный индекс по имени для ссылок на другие сущности
+	Indexes               []IndexDeclaration                   // Список индексов, важна последовательность для некоторых хранилищ
+	IndexMap              map[string]int                       // Обратный индекс от имён для индексов
+	SelectorMap           map[string]int                       // Список селекторов, используется для контроля дублей
+	Backends              []string                             // Список бекендов для которых надо сгенерировать пакеты (сейчас допустим один и только один)
+	SerializerMap         map[string]SerializerDeclaration     // Список сериализаторов используемых в этой сущности
+	MutatorMap            map[string]MutatorDeclaration        // Список мутаторов используемых в этой сущности
+	Imports               []ImportDeclaration                  // Список необходимых дополнительных импортов, формируется из директивы import
+	ImportMap             map[string]int                       // Обратный индекс от имен по импортам
+	ImportPkgMap          map[string]int                       // Обратный индекс от пакетов к импортам
+	TriggerMap            map[string]TriggerDeclaration        // Список триггеров используемых в сущности
+	FlagMap               map[string]FlagDeclaration           // Список флагов используемых в полях сущности
+	ProcInFields          []ProcFieldDeclaration               // Описание входных параметров процедуры, важна последовательность
+	ProcOutFields         ProcFieldDeclarations                // Описание выходных параметров процедуры, важна последовательность
+	ProcFieldsMap         map[string]int                       // Обратный индекс от имен
+	ImportStructFieldsMap map[string][]PartialFieldDeclaration // Список описаний импортируемых пользовательских структур
 }
 
 // Конструктор для RecordPackage, инициализирует ссылочные типы
 func NewRecordPackage() *RecordPackage {
 	return &RecordPackage{
-		Server:          ServerDeclaration{},
-		Namespace:       NamespaceDeclaration{},
-		Fields:          []FieldDeclaration{},
-		FieldsMap:       map[string]int{},
-		FieldsObjectMap: map[string]FieldObject{},
-		Indexes:         []IndexDeclaration{},
-		IndexMap:        map[string]int{},
-		SelectorMap:     map[string]int{},
-		Imports:         []ImportDeclaration{},
-		ImportMap:       map[string]int{},
-		ImportPkgMap:    map[string]int{},
-		Backends:        []string{},
-		SerializerMap:   map[string]SerializerDeclaration{},
-		TriggerMap:      map[string]TriggerDeclaration{},
-		FlagMap:         map[string]FlagDeclaration{},
-		ProcFieldsMap:   map[string]int{},
-		ProcOutFields:   map[int]ProcFieldDeclaration{},
+		Server:                ServerDeclaration{},
+		Namespace:             NamespaceDeclaration{},
+		Fields:                []FieldDeclaration{},
+		FieldsMap:             map[string]int{},
+		FieldsObjectMap:       map[string]FieldObject{},
+		Indexes:               []IndexDeclaration{},
+		IndexMap:              map[string]int{},
+		SelectorMap:           map[string]int{},
+		Imports:               []ImportDeclaration{},
+		ImportMap:             map[string]int{},
+		ImportPkgMap:          map[string]int{},
+		Backends:              []string{},
+		SerializerMap:         map[string]SerializerDeclaration{},
+		TriggerMap:            map[string]TriggerDeclaration{},
+		FlagMap:               map[string]FlagDeclaration{},
+		ProcFieldsMap:         map[string]int{},
+		ProcOutFields:         map[int]ProcFieldDeclaration{},
+		MutatorMap:            map[string]MutatorDeclaration{},
+		ImportStructFieldsMap: map[string][]PartialFieldDeclaration{},
 	}
 }
 
@@ -309,6 +313,17 @@ type SerializerDeclaration struct {
 	Unmarshaler string // Имя функции анмаршаллера
 }
 
+// MutatorDeclaration Структура описывающая мутатор
+type MutatorDeclaration struct {
+	Name              string // имя
+	Pkg               string // Пакет для импорта
+	Type              string // Тип данных
+	ImportName        string // Симлинк для импорта
+	Update            string // Имя функции для параметров обновления
+	Replace           string // Имя функции для параметров замены
+	PartialFieldNames []string
+}
+
 // Структура описывающая дополнительный импорты
 type ImportDeclaration struct {
 	Path       string // Путь к пакету
@@ -328,4 +343,10 @@ type TriggerDeclaration struct {
 type FlagDeclaration struct {
 	Name  string   // Имя
 	Flags []string // Список имён флагов
+}
+
+type PartialFieldDeclaration struct {
+	Parent string // Имя поля сущности
+	Name   string // Имя части поля
+	Type   string // Тип части поля
 }

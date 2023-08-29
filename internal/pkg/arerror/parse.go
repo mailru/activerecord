@@ -204,6 +204,16 @@ func (e *ErrParseSerializerDecl) Error() string {
 	return ErrorBase(e)
 }
 
+// ErrParseMutatorDecl Описание ошибки парсинга мутаторов
+type ErrParseMutatorDecl struct {
+	Name string
+	Err  error
+}
+
+func (e *ErrParseMutatorDecl) Error() string {
+	return ErrorBase(e)
+}
+
 // Описание ошибки парсинга тегов сериализатора
 type ErrParseSerializerTagDecl struct {
 	Name     string
@@ -213,6 +223,18 @@ type ErrParseSerializerTagDecl struct {
 }
 
 func (e *ErrParseSerializerTagDecl) Error() string {
+	return ErrorBase(e)
+}
+
+// ErrParseMutatorTagDecl Описание ошибки парсинга тегов сериализатора
+type ErrParseMutatorTagDecl struct {
+	Name     string
+	TagName  string
+	TagValue string
+	Err      error
+}
+
+func (e *ErrParseMutatorTagDecl) Error() string {
 	return ErrorBase(e)
 }
 

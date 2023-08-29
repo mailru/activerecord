@@ -23,6 +23,7 @@ const (
 	Serializers  StructNameType = "Serializers"
 	Triggers     StructNameType = "Triggers"
 	Flags        StructNameType = "Flags"
+	Mutators     StructNameType = "Mutators"
 )
 
 type TagNameType string
@@ -106,6 +107,8 @@ func parseStructNameType(dst *ds.RecordPackage, nodeName string, curr *ast.Struc
 		return ParseFlags(dst, curr.Fields.List)
 	case ProcFields:
 		return ParseProcFields(dst, curr.Fields.List)
+	case Mutators:
+		return ParseMutators(dst, curr.Fields.List)
 	default:
 		return arerror.ErrUnknown
 	}
@@ -255,4 +258,78 @@ func parseDoc(dst *ds.RecordPackage, nodeName string, doc *ast.CommentGroup) err
 	}
 
 	return nil
+}
+
+//nolint:gocognit
+func ParseFieldType(dst *ds.RecordPackage, name string, t interface{}) (string, error) {
+	switch tv := t.(type) {
+	case *ast.Ident:
+		return tv.String(), nil
+	case *ast.ArrayType:
+		var err error
+
+		len := ""
+		if tv.Len != nil {
+			len, err = ParseFieldType(dst, name, tv.Len)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		t, err := ParseFieldType(dst, name, tv.Elt)
+		if err != nil {
+			return "", err
+		}
+
+		return "[" + len + "]" + t, nil
+	case *ast.InterfaceType:
+		return "interface{}", nil
+	case *ast.StarExpr:
+		t, err := ParseFieldType(dst, name, tv.X)
+		if err != nil {
+			return "", err
+		}
+
+		return "*" + t, nil
+	case *ast.MapType:
+		k, err := ParseFieldType(dst, name, tv.Key)
+		if err != nil {
+			return "", nil
+		}
+
+		v, err := ParseFieldType(dst, name, tv.Value)
+		if err != nil {
+			return "", nil
+		}
+
+		return "map[" + k + "]" + v, nil
+	case *ast.SelectorExpr:
+		pName, err := ParseFieldType(dst, name, tv.X)
+		if err != nil {
+			return "", err
+		}
+
+		imp, err := dst.FindImportByPkg(pName)
+		if err != nil {
+			return "", &arerror.ErrParseTypeStructDecl{Name: name, Err: err}
+		}
+
+		reqImportName := imp.ImportName
+		if reqImportName == "" {
+			reqImportName = pName
+		}
+
+		if _, ok := dst.ImportStructFieldsMap[reqImportName+"."+tv.Sel.Name]; !ok {
+			fieldDeclarations, err := ParsePartialStructFields(dst, tv.Sel.Name, pName, imp.Path)
+			if err != nil {
+				return "", &arerror.ErrParseTypeStructDecl{Name: name, Err: err}
+			}
+
+			dst.ImportStructFieldsMap[reqImportName+"."+tv.Sel.Name] = fieldDeclarations
+		}
+
+		return reqImportName + "." + tv.Sel.Name, nil
+	default:
+		return "", &arerror.ErrParseTypeStructDecl{Name: name, Err: arerror.ErrUnknown}
+	}
 }
