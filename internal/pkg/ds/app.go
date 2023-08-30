@@ -315,13 +315,13 @@ type SerializerDeclaration struct {
 
 // MutatorDeclaration Структура описывающая мутатор
 type MutatorDeclaration struct {
-	Name              string // имя
-	Pkg               string // Пакет для импорта
-	Type              string // Тип данных
-	ImportName        string // Симлинк для импорта
-	Update            string // Имя функции для параметров обновления
-	Replace           string // Имя функции для параметров замены
-	PartialFieldNames []string
+	Name          string // имя
+	Pkg           string // Пакет для импорта
+	Type          string // Тип данных
+	ImportName    string // Симлинк для импорта
+	Update        string // Имя функции для параметров обновления
+	Replace       string // Имя функции для параметров замены
+	PartialFields []PartialFieldDeclaration
 }
 
 // Структура описывающая дополнительный импорты

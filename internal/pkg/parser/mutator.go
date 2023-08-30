@@ -2,6 +2,7 @@ package parser
 
 import (
 	"go/ast"
+	"strings"
 
 	"github.com/mailru/activerecord/internal/pkg/arerror"
 	"github.com/mailru/activerecord/internal/pkg/ds"
@@ -50,12 +51,10 @@ func ParseMutators(dst *ds.RecordPackage, fields []*ast.Field) error {
 			return &arerror.ErrParseMutatorDecl{Name: mutatorDeclaration.Name, Err: err}
 		}
 
-		if fd, ok := dst.ImportStructFieldsMap[mutatorDeclaration.Type]; ok {
-			mutatorDeclaration.PartialFieldNames = make([]string, 0, len(fd))
-			for _, d := range fd {
-				mutatorDeclaration.PartialFieldNames = append(mutatorDeclaration.PartialFieldNames, d.Name)
-			}
-		}
+		// Ассоциируем указатель на тип с типом
+		structType := strings.Replace(mutatorDeclaration.Type, "*", "", 1)
+
+		mutatorDeclaration.PartialFields = dst.ImportStructFieldsMap[structType]
 
 		if err = dst.AddMutator(mutatorDeclaration); err != nil {
 			return err
