@@ -154,7 +154,7 @@ type FieldDeclaration struct {
 	Name       string         // Название поля
 	Format     octopus.Format // формат поля
 	PrimaryKey bool           // участвует ли поле в первичном ключе (при изменении таких полей необходимо делать delete + insert вместо update)
-	Mutators   []FieldMutator // список мутаторов (атомарных действий на уровне БД)
+	Mutators   []string       // список мутаторов (атомарных действий на уровне БД)
 	Size       int64          // Размер поля, используется только для строковых значений
 	Serializer Serializer     // Сериализаторы для поля
 	ObjectLink string         // является ли поле ссылкой на другую сущность
@@ -259,20 +259,18 @@ func (pfd ProcFieldDeclarations) Validate() bool {
 	return maxIdx < len(pfd)
 }
 
-// Тип и константы описывающие мутаторы для поля
-type FieldMutator string
-
+// Константы описывающие мутаторы для поля
 const (
-	IncMutator      FieldMutator = "inc"       // инкремент (только для числовых типов)
-	DecMutator      FieldMutator = "dec"       // декремент (только для числовых типов)
-	SetBitMutator   FieldMutator = "set_bit"   // установка бита (только для целочисленных типов)
-	ClearBitMutator FieldMutator = "clear_bit" // снятие бита (только для целочисленных типов)
-	AndMutator      FieldMutator = "and"       // дизъюнкция (только для целочисленных типов)
-	OrMutator       FieldMutator = "or"        // конъюнкция (только для целочисленных типов)
-	XorMutator      FieldMutator = "xor"       // xor (только для целочисленных типов)
+	IncMutator      string = "inc"       // инкремент (только для числовых типов)
+	DecMutator      string = "dec"       // декремент (только для числовых типов)
+	SetBitMutator   string = "set_bit"   // установка бита (только для целочисленных типов)
+	ClearBitMutator string = "clear_bit" // снятие бита (только для целочисленных типов)
+	AndMutator      string = "and"       // дизъюнкция (только для целочисленных типов)
+	OrMutator       string = "or"        // конъюнкция (только для целочисленных типов)
+	XorMutator      string = "xor"       // xor (только для целочисленных типов)
 )
 
-var FieldMutators = [...]FieldMutator{
+var FieldMutators = [...]string{
 	IncMutator,
 	DecMutator,
 	SetBitMutator,
@@ -281,13 +279,13 @@ var FieldMutators = [...]FieldMutator{
 	OrMutator,
 	XorMutator}
 
-var fieldMutatorsChecker = map[string]FieldMutator{}
+var fieldMutatorsChecker = map[string]string{}
 var FieldMutatorsCheckerOnce sync.Once
 
-func GetFieldMutatorsChecker() map[string]FieldMutator {
+func GetFieldMutatorsChecker() map[string]string {
 	FieldMutatorsCheckerOnce.Do(func() {
 		for _, f := range FieldMutators {
-			fieldMutatorsChecker[string(f)] = f
+			fieldMutatorsChecker[f] = f
 		}
 	})
 

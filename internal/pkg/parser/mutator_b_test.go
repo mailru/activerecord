@@ -77,7 +77,7 @@ func TestParseMutator(t *testing.T) {
 				Imports: []ds.ImportDeclaration{
 					{Path: "github.com/mailru/activerecord", ImportName: "parser_test"},
 					{Path: "github.com/mailru/activerecord/../ds"},
-					{Path: "github.com/mailru/activerecord/internal/pkg/conv", ImportName: "FooMutatorField"},
+					{Path: "github.com/mailru/activerecord/internal/pkg/conv", ImportName: "mutatorFooMutatorField"},
 				},
 				ImportMap: map[string]int{
 					"github.com/mailru/activerecord/internal/pkg/conv": 2,
@@ -85,16 +85,16 @@ func TestParseMutator(t *testing.T) {
 					"github.com/mailru/activerecord":                   0,
 				},
 				ImportPkgMap: map[string]int{
-					"FooMutatorField": 2,
-					"ds":              1,
-					"parser_test":     0,
+					"mutatorFooMutatorField": 2,
+					"ds":                     1,
+					"parser_test":            0,
 				},
 				MutatorMap: map[string]ds.MutatorDeclaration{
 					"FooMutatorField": {
 						Name:       "FooMutatorField",
 						Pkg:        "github.com/mailru/activerecord/internal/pkg/conv",
 						Type:       "*parser_test.Foo",
-						ImportName: "FooMutatorField",
+						ImportName: "mutatorFooMutatorField",
 						Update:     "updateFunc,param1,param2",
 						Replace:    "replaceFunc",
 						PartialFields: []ds.PartialFieldDeclaration{
@@ -106,7 +106,7 @@ func TestParseMutator(t *testing.T) {
 					"SimpleTypeMutatorField": {
 						Name:       "SimpleTypeMutatorField",
 						Type:       "int",
-						ImportName: "SimpleTypeMutatorField",
+						ImportName: "mutatorSimpleTypeMutatorField",
 						Update:     "updateSimpleTypeFunc",
 					},
 				},

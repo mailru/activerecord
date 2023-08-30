@@ -16,7 +16,7 @@ func ParseMutators(dst *ds.RecordPackage, fields []*ast.Field) error {
 
 		mutatorDeclaration := ds.MutatorDeclaration{
 			Name:       field.Names[0].Name,
-			ImportName: "" + field.Names[0].Name,
+			ImportName: "mutator" + field.Names[0].Name,
 		}
 
 		tagParam, err := splitTag(field, NoCheckFlag, map[TagNameType]ParamValueRule{})

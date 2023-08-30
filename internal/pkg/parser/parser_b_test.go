@@ -79,8 +79,8 @@ type TriggersFoo struct {
 				Namespace: ds.NamespaceDeclaration{ObjectName: "2", PublicName: "Foo", PackageName: "foo"},
 				Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11111"},
 				Fields: []ds.FieldDeclaration{
-					{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Size: 5, Serializer: []string{}},
-					{Name: "Field2", Format: "string", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Size: 5, Serializer: []string{}},
+					{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []string{}, Size: 5, Serializer: []string{}},
+					{Name: "Field2", Format: "string", PrimaryKey: true, Mutators: []string{}, Size: 5, Serializer: []string{}},
 				},
 				FieldsMap:       map[string]int{"Field1": 0, "Field2": 1},
 				FieldsObjectMap: map[string]ds.FieldObject{},

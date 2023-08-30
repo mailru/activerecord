@@ -37,7 +37,7 @@ func TestGenerate(t *testing.T) {
 					},
 					Backends: []string{"octopus"},
 					Fields: []ds.FieldDeclaration{
-						{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Size: 5, Serializer: []string{}},
+						{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []string{}, Size: 5, Serializer: []string{}},
 					},
 					FieldsMap:       map[string]int{"Field1": 0},
 					FieldsObjectMap: map[string]ds.FieldObject{},

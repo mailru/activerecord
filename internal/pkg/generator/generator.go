@@ -41,6 +41,7 @@ type PkgData struct {
 	Container        ds.NamespaceDeclaration
 	Indexes          []ds.IndexDeclaration
 	Serializers      map[string]ds.SerializerDeclaration
+	Mutators         map[string]ds.MutatorDeclaration
 	Imports          []ds.ImportDeclaration
 	Triggers         map[string]ds.TriggerDeclaration
 	Flags            map[string]ds.FlagDeclaration
@@ -60,6 +61,7 @@ func NewPkgData(appInfo string, cl ds.RecordPackage) PkgData {
 		Server:           cl.Server,
 		Container:        cl.Namespace,
 		Serializers:      cl.SerializerMap,
+		Mutators:         cl.MutatorMap,
 		Imports:          cl.Imports,
 		Triggers:         cl.TriggerMap,
 		Flags:            cl.FlagMap,

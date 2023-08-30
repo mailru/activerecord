@@ -70,7 +70,7 @@ func ParseFields(dst *ds.RecordPackage, fields []*ast.Field) error {
 
 		newfield := ds.FieldDeclaration{
 			Name:       field.Names[0].Name,
-			Mutators:   []ds.FieldMutator{},
+			Mutators:   []string{},
 			Serializer: []string{},
 		}
 

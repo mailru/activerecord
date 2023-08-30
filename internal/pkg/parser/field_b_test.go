@@ -39,8 +39,8 @@ func TestParseFields(t *testing.T) {
 				Server:    ds.ServerDeclaration{},
 				Namespace: ds.NamespaceDeclaration{},
 				Fields: []ds.FieldDeclaration{
-					{Name: "ID", Format: "int", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Serializer: []string{}},
-					{Name: "BarID", Format: "int", PrimaryKey: false, Mutators: []ds.FieldMutator{}, Serializer: []string{}},
+					{Name: "ID", Format: "int", PrimaryKey: true, Mutators: []string{}, Serializer: []string{}},
+					{Name: "BarID", Format: "int", PrimaryKey: false, Mutators: []string{}, Serializer: []string{}},
 				},
 				FieldsMap:       map[string]int{"ID": 0, "BarID": 1},
 				FieldsObjectMap: map[string]ds.FieldObject{},

@@ -90,18 +90,15 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 
 		if len(fld.Serializer) > 0 {
-			if _, ex := cl.SerializerMap[fld.Serializer[0]]; !ex {
+			if _, ex := cl.SerializerMap[fld.Serializer[0]]; len(cl.SerializerMap) == 0 || !ex {
 				return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
 			}
+
 		}
 
 		if len(fld.Mutators) > 0 {
 			if fld.PrimaryKey {
 				return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: string(fld.Mutators[0]), Err: arerror.ErrCheckFieldMutatorConflictPK}
-			}
-
-			if len(fld.Serializer) > 0 {
-				return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: string(fld.Mutators[0]), Err: arerror.ErrCheckFieldMutatorConflictSerializer}
 			}
 
 			if fld.ObjectLink != "" {

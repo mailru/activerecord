@@ -225,7 +225,7 @@ func Test_checkFields(t *testing.T) {
 							Name:       "Foo",
 							Format:     "int",
 							PrimaryKey: true,
-							Mutators: []ds.FieldMutator{
+							Mutators: []string{
 								"fmut",
 							},
 						},
@@ -247,7 +247,7 @@ func Test_checkFields(t *testing.T) {
 						{
 							Name:   "Foo",
 							Format: "int",
-							Mutators: []ds.FieldMutator{
+							Mutators: []string{
 								"fmut",
 							},
 							Serializer: []string{
@@ -255,37 +255,7 @@ func Test_checkFields(t *testing.T) {
 							},
 						},
 					},
-					SerializerMap: map[string]ds.SerializerDeclaration{
-						"fser": {},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "serializer and mutators",
-			args: args{
-				cl: ds.RecordPackage{
-					Fields: []ds.FieldDeclaration{
-						{
-							Name:       "Foo",
-							Format:     "int",
-							PrimaryKey: true,
-						},
-						{
-							Name:   "Foo",
-							Format: "int",
-							Mutators: []ds.FieldMutator{
-								"fmut",
-							},
-							Serializer: []string{
-								"fser",
-							},
-						},
-					},
-					SerializerMap: map[string]ds.SerializerDeclaration{
-						"fser": {},
-					},
+					SerializerMap: map[string]ds.SerializerDeclaration{},
 				},
 			},
 			wantErr: true,
@@ -303,7 +273,7 @@ func Test_checkFields(t *testing.T) {
 						{
 							Name:   "Foo",
 							Format: "int",
-							Mutators: []ds.FieldMutator{
+							Mutators: []string{
 								"fmut",
 							},
 							ObjectLink: "Bar",
