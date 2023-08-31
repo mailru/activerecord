@@ -42,7 +42,7 @@ import (
 {{ if $fields }}
     type {{ $PublicStructName }} struct {
         octopus.BaseField
-        {{ if ne $mutatorLen 0 -}}
+        {{- if ne $mutatorLen 0 }}
         Mutators
         {{- end -}}
     {{- range $ind, $fstruct := .FieldList -}}
@@ -347,7 +347,7 @@ func New(ctx context.Context) *{{ $PublicStructName }} {
     newObj.{{$mut.Name}}.OpFunc = map[octopus.OpCode]string{octopus.OpInsert: "{{$mut.Replace}}"}
     {{ end }}
     {{- end }}
-    {{ end -}}
+    {{ end }}
 	return &newObj
 }
 
@@ -579,7 +579,7 @@ func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {
 
 	return nil
 }
-	{{- range $i, $mut := $fstruct.Mutators -}}
+	{{ range $i, $mut := $fstruct.Mutators -}}
     {{ $customMutator := index $mutators $mut -}}
     {{ $pfLen := len $customMutator.PartialFields }}
 	{{- if $customMutator.Name }}
@@ -1226,6 +1226,19 @@ func (obj *{{ $PublicStructName }}) Update(ctx context.Context) error {
 		return obj.Replace(ctx)
 	}
 
+{{ range $ind, $fstruct := .FieldList -}}
+    {{- range $i, $mut := $fstruct.Mutators -}}
+    {{ $customMutator := index $mutators $mut -}}
+    {{ $pfLen := len $customMutator.PartialFields }}
+    {{ if and (ne $pfLen 0) (ne $customMutator.Update "") $customMutator.Name }}
+	if err := obj.pack{{ $fstruct.Name }}PartialFields(octopus.OpUpdate); err != nil {
+		metricErrCnt.Inc(ctx, "update_packpk", 1)
+		return fmt.Errorf("error unlocked update: %w", err)
+	}
+    {{ end }}
+    {{ end }}
+{{end}}
+
 	if len(obj.BaseField.UpdateOps) == 0 {
 		metricStatCnt.Inc(ctx, "update_empty", 1)
 		logger.Debug(ctx, "", obj.PrimaryString(), "Empty update")
@@ -1239,7 +1252,25 @@ func (obj *{{ $PublicStructName }}) Update(ctx context.Context) error {
 		return fmt.Errorf("error update: %w", err)
 	}
 
+	{{if gt $mutatorLen 0}}
+	updateOps := make([]octopus.Ops, 0, len(obj.BaseField.UpdateOps))
+
+	updateMutatorOps := make([]octopus.Ops, 0, len(obj.BaseField.UpdateOps))
+
+	for _, update := range obj.BaseField.UpdateOps {
+		switch update.Op {
+		case octopus.OpUpdate:
+			updateMutatorOps = append(updateMutatorOps, update)
+		default:
+			updateOps = append(updateOps, update)
+		}
+
+	}
+
+	w := octopus.PackUpdate(namespace, pk, updateOps)
+	{{else}}
 	w := octopus.PackUpdate(namespace, pk, obj.BaseField.UpdateOps)
+	{{end}}
 
 	log.Printf("Update packed tuple: '%X'\n", w)
 
@@ -1267,6 +1298,24 @@ func (obj *{{ $PublicStructName }}) Update(ctx context.Context) error {
 		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error parse response: ", err)
 		return err
 	}
+
+	{{if gt $mutatorLen 0}}
+	if len(updateMutatorOps) > 0 {
+		for _, op := range updateMutatorOps {
+			resp, errCall := connection.Call(ctx, octopus.RequestTypeCall, op.Value)
+			if errCall != nil {
+				metricErrCnt.Inc(ctx, "update_box", 1)
+				logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error update in a box", errCall, connection.Info())
+				return errCall
+			}
+
+			_, err := octopus.ProcessResp(resp, 0)
+			if err != nil {
+				return fmt.Errorf("error unpack lua response: %w", err)
+			}
+		}
+	}
+	{{end}}
 
 	obj.BaseField.UpdateOps = []octopus.Ops{}
 

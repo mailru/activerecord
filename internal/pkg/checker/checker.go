@@ -97,6 +97,18 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 
 		if len(fld.Mutators) > 0 {
+			fieldMutatorsChecker := ds.GetFieldMutatorsChecker()
+
+			for _, m := range fld.Mutators {
+				_, ex := fieldMutatorsChecker[m]
+
+				_, ok := cl.MutatorMap[m]
+
+				if !ok && !ex {
+					return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: m, Err: arerror.ErrParseFieldMutatorInvalid}
+				}
+			}
+
 			if fld.PrimaryKey {
 				return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: string(fld.Mutators[0]), Err: arerror.ErrCheckFieldMutatorConflictPK}
 			}
