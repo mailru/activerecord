@@ -70,8 +70,15 @@ type ServerDeclaration struct {
 	Host, Port, Conf string
 }
 
+type ImportPackage struct {
+	Imports      []ImportDeclaration // Список необходимых дополнительных импортов, формируется из директивы import
+	ImportMap    map[string]int      // Обратный индекс от имен по импортам
+	ImportPkgMap map[string]int      // Обратный индекс от пакетов к импортам
+}
+
 // Структура описывающая отдельную сущность представленную в декларативном файле
 type RecordPackage struct {
+	ImportPackage
 	Server                ServerDeclaration                    // Описание сервера
 	Namespace             NamespaceDeclaration                 // Описание неймспейса/таблицы
 	Fields                []FieldDeclaration                   // Описание полей, важна последовательность для некоторых хранилищ
@@ -83,9 +90,6 @@ type RecordPackage struct {
 	Backends              []string                             // Список бекендов для которых надо сгенерировать пакеты (сейчас допустим один и только один)
 	SerializerMap         map[string]SerializerDeclaration     // Список сериализаторов используемых в этой сущности
 	MutatorMap            map[string]MutatorDeclaration        // Список мутаторов используемых в этой сущности
-	Imports               []ImportDeclaration                  // Список необходимых дополнительных импортов, формируется из директивы import
-	ImportMap             map[string]int                       // Обратный индекс от имен по импортам
-	ImportPkgMap          map[string]int                       // Обратный индекс от пакетов к импортам
 	TriggerMap            map[string]TriggerDeclaration        // Список триггеров используемых в сущности
 	FlagMap               map[string]FlagDeclaration           // Список флагов используемых в полях сущности
 	ProcInFields          []ProcFieldDeclaration               // Описание входных параметров процедуры, важна последовательность
@@ -95,9 +99,22 @@ type RecordPackage struct {
 	ImportStructFieldsMap map[string][]PartialFieldDeclaration // Список описаний импортируемых пользовательских структур
 }
 
+func NewImportPackage() ImportPackage {
+	return ImportPackage{
+		Imports:      []ImportDeclaration{},
+		ImportMap:    map[string]int{},
+		ImportPkgMap: map[string]int{},
+	}
+}
+
 // Конструктор для RecordPackage, инициализирует ссылочные типы
 func NewRecordPackage() *RecordPackage {
 	return &RecordPackage{
+		ImportPackage: ImportPackage{
+			Imports:      []ImportDeclaration{},
+			ImportMap:    map[string]int{},
+			ImportPkgMap: map[string]int{},
+		},
 		Server:                ServerDeclaration{},
 		Namespace:             NamespaceDeclaration{},
 		Fields:                []FieldDeclaration{},
@@ -106,9 +123,6 @@ func NewRecordPackage() *RecordPackage {
 		Indexes:               []IndexDeclaration{},
 		IndexMap:              map[string]int{},
 		SelectorMap:           map[string]int{},
-		Imports:               []ImportDeclaration{},
-		ImportMap:             map[string]int{},
-		ImportPkgMap:          map[string]int{},
 		Backends:              []string{},
 		SerializerMap:         map[string]SerializerDeclaration{},
 		MutatorMap:            map[string]MutatorDeclaration{},

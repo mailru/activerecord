@@ -175,7 +175,7 @@ func parseTokenImport(dst *ds.RecordPackage, genD *ast.GenDecl) error {
 			return &arerror.ErrParseGenDecl{Name: genD.Tok.String(), Err: arerror.ErrParseCastImportType}
 		}
 
-		if impErr := ParseImport(dst, currImport); impErr != nil {
+		if impErr := ParseImport(&dst.ImportPackage, currImport); impErr != nil {
 			return &arerror.ErrParseGenDecl{Name: genD.Tok.String(), Err: impErr}
 		}
 	}

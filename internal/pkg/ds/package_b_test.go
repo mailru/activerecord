@@ -247,23 +247,7 @@ func TestRecordClass_AddField(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rc := &ds.RecordPackage{
-				Server:          tt.fields.Server,
-				Namespace:       tt.fields.Namespace,
-				Fields:          tt.fields.Fields,
-				FieldsMap:       tt.fields.FieldsMap,
-				FieldsObjectMap: tt.fields.FieldsObjectMap,
-				Indexes:         tt.fields.Indexes,
-				IndexMap:        tt.fields.IndexMap,
-				SelectorMap:     tt.fields.SelectorMap,
-				Backends:        tt.fields.Backends,
-				SerializerMap:   tt.fields.SerializerMap,
-				Imports:         tt.fields.Imports,
-				ImportMap:       tt.fields.ImportMap,
-				TriggerMap:      tt.fields.TriggerMap,
-				FlagMap:         tt.fields.FlagMap,
-			}
-			if err := rc.AddField(tt.args.f); (err != nil) != tt.wantErr {
+			if err := tt.fields.AddField(tt.args.f); (err != nil) != tt.wantErr {
 				t.Errorf("RecordClass.AddField() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -290,23 +274,7 @@ func TestRecordClass_AddFieldObject(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rc := &ds.RecordPackage{
-				Server:          tt.fields.Server,
-				Namespace:       tt.fields.Namespace,
-				Fields:          tt.fields.Fields,
-				FieldsMap:       tt.fields.FieldsMap,
-				FieldsObjectMap: tt.fields.FieldsObjectMap,
-				Indexes:         tt.fields.Indexes,
-				IndexMap:        tt.fields.IndexMap,
-				SelectorMap:     tt.fields.SelectorMap,
-				Backends:        tt.fields.Backends,
-				SerializerMap:   tt.fields.SerializerMap,
-				Imports:         tt.fields.Imports,
-				ImportMap:       tt.fields.ImportMap,
-				TriggerMap:      tt.fields.TriggerMap,
-				FlagMap:         tt.fields.FlagMap,
-			}
-			if err := rc.AddFieldObject(tt.args.f); (err != nil) != tt.wantErr {
+			if err := tt.fields.AddFieldObject(tt.args.f); (err != nil) != tt.wantErr {
 				t.Errorf("RecordClass.AddFieldObject() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -332,23 +300,7 @@ func TestRecordClass_AddTrigger(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rc := &ds.RecordPackage{
-				Server:          tt.fields.Server,
-				Namespace:       tt.fields.Namespace,
-				Fields:          tt.fields.Fields,
-				FieldsMap:       tt.fields.FieldsMap,
-				FieldsObjectMap: tt.fields.FieldsObjectMap,
-				Indexes:         tt.fields.Indexes,
-				IndexMap:        tt.fields.IndexMap,
-				SelectorMap:     tt.fields.SelectorMap,
-				Backends:        tt.fields.Backends,
-				SerializerMap:   tt.fields.SerializerMap,
-				Imports:         tt.fields.Imports,
-				ImportMap:       tt.fields.ImportMap,
-				TriggerMap:      tt.fields.TriggerMap,
-				FlagMap:         tt.fields.FlagMap,
-			}
-			if err := rc.AddTrigger(tt.args.f); (err != nil) != tt.wantErr {
+			if err := tt.fields.AddTrigger(tt.args.f); (err != nil) != tt.wantErr {
 				t.Errorf("RecordClass.AddTrigger() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -374,23 +326,7 @@ func TestRecordClass_AddSerializer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rc := &ds.RecordPackage{
-				Server:          tt.fields.Server,
-				Namespace:       tt.fields.Namespace,
-				Fields:          tt.fields.Fields,
-				FieldsMap:       tt.fields.FieldsMap,
-				FieldsObjectMap: tt.fields.FieldsObjectMap,
-				Indexes:         tt.fields.Indexes,
-				IndexMap:        tt.fields.IndexMap,
-				SelectorMap:     tt.fields.SelectorMap,
-				Backends:        tt.fields.Backends,
-				SerializerMap:   tt.fields.SerializerMap,
-				Imports:         tt.fields.Imports,
-				ImportMap:       tt.fields.ImportMap,
-				TriggerMap:      tt.fields.TriggerMap,
-				FlagMap:         tt.fields.FlagMap,
-			}
-			if err := rc.AddSerializer(tt.args.f); (err != nil) != tt.wantErr {
+			if err := tt.fields.AddSerializer(tt.args.f); (err != nil) != tt.wantErr {
 				t.Errorf("RecordClass.AddSerializer() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -416,23 +352,7 @@ func TestRecordClass_AddFlag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rc := &ds.RecordPackage{
-				Server:          tt.fields.Server,
-				Namespace:       tt.fields.Namespace,
-				Fields:          tt.fields.Fields,
-				FieldsMap:       tt.fields.FieldsMap,
-				FieldsObjectMap: tt.fields.FieldsObjectMap,
-				Indexes:         tt.fields.Indexes,
-				IndexMap:        tt.fields.IndexMap,
-				SelectorMap:     tt.fields.SelectorMap,
-				Backends:        tt.fields.Backends,
-				SerializerMap:   tt.fields.SerializerMap,
-				Imports:         tt.fields.Imports,
-				ImportMap:       tt.fields.ImportMap,
-				TriggerMap:      tt.fields.TriggerMap,
-				FlagMap:         tt.fields.FlagMap,
-			}
-			if err := rc.AddFlag(tt.args.f); (err != nil) != tt.wantErr {
+			if err := tt.fields.AddFlag(tt.args.f); (err != nil) != tt.wantErr {
 				t.Errorf("RecordClass.AddFlag() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

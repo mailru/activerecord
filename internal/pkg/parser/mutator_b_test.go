@@ -104,20 +104,22 @@ func _TestParseMutator(t *testing.T) {
 						Update:     "updateSimpleTypeFunc",
 					},
 				},
-				Imports: []ds.ImportDeclaration{
-					{Path: "github.com/mailru/activerecord", ImportName: "parser_test"},
-					{Path: "github.com/mailru/activerecord/../ds"},
-					{Path: "github.com/mailru/activerecord/internal/pkg/conv", ImportName: "mutatorFooMutatorField"},
-				},
-				ImportMap: map[string]int{
-					"github.com/mailru/activerecord/internal/pkg/conv": 2,
-					"github.com/mailru/activerecord/../ds":             1,
-					"github.com/mailru/activerecord":                   0,
-				},
-				ImportPkgMap: map[string]int{
-					"mutatorFooMutatorField": 2,
-					"ds":                     1,
-					"parser_test":            0,
+				ImportPackage: ds.ImportPackage{
+					Imports: []ds.ImportDeclaration{
+						{Path: "github.com/mailru/activerecord", ImportName: "parser_test"},
+						{Path: "github.com/mailru/activerecord/../ds"},
+						{Path: "github.com/mailru/activerecord/internal/pkg/conv", ImportName: "mutatorFooMutatorField"},
+					},
+					ImportMap: map[string]int{
+						"github.com/mailru/activerecord/internal/pkg/conv": 2,
+						"github.com/mailru/activerecord/../ds":             1,
+						"github.com/mailru/activerecord":                   0,
+					},
+					ImportPkgMap: map[string]int{
+						"mutatorFooMutatorField": 2,
+						"ds":                     1,
+						"parser_test":            0,
+					},
 				},
 				TriggerMap:          map[string]ds.TriggerDeclaration{},
 				FlagMap:             map[string]ds.FlagDeclaration{},

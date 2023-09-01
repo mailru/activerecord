@@ -100,7 +100,7 @@ func (rc *RecordPackage) AddIndex(ind IndexDeclaration) error {
 	return nil
 }
 
-func (rc *RecordPackage) AddImport(path string, reqImportName ...string) (ImportDeclaration, error) {
+func (rc *ImportPackage) AddImport(path string, reqImportName ...string) (ImportDeclaration, error) {
 	if len(reqImportName) > 1 {
 		return ImportDeclaration{}, &arerror.ErrParseImportDecl{Path: path, Err: arerror.ErrInvalidParams}
 	}
@@ -146,7 +146,7 @@ func (rc *RecordPackage) AddImport(path string, reqImportName ...string) (Import
 	return newImport, nil
 }
 
-func (rc *RecordPackage) FindImport(path string) (ImportDeclaration, error) {
+func (rc *ImportPackage) FindImport(path string) (ImportDeclaration, error) {
 	if impNum, ex := rc.ImportMap[path]; ex {
 		return rc.Imports[impNum], nil
 	}
@@ -154,7 +154,7 @@ func (rc *RecordPackage) FindImport(path string) (ImportDeclaration, error) {
 	return ImportDeclaration{}, &arerror.ErrParseImportDecl{Path: path, Err: arerror.ErrParseImportNotFound}
 }
 
-func (rc *RecordPackage) FindImportByPkg(pkg string) (*ImportDeclaration, error) {
+func (rc *ImportPackage) FindImportByPkg(pkg string) (*ImportDeclaration, error) {
 	if impNum, ex := rc.ImportPkgMap[pkg]; ex {
 		return &rc.Imports[impNum], nil
 	}
@@ -162,7 +162,7 @@ func (rc *RecordPackage) FindImportByPkg(pkg string) (*ImportDeclaration, error)
 	return nil, &arerror.ErrParseImportDecl{Name: pkg, Err: arerror.ErrParseImportNotFound}
 }
 
-func (rc *RecordPackage) FindOrAddImport(path, importName string) (ImportDeclaration, error) {
+func (rc *ImportPackage) FindOrAddImport(path, importName string) (ImportDeclaration, error) {
 	imp, err := rc.FindImport(path)
 	if err != nil {
 		var impErr *arerror.ErrParseImportDecl

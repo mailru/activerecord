@@ -114,14 +114,16 @@ type TriggersFoo struct {
 				SelectorMap:   map[string]int{"SelectByField1": 1, "SelectByField1Field2": 0},
 				Backends:      []string{"octopus"},
 				SerializerMap: map[string]ds.SerializerDeclaration{},
-				Imports: []ds.ImportDeclaration{
-					{
-						Path:       "github.com/mailru/activerecord-cookbook.git/example/model/repository/repair",
-						ImportName: "triggerRepairTuple",
+				ImportPackage: ds.ImportPackage{
+					Imports: []ds.ImportDeclaration{
+						{
+							Path:       "github.com/mailru/activerecord-cookbook.git/example/model/repository/repair",
+							ImportName: "triggerRepairTuple",
+						},
 					},
+					ImportMap:    map[string]int{"github.com/mailru/activerecord-cookbook.git/example/model/repository/repair": 0},
+					ImportPkgMap: map[string]int{"triggerRepairTuple": 0},
 				},
-				ImportMap:    map[string]int{"github.com/mailru/activerecord-cookbook.git/example/model/repository/repair": 0},
-				ImportPkgMap: map[string]int{"triggerRepairTuple": 0},
 				TriggerMap: map[string]ds.TriggerDeclaration{
 					"RepairTuple": {
 						Name:       "RepairTuple",
@@ -223,9 +225,7 @@ type ProcFieldsFoo struct {
 				SelectorMap:           map[string]int{},
 				Backends:              []string{"octopus"},
 				SerializerMap:         map[string]ds.SerializerDeclaration{},
-				Imports:               []ds.ImportDeclaration{},
-				ImportMap:             map[string]int{},
-				ImportPkgMap:          map[string]int{},
+				ImportPackage:         ds.NewImportPackage(),
 				TriggerMap:            map[string]ds.TriggerDeclaration{},
 				FlagMap:               map[string]ds.FlagDeclaration{},
 				MutatorMap:            map[string]ds.MutatorDeclaration{},

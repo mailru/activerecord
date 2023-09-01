@@ -47,7 +47,6 @@ func parseStructFields(dst *ds.RecordPackage, gen *ast.GenDecl, name, pkgName st
 				}
 
 				partialFields = append(partialFields, field)
-				break
 			}
 
 			return partialFields, nil
@@ -83,7 +82,7 @@ func ParsePartialStructFields(dst *ds.RecordPackage, name, pkgName, path string)
 	}
 
 	for _, spec := range file.Imports {
-		if err = ParseImport(dst, spec); err != nil {
+		if err = ParseImport(&dst.ImportPackage, spec); err != nil {
 			return nil, fmt.Errorf("can't parse import from package file `%s`: %w", file.Name, err)
 		}
 	}
