@@ -63,6 +63,7 @@ func Test_parseDoc(t *testing.T) {
 				FlagMap:               map[string]ds.FlagDeclaration{},
 				MutatorMap:            map[string]ds.MutatorDeclaration{},
 				ImportStructFieldsMap: map[string][]ds.PartialFieldDeclaration{},
+				ImportPkgStructsMap:   map[string][]string{},
 			},
 		},
 		{
@@ -386,6 +387,7 @@ func Test_parseAst(t *testing.T) {
 				FlagMap:               map[string]ds.FlagDeclaration{},
 				MutatorMap:            map[string]ds.MutatorDeclaration{},
 				ImportStructFieldsMap: map[string][]ds.PartialFieldDeclaration{},
+				ImportPkgStructsMap:   map[string][]string{},
 			},
 		},
 	}

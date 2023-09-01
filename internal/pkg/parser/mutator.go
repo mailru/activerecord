@@ -46,7 +46,7 @@ func ParseMutators(dst *ds.RecordPackage, fields []*ast.Field) error {
 			mutatorDeclaration.ImportName = imp.ImportName
 		}
 
-		mutatorDeclaration.Type, err = ParseFieldType(dst, mutatorDeclaration.Name, field.Type)
+		mutatorDeclaration.Type, err = ParseFieldType(dst, mutatorDeclaration.Name, "", field.Type)
 		if err != nil {
 			return &arerror.ErrParseMutatorDecl{Name: mutatorDeclaration.Name, Err: err}
 		}

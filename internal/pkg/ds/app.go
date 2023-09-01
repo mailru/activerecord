@@ -91,6 +91,7 @@ type RecordPackage struct {
 	ProcInFields          []ProcFieldDeclaration               // Описание входных параметров процедуры, важна последовательность
 	ProcOutFields         ProcFieldDeclarations                // Описание выходных параметров процедуры, важна последовательность
 	ProcFieldsMap         map[string]int                       // Обратный индекс от имен
+	ImportPkgStructsMap   map[string][]string                  // Список имен структур в пакете
 	ImportStructFieldsMap map[string][]PartialFieldDeclaration // Список описаний импортируемых пользовательских структур
 }
 
@@ -110,11 +111,12 @@ func NewRecordPackage() *RecordPackage {
 		ImportPkgMap:          map[string]int{},
 		Backends:              []string{},
 		SerializerMap:         map[string]SerializerDeclaration{},
+		MutatorMap:            map[string]MutatorDeclaration{},
 		TriggerMap:            map[string]TriggerDeclaration{},
 		FlagMap:               map[string]FlagDeclaration{},
 		ProcFieldsMap:         map[string]int{},
 		ProcOutFields:         map[int]ProcFieldDeclaration{},
-		MutatorMap:            map[string]MutatorDeclaration{},
+		ImportPkgStructsMap:   map[string][]string{},
 		ImportStructFieldsMap: map[string][]PartialFieldDeclaration{},
 	}
 }

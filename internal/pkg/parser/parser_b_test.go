@@ -136,6 +136,7 @@ type TriggersFoo struct {
 				ProcOutFields:         map[int]ds.ProcFieldDeclaration{},
 				MutatorMap:            map[string]ds.MutatorDeclaration{},
 				ImportStructFieldsMap: map[string][]ds.PartialFieldDeclaration{},
+				ImportPkgStructsMap:   map[string][]string{},
 			},
 		},
 	}
@@ -229,6 +230,7 @@ type ProcFieldsFoo struct {
 				FlagMap:               map[string]ds.FlagDeclaration{},
 				MutatorMap:            map[string]ds.MutatorDeclaration{},
 				ImportStructFieldsMap: map[string][]ds.PartialFieldDeclaration{},
+				ImportPkgStructsMap:   map[string][]string{},
 			},
 		},
 	}

@@ -62,6 +62,7 @@ func TestParseImport(t *testing.T) {
 				FlagMap:               map[string]ds.FlagDeclaration{},
 				MutatorMap:            map[string]ds.MutatorDeclaration{},
 				ImportStructFieldsMap: map[string][]ds.PartialFieldDeclaration{},
+				ImportPkgStructsMap:   map[string][]string{},
 			},
 			wantErr: false,
 		},

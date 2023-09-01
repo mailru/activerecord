@@ -715,6 +715,7 @@ func (obj *{{ $PublicStructName }}) {{ $mutatorparam.Name }}{{ $fstruct.Name }}(
 	return nil
 }
 	{{- end }}
+	{{- end }}
 	{{- $fl := index $flags $fstruct.Name }}
 	{{- if $fl }}
 		{{- range $i, $flag := $fl.Flags }}
@@ -732,7 +733,7 @@ func (obj *{{ $PublicStructName }}) Is{{ $fstruct.Name }}{{ $flag }}() bool {
 }
 		{{- end }}
 	{{- end }}
-{{- end }}
+
 {{ end -}}
 
 {{ if $fields }}
