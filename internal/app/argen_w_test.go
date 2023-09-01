@@ -730,7 +730,7 @@ type TriggersFoo struct {
 					FlagMap:               map[string]ds.FlagDeclaration{},
 					MutatorMap:            map[string]ds.MutatorDeclaration{},
 					ImportStructFieldsMap: map[string][]ds.PartialFieldDeclaration{},
-					ImportPkgStructsMap:   map[string][]string{},
+					LinkedStructsMap:      map[string]ds.LinkedPackageDeclaration{},
 				},
 			},
 		},

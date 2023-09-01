@@ -95,8 +95,8 @@ type RecordPackage struct {
 	ProcInFields          []ProcFieldDeclaration               // Описание входных параметров процедуры, важна последовательность
 	ProcOutFields         ProcFieldDeclarations                // Описание выходных параметров процедуры, важна последовательность
 	ProcFieldsMap         map[string]int                       // Обратный индекс от имен
-	ImportPkgStructsMap   map[string][]string                  // Список имен структур в пакете
-	ImportStructFieldsMap map[string][]PartialFieldDeclaration // Список описаний импортируемых пользовательских структур
+	LinkedStructsMap      map[string]LinkedPackageDeclaration  // Описание пакетов связанных типов
+	ImportStructFieldsMap map[string][]PartialFieldDeclaration // Описаний структур импортируемых полей сущности
 }
 
 func NewImportPackage() ImportPackage {
@@ -130,7 +130,7 @@ func NewRecordPackage() *RecordPackage {
 		FlagMap:               map[string]FlagDeclaration{},
 		ProcFieldsMap:         map[string]int{},
 		ProcOutFields:         map[int]ProcFieldDeclaration{},
-		ImportPkgStructsMap:   map[string][]string{},
+		LinkedStructsMap:      map[string]LinkedPackageDeclaration{},
 		ImportStructFieldsMap: map[string][]PartialFieldDeclaration{},
 	}
 }
@@ -363,4 +363,9 @@ type PartialFieldDeclaration struct {
 	Parent string // Имя поля сущности
 	Name   string // Имя части поля
 	Type   string // Тип части поля
+}
+
+type LinkedPackageDeclaration struct {
+	Types  []string      // Имена типов связанных структур
+	Import ImportPackage // Описание импорта пакета связанных структур
 }

@@ -81,8 +81,9 @@ func ParsePartialStructFields(dst *ds.RecordPackage, name, pkgName, path string)
 		return nil, fmt.Errorf("can't find struct `%s` in package `%s`: %w", name, pkgName, err)
 	}
 
+	importPkg := ds.NewImportPackage()
 	for _, spec := range file.Imports {
-		if err = ParseImport(&dst.ImportPackage, spec); err != nil {
+		if err = ParseImport(&importPkg, spec); err != nil {
 			return nil, fmt.Errorf("can't parse import from package file `%s`: %w", file.Name, err)
 		}
 	}
@@ -92,7 +93,12 @@ func ParsePartialStructFields(dst *ds.RecordPackage, name, pkgName, path string)
 		tnames = append(tnames, tname)
 	}
 
-	dst.ImportPkgStructsMap[pkgName] = tnames
+	pkgDecl := ds.LinkedPackageDeclaration{
+		Types:  tnames,
+		Import: importPkg,
+	}
+
+	dst.LinkedStructsMap[pkgName] = pkgDecl
 
 	for _, decl := range file.Decls {
 		switch gen := decl.(type) {
@@ -120,15 +126,25 @@ func ParsePartialStructFields(dst *ds.RecordPackage, name, pkgName, path string)
 func ParseFieldType(dst *ds.RecordPackage, name, pName string, t interface{}) (string, error) {
 	switch tv := t.(type) {
 	case *ast.Ident:
-		if plist, ok := dst.ImportPkgStructsMap[pName]; ok {
-			for _, p := range plist {
-				if p == tv.String() {
-					return pName + "." + tv.String(), nil
+		v := tv.String()
+
+		if ls, ok := dst.LinkedStructsMap[pName]; ok {
+			for _, p := range ls.Types {
+				if p == v {
+					return pName + "." + v, nil
 				}
 			}
+
+			// если импорта нет, то это простой тип
+			imp, err := ls.Import.FindImportByPkg(v)
+			if err != nil {
+				return v, nil
+			}
+
+			_, _ = dst.FindOrAddImport(imp.Path, imp.ImportName)
 		}
 
-		return tv.String(), nil
+		return v, nil
 	case *ast.ArrayType:
 		var err error
 
@@ -168,23 +184,23 @@ func ParseFieldType(dst *ds.RecordPackage, name, pName string, t interface{}) (s
 
 		return "map[" + k + "]" + v, nil
 	case *ast.SelectorExpr:
-		pName, err := ParseFieldType(dst, name, "", tv.X)
+		pkgName, err := ParseFieldType(dst, name, pName, tv.X)
 		if err != nil {
 			return "", err
 		}
 
-		imp, err := dst.FindImportByPkg(pName)
+		imp, err := dst.FindImportByPkg(pkgName)
 		if err != nil {
 			return "", &arerror.ErrParseTypeStructDecl{Name: name, Err: err}
 		}
 
 		reqImportName := imp.ImportName
 		if reqImportName == "" {
-			reqImportName = pName
+			reqImportName = pkgName
 		}
 
 		if _, ok := dst.ImportStructFieldsMap[reqImportName+"."+tv.Sel.Name]; !ok {
-			fieldDeclarations, err := ParsePartialStructFields(dst, tv.Sel.Name, pName, imp.Path)
+			fieldDeclarations, err := ParsePartialStructFields(dst, tv.Sel.Name, pkgName, imp.Path)
 			if err != nil {
 				return "", &arerror.ErrParseTypeStructDecl{Name: name, Err: err}
 			}
