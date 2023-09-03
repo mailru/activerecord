@@ -49,7 +49,7 @@ func checkLinkedObject(cl *ds.RecordPackage, linkedObjects map[string]string) er
 }
 
 // checkNamespace проверка правильного описания неймспейса у сущности
-func checkNamespace(ns *ds.NamespaceDeclaration) error {
+func checkNamespace(ns ds.NamespaceDeclaration) error {
 	if ns.PackageName == "" || ns.PublicName == "" {
 		return &arerror.ErrCheckPackageNamespaceDecl{Pkg: ns.PackageName, Name: ns.PublicName, Err: arerror.ErrCheckEmptyNamespace}
 	}
@@ -187,7 +187,7 @@ func Check(files map[string]*ds.RecordPackage, linkedObjects map[string]string) 
 			return err
 		}
 
-		if err := checkNamespace(&cl.Namespace); err != nil {
+		if err := checkNamespace(cl.Namespace); err != nil {
 			return err
 		}
 

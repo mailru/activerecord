@@ -88,14 +88,13 @@ func ParsePartialStructFields(dst *ds.RecordPackage, name, pkgName, path string)
 		}
 	}
 
-	tnames := make([]string, 0, len(files))
-	for tname := range files {
-		tnames = append(tnames, tname)
+	pkgDecl := ds.LinkedPackageDeclaration{
+		Types:  make(map[string]struct{}),
+		Import: importPkg,
 	}
 
-	pkgDecl := ds.LinkedPackageDeclaration{
-		Types:  tnames,
-		Import: importPkg,
+	for t := range files {
+		pkgDecl.Types[t] = struct{}{}
 	}
 
 	dst.LinkedStructsMap[pkgName] = pkgDecl
@@ -129,10 +128,8 @@ func ParseFieldType(dst *ds.RecordPackage, name, pName string, t interface{}) (s
 		v := tv.String()
 
 		if ls, ok := dst.LinkedStructsMap[pName]; ok {
-			for _, p := range ls.Types {
-				if p == v {
-					return pName + "." + v, nil
-				}
+			if _, ok := ls.Types[v]; ok {
+				return pName + "." + v, nil
 			}
 
 			// если импорта нет, то это простой тип

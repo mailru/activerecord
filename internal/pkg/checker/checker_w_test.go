@@ -74,7 +74,7 @@ func Test_checkLinkedObject(t *testing.T) {
 
 func Test_checkNamespace(t *testing.T) {
 	type args struct {
-		ns *ds.NamespaceDeclaration
+		ns ds.NamespaceDeclaration
 	}
 	tests := []struct {
 		name    string
@@ -84,7 +84,7 @@ func Test_checkNamespace(t *testing.T) {
 		{
 			name: "normal namespace",
 			args: args{
-				ns: &ds.NamespaceDeclaration{
+				ns: ds.NamespaceDeclaration{
 					ObjectName:  "0",
 					PublicName:  "Foo",
 					PackageName: "foo",
@@ -95,7 +95,7 @@ func Test_checkNamespace(t *testing.T) {
 		{
 			name: "empty name",
 			args: args{
-				ns: &ds.NamespaceDeclaration{
+				ns: ds.NamespaceDeclaration{
 					ObjectName:  "0",
 					PublicName:  "",
 					PackageName: "foo",
@@ -106,7 +106,7 @@ func Test_checkNamespace(t *testing.T) {
 		{
 			name: "empty package",
 			args: args{
-				ns: &ds.NamespaceDeclaration{
+				ns: ds.NamespaceDeclaration{
 					ObjectName:  "0",
 					PublicName:  "Foo",
 					PackageName: "",

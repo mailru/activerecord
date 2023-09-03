@@ -366,6 +366,6 @@ type PartialFieldDeclaration struct {
 }
 
 type LinkedPackageDeclaration struct {
-	Types  []string      // Имена типов связанных структур
-	Import ImportPackage // Описание импорта пакета связанных структур
+	Types  map[string]struct{} // Имена типов связанных структур
+	Import ImportPackage       // Описание импорта пакета связанных структур
 }

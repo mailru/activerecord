@@ -5,22 +5,19 @@ import (
 	"go/ast"
 	"testing"
 
-	"github.com/mailru/activerecord/internal/pkg/ds"
-	"github.com/mailru/activerecord/internal/pkg/parser"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 	"gotest.tools/assert/cmp"
+
+	"github.com/mailru/activerecord/internal/pkg/ds"
+	"github.com/mailru/activerecord/internal/pkg/parser"
 )
 
 func NewRecordPackage(t *testing.T) (*ds.RecordPackage, error) {
 	dst := ds.NewRecordPackage()
-	dst.Namespace.ModuleName = "github.com/mailru/activerecord"
+	dst.Namespace.ModuleName = "github.com/mailru/activerecord/internal/pkg/parser"
 
-	if _, err := dst.AddImport("github.com/mailru/activerecord/testdata/ds"); err != nil {
-		return nil, fmt.Errorf("can't create test package: %w", err)
-	}
-
-	if _, err := dst.AddImport("github.com/mailru/activerecord/testdata/foo"); err != nil {
+	if _, err := dst.AddImport("github.com/mailru/activerecord/internal/pkg/parser/testdata/foo"); err != nil {
 		return nil, fmt.Errorf("can't create test package: %w", err)
 	}
 
@@ -65,7 +62,7 @@ func TestParseMutator(t *testing.T) {
 			want: &ds.RecordPackage{
 				Server: ds.ServerDeclaration{},
 				Namespace: ds.NamespaceDeclaration{
-					ModuleName: "github.com/mailru/activerecord",
+					ModuleName: "github.com/mailru/activerecord/internal/pkg/parser",
 				},
 				Fields:          []ds.FieldDeclaration{},
 				FieldsMap:       map[string]int{},
@@ -99,19 +96,19 @@ func TestParseMutator(t *testing.T) {
 				},
 				ImportPackage: ds.ImportPackage{
 					Imports: []ds.ImportDeclaration{
-						{Path: "github.com/mailru/activerecord/testdata/ds"},
-						{Path: "github.com/mailru/activerecord/testdata/foo"},
+						{Path: "github.com/mailru/activerecord/internal/pkg/parser/testdata/foo"},
 						{Path: "github.com/mailru/activerecord/internal/pkg/conv", ImportName: "mutatorFooMutatorField"},
+						{Path: "github.com/mailru/activerecord/internal/pkg/parser/testdata/ds"},
 					},
 					ImportMap: map[string]int{
-						"github.com/mailru/activerecord/internal/pkg/conv": 2,
-						"github.com/mailru/activerecord/testdata/foo":      1,
-						"github.com/mailru/activerecord/testdata/ds":       0,
+						"github.com/mailru/activerecord/internal/pkg/conv":                1,
+						"github.com/mailru/activerecord/internal/pkg/parser/testdata/foo": 0,
+						"github.com/mailru/activerecord/internal/pkg/parser/testdata/ds":  2,
 					},
 					ImportPkgMap: map[string]int{
-						"mutatorFooMutatorField": 2,
-						"ds":                     0,
-						"foo":                    1,
+						"mutatorFooMutatorField": 1,
+						"ds":                     2,
+						"foo":                    0,
 					},
 				},
 				TriggerMap:    map[string]ds.TriggerDeclaration{},
@@ -120,7 +117,7 @@ func TestParseMutator(t *testing.T) {
 				ProcFieldsMap: map[string]int{},
 				LinkedStructsMap: map[string]ds.LinkedPackageDeclaration{
 					"ds": {
-						Types: []string{"AppInfo"},
+						Types: map[string]struct{}{"AppInfo": {}},
 						Import: struct {
 							Imports      []ds.ImportDeclaration
 							ImportMap    map[string]int
@@ -128,7 +125,7 @@ func TestParseMutator(t *testing.T) {
 						}{Imports: []ds.ImportDeclaration{}, ImportMap: map[string]int{}, ImportPkgMap: map[string]int{}},
 					},
 					"foo": {
-						Types: []string{"Beer", "Foo"},
+						Types: map[string]struct{}{"Beer": {}, "Foo": {}},
 						Import: struct {
 							Imports      []ds.ImportDeclaration
 							ImportMap    map[string]int
