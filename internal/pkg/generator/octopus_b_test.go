@@ -146,6 +146,7 @@ func TestGenerateOctopus(t *testing.T) {
 					`func SelectByField1MockerLogger(keys [], res FooList) func() (activerecord.MockerLogger, error) {`,
 					`func (obj *Foo) MockSelectByField1sRequest(ctx context.Context, keys [], ) []byte {`,
 					`func (obj *Foo) MockSelectResponse() ([][]byte, error) {`,
+					`func (obj *Foo) MockMutatorUpdate(ctx context.Context) [][]byte {`,
 				},
 				"fixture": {
 					`type FooFT struct {`,

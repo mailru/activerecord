@@ -25,6 +25,7 @@ type FixturePkgData struct {
 	Container        ds.NamespaceDeclaration
 	Indexes          []ds.IndexDeclaration
 	Serializers      map[string]ds.SerializerDeclaration
+	Mutators         map[string]ds.MutatorDeclaration
 	Imports          []ds.ImportDeclaration
 	AppInfo          string
 }

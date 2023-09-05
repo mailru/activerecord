@@ -240,6 +240,7 @@ func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string, pkgFixture
 		Container:        cl.Namespace,
 		Indexes:          cl.Indexes,
 		Serializers:      cl.SerializerMap,
+		Mutators:         cl.MutatorMap,
 		Imports:          cl.Imports,
 		AppInfo:          appInfo,
 	}
