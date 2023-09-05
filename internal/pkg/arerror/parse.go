@@ -129,6 +129,7 @@ var ErrParseFieldBinary = errors.New("binary format not implemented")
 var ErrParseFieldMutatorInvalid = errors.New("invalid mutator")
 var ErrParseFieldSizeInvalid = errors.New("error parse size")
 var ErrParseFieldNameInvalid = errors.New("invalid declaration name")
+var ErrParseFieldMutatorTypeHasNotSerializer = errors.New("mutator type must have serializer")
 
 // Описание ошибки парсинга флагов поля сущности
 type ErrParseFlagTagDecl struct {

@@ -309,6 +309,67 @@ func Test_checkFields(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "custom mutator without serializer",
+			args: args{
+				cl: ds.RecordPackage{
+					Fields: []ds.FieldDeclaration{
+						{
+							Name:       "Pk",
+							Format:     "int",
+							PrimaryKey: true,
+						},
+						{
+							Name:   "Foo",
+							Format: "string",
+							Mutators: []string{
+								"cmut",
+							},
+						},
+					},
+					MutatorMap: map[string]ds.MutatorDeclaration{
+						"cmut": {
+							Name:          "cmut",
+							Type:          "pkg.Bar",
+							PartialFields: make([]ds.PartialFieldDeclaration, 1),
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "few custom mutator on field",
+			args: args{
+				cl: ds.RecordPackage{
+					Fields: []ds.FieldDeclaration{
+						{
+							Name:       "Pk",
+							Format:     "int",
+							PrimaryKey: true,
+						},
+						{
+							Name:   "Foo",
+							Format: "string",
+							Mutators: []string{
+								"dec", "cmut", "cmut2",
+							},
+						},
+					},
+					MutatorMap: map[string]ds.MutatorDeclaration{
+						"cmut": {
+							Name: "cmut",
+							Type: "string",
+						},
+						"cmut2": {
+							Name: "cmut2",
+							Type: "string",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

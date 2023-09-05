@@ -96,16 +96,27 @@ func checkFields(cl *ds.RecordPackage) error {
 
 		}
 
+		customMutCnt := 0
 		if len(fld.Mutators) > 0 {
 			fieldMutatorsChecker := ds.GetFieldMutatorsChecker()
 
 			for _, m := range fld.Mutators {
 				_, ex := fieldMutatorsChecker[m]
 
-				_, ok := cl.MutatorMap[m]
+				md, ok := cl.MutatorMap[m]
+				if ok {
+					customMutCnt++
+					if customMutCnt > 1 {
+						return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: m, Err: arerror.ErrParseFieldMutatorInvalid}
+					}
+				}
 
 				if !ok && !ex {
 					return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: m, Err: arerror.ErrParseFieldMutatorInvalid}
+				}
+
+				if len(md.PartialFields) > 0 && len(fld.Serializer) == 0 {
+					return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: m, Err: arerror.ErrParseFieldMutatorTypeHasNotSerializer}
 				}
 			}
 
