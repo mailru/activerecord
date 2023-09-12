@@ -67,7 +67,7 @@ func TestGenerateFixture(t *testing.T) {
 						{
 							Name:       "Code",
 							Format:     "string",
-							Mutators:   []string{},
+							Mutators:   []string{"Any"},
 							Serializer: []string{},
 							ObjectLink: "",
 						},
@@ -83,7 +83,10 @@ func TestGenerateFixture(t *testing.T) {
 					Container:   ds.NamespaceDeclaration{ObjectName: "0", PublicName: "Testmodel", PackageName: "testmodel"},
 					Serializers: map[string]ds.SerializerDeclaration{},
 					Mutators: map[string]ds.MutatorDeclaration{
-						"any": {},
+						"Any": {
+							Name:   "Any",
+							Update: "any",
+						},
 					},
 					Imports: []ds.ImportDeclaration{
 						{
@@ -102,7 +105,7 @@ func TestGenerateFixture(t *testing.T) {
 					`type GiftBySelectByInvMocker struct {`,
 					`var giftStore map[string]*gift.Gift`,
 					`func initGift() {`,
-					`func GetUpdateMutator`,
+					`func GetUpdateMutatorAnyFixtureById(ctx context.Context, Id string) (fxt octopus.FixtureType) {`,
 				},
 			},
 		},

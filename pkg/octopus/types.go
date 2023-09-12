@@ -46,6 +46,7 @@ type BaseField struct {
 type MutatorField struct {
 	OpFunc        map[OpCode]string
 	PartialFields map[string]any
+	UpdateOps     []Ops
 }
 
 type RequetsTypeType uint8

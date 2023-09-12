@@ -41,7 +41,7 @@ func TestParsePartialStructFields(t *testing.T) {
 				path:    ".",
 			},
 			want: []ds.PartialFieldDeclaration{
-				{Parent: "Foo", Name: "Bar", Type: "int"},
+				{Name: "Bar", Type: "int"},
 			},
 			wantErr: false,
 		},

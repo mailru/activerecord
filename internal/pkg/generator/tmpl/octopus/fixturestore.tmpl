@@ -185,20 +185,26 @@ func GetUpdate{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Conte
     return octopus.CreateUpdateFixture(obj.MockUpdate(ctx), wrappedTrigger), promiseIsUsed
 }
 
-{{ if ne $mutatorLen 0 -}}
-func GetUpdateMutator{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Context, {{ $fieldNamePK }} {{$typePK}}) (fxts []octopus.FixtureType) {
+{{ range $ind, $fstruct := $fields -}}
+{{- range $i, $mut := $fstruct.Mutators -}}
+{{ $customMutator := index $mutators $mut -}}
+{{ if and (ne $customMutator.Update "") $customMutator.Name }}
+func GetUpdateMutator{{$customMutator.Name}}FixtureBy{{ $fieldNamePK }}(ctx context.Context, {{ $fieldNamePK }} {{$typePK}}) (fxt octopus.FixtureType) {
     obj := GetUpdate{{$PublicStructName}}By{{$fieldNamePK}}({{ $fieldNamePK }})
 
-    for _, req := range obj.MockMutatorUpdate(ctx) {
+    for _, req := range obj.MockMutator{{$customMutator.Name}}Update(ctx) {
         ft, _ := octopus.CreateCallFixture(
             func(wsubME []octopus.MockEntities) []byte {
                 return req
             }, nil)
-        fxts = append(fxts, ft)
+		// available only one
+        return ft
     }
 
-    return fxts
+    return
 }
+{{end}}
+{{end}}
 {{end}}
 
 {{ range $_, $mockOperation := split "Insert,Replace,InsertOrReplace" "," }}

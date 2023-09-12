@@ -35,6 +35,7 @@ import (
     type Mutators struct {
     {{- range $i, $mut := $mutators }}
         {{$mut.Name}}    octopus.MutatorField
+		field{{ $mut.Name }}Original {{$mut.Type}}
     {{- end }}
     }
     {{ end -}}
@@ -565,9 +566,28 @@ func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {
     {{- range $i, $mut := $fstruct.Mutators -}}
     {{ $customMutator := index $mutators $mut -}}
     {{ $pfLen := len $customMutator.PartialFields }}
-    {{ if and (eq $pfLen 0) (ne $customMutator.Update "") $customMutator.Name }}
+	obj.BaseField.UpdateOps = []octopus.Ops{}
+    {{ if and (eq $pfLen 0) (ne $customMutator.Update "") }}
     data = octopus.PackLua("{{$customMutator.Update}}", obj.PrimaryString(), {{ $fstruct.Name}})
-    obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpUpdate, Value: data})
+    obj.{{ $customMutator.Name }}.UpdateOps = append(obj.{{ $customMutator.Name }}.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpUpdate, Value: data})
+	{{ else if ne $pfLen 0 }}
+	{{ $isPointer := hasPrefix (printf "%s" $rtype) "*" }}
+	{{ if $isPointer }}
+	if {{ $fstruct.Name }} != nil {
+		{{- range $i, $pf := $customMutator.PartialFields }}
+		if obj.Set{{ $customMutator.Name }}{{ $pf.Name }}({{ $fstruct.Name }}.{{$pf.Name}}); err != nil {
+			return err
+		}
+		{{ end -}}
+	}
+	{{ else }}
+		{{- range $i, $pf := $customMutator.PartialFields }}
+		if obj.Set{{ $customMutator.Name }}{{ $pf.Name }}({{ $fstruct.Name }}.{{$pf.Name}}); err != nil {
+			return err
+		}
+		{{ end }}
+	{{ end }}
+	obj.field{{ $customMutator.Name }}Original = obj.field{{ $fstruct.Name }}
     {{ end }}
     {{ end }}
 
@@ -599,11 +619,11 @@ func (obj *{{ $PublicStructName }}) pack{{ $fstruct.Name }}PartialFields(op octo
 	switch op {
     {{ if ne $customMutator.Update "" -}}
     case octopus.OpUpdate:
-        mutatorArgs, err = {{ $customMutator.ImportName }}.{{ $PublicStructName }}{{ $customMutator.Name }}Update(obj.field{{ $fstruct.Name }}, pfs)
+        mutatorArgs, err = {{ $customMutator.ImportName }}.{{ $PublicStructName }}{{ $customMutator.Name }}Update(obj.field{{ $customMutator.Name }}Original, pfs)
     {{ end }}
     {{ if ne $customMutator.Replace "" -}}
     case octopus.OpInsert:
-        mutatorArgs, err = {{ $customMutator.ImportName }}.{{ $PublicStructName }}{{ $customMutator.Name }}Replace(obj.field{{ $fstruct.Name }}, pfs)
+        mutatorArgs, err = {{ $customMutator.ImportName }}.{{ $PublicStructName }}{{ $customMutator.Name }}Replace(obj.field{{ $customMutator.Name }}Original, pfs)
     {{ end }}
 	}
 
@@ -627,7 +647,9 @@ func (obj *{{ $PublicStructName }}) pack{{ $fstruct.Name }}PartialFields(op octo
 		{{- end }}
 	{{- end }}
 
-    obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpSet, Value: data})
+	obj.{{ $customMutator.Name }}.UpdateOps = []octopus.Ops{}
+
+    obj.{{ $customMutator.Name }}.UpdateOps = append(obj.{{ $customMutator.Name }}.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpUpdate, Value: data})
 
     return nil
 }
@@ -637,6 +659,10 @@ func (obj *{{ $PublicStructName }}) pack{{ $fstruct.Name }}PartialFields(op octo
 
 func (obj *{{ $PublicStructName }}) Set{{ $customMutator.Name }}{{ $f.Name }}({{ $f.Name }} {{ $f.Type }}) error {
     obj.Mutators.{{ $customMutator.Name }}.PartialFields["{{ $f.Name }}"] = {{ $f.Name }}
+
+	if err := obj.pack{{ $fstruct.Name }}PartialFields(octopus.OpUpdate); err != nil {
+		return fmt.Errorf("pack {{ $customMutator.Name }}{{ $f.Name }}: %w", err)
+	}
 
     return nil
 }
@@ -1227,60 +1253,32 @@ func (obj *{{ $PublicStructName }}) Update(ctx context.Context) error {
 		return obj.Replace(ctx)
 	}
 
-{{ range $ind, $fstruct := .FieldList -}}
-    {{- range $i, $mut := $fstruct.Mutators -}}
-    {{ $customMutator := index $mutators $mut -}}
-    {{ $pfLen := len $customMutator.PartialFields }}
-    {{ if and (ne $pfLen 0) (ne $customMutator.Update "") $customMutator.Name }}
-	if err := obj.pack{{ $fstruct.Name }}PartialFields(octopus.OpUpdate); err != nil {
-		metricErrCnt.Inc(ctx, "update_packpk", 1)
-		return fmt.Errorf("error unlocked update: %w", err)
-	}
-    {{ end }}
-    {{ end }}
-{{end}}
-
-	if len(obj.BaseField.UpdateOps) == 0 {
-		metricStatCnt.Inc(ctx, "update_empty", 1)
-		logger.Debug(ctx, "", obj.PrimaryString(), "Empty update")
-
-		return nil
-	}
-
-	pk, err := obj.packPk()
-	if err != nil {
-		metricErrCnt.Inc(ctx, "update_packpk", 1)
-		return fmt.Errorf("error update: %w", err)
-	}
-
-	{{if gt $mutatorLen 0}}
-	updateOps := make([]octopus.Ops, 0, len(obj.BaseField.UpdateOps))
-
-	updateMutatorOps := make([]octopus.Ops, 0, len(obj.BaseField.UpdateOps))
-
-	for _, update := range obj.BaseField.UpdateOps {
-		switch update.Op {
-		case octopus.OpUpdate:
-			updateMutatorOps = append(updateMutatorOps, update)
-		default:
-			updateOps = append(updateOps, update)
-		}
-
-	}
-
-	w := octopus.PackUpdate(namespace, pk, updateOps)
-	{{else}}
-	w := octopus.PackUpdate(namespace, pk, obj.BaseField.UpdateOps)
-	{{end}}
-
-	log.Printf("Update packed tuple: '%X'\n", w)
-
 	connection, err := octopus.Box(ctx, 0, activerecord.MasterInstanceType, "arcfg", nil)
 	if err != nil {
 		metricErrCnt.Inc(ctx, "update_preparebox", 1)
 		logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
 		return err
 	}
+
+{{if eq $mutatorLen 0}}
+	if len(obj.BaseField.UpdateOps) == 0 {
+		metricStatCnt.Inc(ctx, "update_empty", 1)
+		logger.Debug(ctx, "", obj.PrimaryString(), "Empty update")
+
+		return nil
+	}
+{{else}}
+	if len(obj.BaseField.UpdateOps) > 0 {
+{{- end }}
+	pk, err := obj.packPk()
+	if err != nil {
+		metricErrCnt.Inc(ctx, "update_packpk", 1)
+		return fmt.Errorf("error update: %w", err)
+	}
+
+	w := octopus.PackUpdate(namespace, pk, obj.BaseField.UpdateOps)
+
+	log.Printf("Update packed tuple: '%X'\n", w)
 
 	respBytes, errCall := connection.Call(ctx, octopus.RequestTypeUpdate, w)
 	if errCall != nil {
@@ -1300,23 +1298,34 @@ func (obj *{{ $PublicStructName }}) Update(ctx context.Context) error {
 		return err
 	}
 
-	{{if gt $mutatorLen 0}}
-	if len(updateMutatorOps) > 0 {
-		for _, op := range updateMutatorOps {
-			resp, errCall := connection.Call(ctx, octopus.RequestTypeCall, op.Value)
-			if errCall != nil {
-				metricErrCnt.Inc(ctx, "update_box", 1)
-				logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error update in a box", errCall, connection.Info())
-				return errCall
-			}
+{{if gt $mutatorLen 0}}
+	}
+{{end}}
+{{if gt $mutatorLen 0}}
+{{ range $ind, $fstruct := .FieldList -}}
+	{{- range $i, $mut := $fstruct.Mutators -}}
+		{{ $customMutator := index $mutators $mut -}}
+		{{ $pfLen := len $customMutator.PartialFields }}
+		{{ if and (ne $pfLen 0) (ne $customMutator.Update "") $customMutator.Name }}
+	for _, op := range obj.{{$customMutator.Name}}.UpdateOps {
+		resp, errCall := connection.Call(ctx, octopus.RequestTypeCall, op.Value)
+		if errCall != nil {
+			metricErrCnt.Inc(ctx, "call_proc", 1)
+			logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error call proc in a box", errCall, connection.Info())
+			return errCall
+		}
 
-			_, err := octopus.ProcessResp(resp, 0)
-			if err != nil {
-				return fmt.Errorf("error unpack lua response: %w", err)
-			}
+		_, err := octopus.ProcessResp(resp, 0)
+		if err != nil {
+			return fmt.Errorf("error unpack lua response: %w", err)
 		}
 	}
+
+	obj.{{$customMutator.Name}}.UpdateOps = []octopus.Ops{}
+		{{end}}
 	{{end}}
+{{end}}
+{{end}}
 
 	obj.BaseField.UpdateOps = []octopus.Ops{}
 

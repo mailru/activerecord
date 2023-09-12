@@ -360,9 +360,8 @@ type FlagDeclaration struct {
 }
 
 type PartialFieldDeclaration struct {
-	Parent string // Имя поля сущности
-	Name   string // Имя части поля
-	Type   string // Тип части поля
+	Name string // Имя части поля
+	Type string // Тип части поля
 }
 
 type LinkedPackageDeclaration struct {

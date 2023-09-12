@@ -93,9 +93,9 @@ func TestGenerateOctopus(t *testing.T) {
 							Update:     "updateFunc",
 							Replace:    "replaceFunc",
 							PartialFields: []ds.PartialFieldDeclaration{
-								{Parent: "Foo", Name: "Bar", Type: "ds.AppInfo"},
-								{Parent: "Foo", Name: "BeerData", Type: "[]Beer"},
-								{Parent: "Foo", Name: "MapData", Type: "map[string]any"},
+								{Name: "Bar", Type: "ds.AppInfo"},
+								{Name: "BeerData", Type: "[]Beer"},
+								{Name: "MapData", Type: "map[string]any"},
 							},
 						},
 					},
@@ -146,7 +146,7 @@ func TestGenerateOctopus(t *testing.T) {
 					`func SelectByField1MockerLogger(keys [], res FooList) func() (activerecord.MockerLogger, error) {`,
 					`func (obj *Foo) MockSelectByField1sRequest(ctx context.Context, keys [], ) []byte {`,
 					`func (obj *Foo) MockSelectResponse() ([][]byte, error) {`,
-					`func (obj *Foo) MockMutatorUpdate(ctx context.Context) [][]byte {`,
+					`func (obj *Foo) MockMutatorFsMutatorUpdate(ctx context.Context) [][]byte {`,
 				},
 				"fixture": {
 					`type FooFT struct {`,

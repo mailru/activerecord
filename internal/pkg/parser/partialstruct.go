@@ -41,9 +41,8 @@ func parseStructFields(dst *ds.RecordPackage, gen *ast.GenDecl, name, pkgName st
 				}
 
 				field := ds.PartialFieldDeclaration{
-					Parent: name,
-					Name:   field.Names[0].Name,
-					Type:   t,
+					Name: field.Names[0].Name,
+					Type: t,
 				}
 
 				partialFields = append(partialFields, field)
