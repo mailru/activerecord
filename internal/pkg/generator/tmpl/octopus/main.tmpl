@@ -284,7 +284,7 @@ func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error)
 		{{ $serializer := index $serializers $sname -}}
 		{{ $serparams := $fstruct.Serializer.Params }}
 
-	var svar {{ $underlyingType }}
+	var svar {{$rtype}}
 
 	err = {{ $serializer.ImportName }}.{{ $serializer.Unmarshaler }}({{ $serparams }}bvar, &svar)
 	if err != nil {
@@ -297,7 +297,7 @@ func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error)
 
 	{{ end -}}
 
-	return {{ if $isPointer }}&svar{{else}}svar{{end}}, nil
+	return svar, nil
 }
 
 func pack{{ $fstruct.Name }}(w []byte, {{ $fstruct.Name }} {{ $rtype }}) ([]byte, error) {
@@ -392,6 +392,9 @@ func TupleToStruct(ctx context.Context, tuple octopus.TupleData) (*{{ $PublicStr
 
 	np.BaseField.Exists = true
 	np.BaseField.UpdateOps = []octopus.Ops{}
+	{{if gt $mutatorLen 0}}
+	np.ClearMutatorUpdateOpts()
+	{{end}}
 
 	if tuple.Cnt > cntFields {
 		logger := activerecord.Logger()
@@ -515,7 +518,7 @@ func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error)
 		{{ $serializer := index $serializers $sname -}}
 		{{ $serparams := $fstruct.Serializer.Params }}
 
-	var svar {{ $underlyingType }}
+	var svar {{ $rtype }}
 	
 	err = {{ $serializer.ImportName }}.{{ $serializer.Unmarshaler }}({{ $serparams }}bvar, &svar)
 	if err != nil {
@@ -528,7 +531,7 @@ func Unpack{{ $fstruct.Name }}(r *bytes.Reader) (ret {{ $rtype }}, errRet error)
 
 	{{ end -}}
 
-	return {{ if $isPointer }}&svar{{else}}svar{{end}}, nil
+	return svar, nil
 }
 
 func (obj *{{ $PublicStructName }}) Get{{ $fstruct.Name }}() {{ $rtype }} {
@@ -1461,6 +1464,9 @@ func (obj *{{ $PublicStructName }}) insertReplace(ctx context.Context, insertMod
 
 	obj.BaseField.Exists = true
 	obj.BaseField.UpdateOps = []octopus.Ops{}
+	{{- if gt $mutatorLen 0 }}
+	obj.ClearMutatorUpdateOpts()
+	{{- end }}
 	obj.BaseField.Repaired = false
 
 	logger.Debug(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Success insert")
@@ -1470,3 +1476,15 @@ func (obj *{{ $PublicStructName }}) insertReplace(ctx context.Context, insertMod
 	return nil
 }
 {{ end }}
+{{if gt $mutatorLen 0}}
+func (obj *{{ $PublicStructName }}) ClearMutatorUpdateOpts() {
+{{- range $ind, $fstruct := .FieldList -}}
+	{{- range $i, $mut := $fstruct.Mutators -}}
+		{{ $customMutator := index $mutators $mut -}}
+		{{ if and (ne $customMutator.Update "") $customMutator.Name -}}
+	obj.{{$customMutator.Name}}.UpdateOps = []octopus.Ops{}
+		{{- end }}
+	{{end}}
+{{- end -}}
+}
+{{end}}
