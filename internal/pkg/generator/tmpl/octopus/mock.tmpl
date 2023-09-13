@@ -373,18 +373,7 @@ func (obj *{{ $PublicStructName }}) MockUpdate(ctx context.Context) []byte {
         return nil
     }
 
-	updateOps := make([]octopus.Ops, 0, len(obj.BaseField.UpdateOps))
-
-	for _, update := range obj.BaseField.UpdateOps {
-		switch update.Op {
-		case octopus.OpUpdate:
-			continue
-		default:
-			updateOps = append(updateOps, update)
-		}
-	}
-
-	w := octopus.PackUpdate(namespace, pk, updateOps)
+    w := octopus.PackUpdate(namespace, pk, obj.BaseField.UpdateOps)
 
     log.Debug(ctx, fmt.Sprintf("Update packed tuple: '%X'\n", w))
 

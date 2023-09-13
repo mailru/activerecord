@@ -566,8 +566,8 @@ func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {
     {{- range $i, $mut := $fstruct.Mutators -}}
     {{ $customMutator := index $mutators $mut -}}
     {{ $pfLen := len $customMutator.PartialFields }}
-	obj.BaseField.UpdateOps = []octopus.Ops{}
     {{ if and (eq $pfLen 0) (ne $customMutator.Update "") }}
+	obj.BaseField.UpdateOps = []octopus.Ops{}
     data = octopus.PackLua("{{$customMutator.Update}}", obj.PrimaryString(), {{ $fstruct.Name}})
     obj.{{ $customMutator.Name }}.UpdateOps = append(obj.{{ $customMutator.Name }}.UpdateOps, octopus.Ops{Field: {{ $ind }}, Op: octopus.OpUpdate, Value: data})
 	{{ else if ne $pfLen 0 }}
@@ -590,7 +590,6 @@ func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {
 	obj.field{{ $customMutator.Name }}Original = obj.field{{ $fstruct.Name }}
     {{ end }}
     {{ end }}
-
 	obj.field{{ $fstruct.Name }} = {{ $fstruct.Name}}
 
 	{{- if ne $fstruct.ObjectLink "" }}
