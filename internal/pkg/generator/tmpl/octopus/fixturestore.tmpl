@@ -189,6 +189,8 @@ func GetUpdate{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Conte
 {{- range $i, $mut := $fstruct.Mutators -}}
 {{ $customMutator := index $mutators $mut -}}
 {{ if and (ne $customMutator.Update "") $customMutator.Name }}
+// Нужно доработать, т.к. пока из файла репозитория фикстур update.yaml нельзя выборочно устанавливать значения частично обновляемого поля
+// Все неустановленные поля будут проинициализированы дефолтными значениями
 func GetUpdateMutator{{$customMutator.Name}}FixtureBy{{ $fieldNamePK }}(ctx context.Context, {{ $fieldNamePK }} {{$typePK}}) (fxt octopus.FixtureType) {
     obj := GetUpdate{{$PublicStructName}}By{{$fieldNamePK}}({{ $fieldNamePK }})
 
