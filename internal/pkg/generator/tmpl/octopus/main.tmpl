@@ -1324,6 +1324,7 @@ func (obj *{{ $PublicStructName }}) Update(ctx context.Context) error {
 	}
 
 	obj.{{$customMutator.Name}}.UpdateOps = []octopus.Ops{}
+	obj.{{$customMutator.Name}}.PartialFields = map[string]any{}
 		{{end}}
 	{{end}}
 {{end}}
@@ -1483,6 +1484,7 @@ func (obj *{{ $PublicStructName }}) ClearMutatorUpdateOpts() {
 		{{ $customMutator := index $mutators $mut -}}
 		{{ if and (ne $customMutator.Update "") $customMutator.Name -}}
 	obj.{{$customMutator.Name}}.UpdateOps = []octopus.Ops{}
+	obj.{{$customMutator.Name}}.PartialFields = map[string]any{}
 		{{- end }}
 	{{end}}
 {{- end -}}

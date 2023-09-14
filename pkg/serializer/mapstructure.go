@@ -10,7 +10,7 @@ import (
 )
 
 func MapstructureUnmarshal(data string, v any) error {
-	var m map[string]interface{}
+	m := make(map[string]interface{})
 
 	err := json.Unmarshal([]byte(data), &m)
 	if err != nil {
@@ -72,7 +72,7 @@ func MapstructureWeakUnmarshal(data string, v any) error {
 }
 
 func MapstructureMarshal(v any) (string, error) {
-	var m map[string]interface{}
+	m := make(map[string]interface{})
 
 	err := mapstructure.Decode(v, &m)
 	if err != nil {
