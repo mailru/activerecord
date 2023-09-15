@@ -49,7 +49,7 @@ func checkLinkedObject(cl *ds.RecordPackage, linkedObjects map[string]string) er
 }
 
 // checkNamespace проверка правильного описания неймспейса у сущности
-func checkNamespace(ns *ds.NamespaceDeclaration) error {
+func checkNamespace(ns ds.NamespaceDeclaration) error {
 	if ns.PackageName == "" || ns.PublicName == "" {
 		return &arerror.ErrCheckPackageNamespaceDecl{Pkg: ns.PackageName, Name: ns.PublicName, Err: arerror.ErrCheckEmptyNamespace}
 	}
@@ -90,18 +90,38 @@ func checkFields(cl *ds.RecordPackage) error {
 		}
 
 		if len(fld.Serializer) > 0 {
-			if _, ex := cl.SerializerMap[fld.Serializer[0]]; !ex {
+			if _, ex := cl.SerializerMap[fld.Serializer[0]]; len(cl.SerializerMap) == 0 || !ex {
 				return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
 			}
+
 		}
 
+		customMutCnt := 0
 		if len(fld.Mutators) > 0 {
-			if fld.PrimaryKey {
-				return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: string(fld.Mutators[0]), Err: arerror.ErrCheckFieldMutatorConflictPK}
+			fieldMutatorsChecker := ds.GetFieldMutatorsChecker()
+
+			for _, m := range fld.Mutators {
+				_, ex := fieldMutatorsChecker[m]
+
+				md, ok := cl.MutatorMap[m]
+				if ok {
+					customMutCnt++
+					if customMutCnt > 1 {
+						return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: m, Err: arerror.ErrParseFieldMutatorInvalid}
+					}
+				}
+
+				if !ok && !ex {
+					return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: m, Err: arerror.ErrParseFieldMutatorInvalid}
+				}
+
+				if len(md.PartialFields) > 0 && len(fld.Serializer) == 0 {
+					return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: m, Err: arerror.ErrParseFieldMutatorTypeHasNotSerializer}
+				}
 			}
 
-			if len(fld.Serializer) > 0 {
-				return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: string(fld.Mutators[0]), Err: arerror.ErrCheckFieldMutatorConflictSerializer}
+			if fld.PrimaryKey {
+				return &arerror.ErrCheckPackageFieldMutatorDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Mutator: string(fld.Mutators[0]), Err: arerror.ErrCheckFieldMutatorConflictPK}
 			}
 
 			if fld.ObjectLink != "" {
@@ -178,7 +198,7 @@ func Check(files map[string]*ds.RecordPackage, linkedObjects map[string]string) 
 			return err
 		}
 
-		if err := checkNamespace(&cl.Namespace); err != nil {
+		if err := checkNamespace(cl.Namespace); err != nil {
 			return err
 		}
 

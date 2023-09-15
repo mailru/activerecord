@@ -31,16 +31,7 @@ func ParseFieldsTag(field *ast.Field, newfield *ds.FieldDeclaration, newindex *d
 				newindex.Name = newfield.Name
 				newindex.Unique = true
 			case MutatorsTag:
-				for _, mut := range strings.Split(kv[1], ",") {
-					fieldMutatorsChecker := ds.GetFieldMutatorsChecker()
-
-					m, ex := fieldMutatorsChecker[mut]
-					if !ex {
-						return &arerror.ErrParseTypeFieldTagDecl{Name: newfield.Name, TagName: kv[0], TagValue: mut, Err: arerror.ErrParseFieldMutatorInvalid}
-					}
-
-					newfield.Mutators = append(newfield.Mutators, m)
-				}
+				newfield.Mutators = strings.Split(kv[1], ",")
 			case SizeTag:
 				if kv[1] != "" {
 					size, err := strconv.ParseInt(kv[1], 10, 64)
@@ -70,7 +61,7 @@ func ParseFields(dst *ds.RecordPackage, fields []*ast.Field) error {
 
 		newfield := ds.FieldDeclaration{
 			Name:       field.Names[0].Name,
-			Mutators:   []ds.FieldMutator{},
+			Mutators:   []string{},
 			Serializer: []string{},
 		}
 

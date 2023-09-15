@@ -43,6 +43,12 @@ type BaseField struct {
 	Repaired        bool
 }
 
+type MutatorField struct {
+	OpFunc        map[OpCode]string
+	PartialFields map[string]any
+	UpdateOps     []Ops
+}
+
 type RequetsTypeType uint8
 
 const (
@@ -136,6 +142,7 @@ const (
 	OpSplice
 	OpDelete
 	OpInsert
+	OpUpdate
 )
 
 const (

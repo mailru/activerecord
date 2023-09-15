@@ -129,6 +129,7 @@ var ErrParseFieldBinary = errors.New("binary format not implemented")
 var ErrParseFieldMutatorInvalid = errors.New("invalid mutator")
 var ErrParseFieldSizeInvalid = errors.New("error parse size")
 var ErrParseFieldNameInvalid = errors.New("invalid declaration name")
+var ErrParseFieldMutatorTypeHasNotSerializer = errors.New("mutator type must have serializer")
 
 // Описание ошибки парсинга флагов поля сущности
 type ErrParseFlagTagDecl struct {
@@ -204,6 +205,16 @@ func (e *ErrParseSerializerDecl) Error() string {
 	return ErrorBase(e)
 }
 
+// ErrParseMutatorDecl Описание ошибки парсинга мутаторов
+type ErrParseMutatorDecl struct {
+	Name string
+	Err  error
+}
+
+func (e *ErrParseMutatorDecl) Error() string {
+	return ErrorBase(e)
+}
+
 // Описание ошибки парсинга тегов сериализатора
 type ErrParseSerializerTagDecl struct {
 	Name     string
@@ -213,6 +224,18 @@ type ErrParseSerializerTagDecl struct {
 }
 
 func (e *ErrParseSerializerTagDecl) Error() string {
+	return ErrorBase(e)
+}
+
+// ErrParseMutatorTagDecl Описание ошибки парсинга тегов сериализатора
+type ErrParseMutatorTagDecl struct {
+	Name     string
+	TagName  string
+	TagValue string
+	Err      error
+}
+
+func (e *ErrParseMutatorTagDecl) Error() string {
 	return ErrorBase(e)
 }
 

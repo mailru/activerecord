@@ -363,7 +363,7 @@ func TestArGen_preparePackage(t *testing.T) {
 		Name:       "ID",
 		Format:     octopus.Int,
 		PrimaryKey: true,
-		Mutators:   []ds.FieldMutator{},
+		Mutators:   []string{},
 		Size:       0,
 		Serializer: []string{},
 		ObjectLink: "",
@@ -377,7 +377,7 @@ func TestArGen_preparePackage(t *testing.T) {
 		Name:       "BarID",
 		Format:     octopus.Int,
 		PrimaryKey: false,
-		Mutators:   []ds.FieldMutator{},
+		Mutators:   []string{},
 		Size:       0,
 		Serializer: []string{},
 		ObjectLink: "Bar",
@@ -407,7 +407,7 @@ func TestArGen_preparePackage(t *testing.T) {
 		Name:       "ID",
 		Format:     octopus.Int,
 		PrimaryKey: false,
-		Mutators:   []ds.FieldMutator{},
+		Mutators:   []string{},
 		Size:       0,
 		Serializer: []string{},
 		ObjectLink: "",
@@ -671,11 +671,11 @@ type TriggersFoo struct {
 			wantErr: false,
 			want: map[string]*ds.RecordPackage{
 				"foo": {
-					Namespace: ds.NamespaceDeclaration{ObjectName: "2", PublicName: "Foo", PackageName: "foo"},
+					Namespace: ds.NamespaceDeclaration{ObjectName: "2", PublicName: "Foo", PackageName: "foo", ModuleName: "testmod"},
 					Server:    ds.ServerDeclaration{Timeout: 500, Host: "127.0.0.1", Port: "11111"},
 					Fields: []ds.FieldDeclaration{
-						{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Size: 5, Serializer: []string{}},
-						{Name: "Field2", Format: "string", PrimaryKey: true, Mutators: []ds.FieldMutator{}, Size: 5, Serializer: []string{}},
+						{Name: "Field1", Format: "int", PrimaryKey: true, Mutators: []string{}, Size: 5, Serializer: []string{}},
+						{Name: "Field2", Format: "string", PrimaryKey: true, Mutators: []string{}, Size: 5, Serializer: []string{}},
 					},
 					FieldsMap:       map[string]int{"Field1": 0, "Field2": 1},
 					FieldsObjectMap: map[string]ds.FieldObject{},
@@ -710,14 +710,14 @@ type TriggersFoo struct {
 					SelectorMap:   map[string]int{"SelectByField1": 1, "SelectByField1Field2": 0},
 					Backends:      []string{"octopus"},
 					SerializerMap: map[string]ds.SerializerDeclaration{},
-					Imports: []ds.ImportDeclaration{
+					ImportPackage: ds.ImportPackage{Imports: []ds.ImportDeclaration{
 						{
 							Path:       "github.com/mailru/activerecord-cookbook.git/example/model/repository/repair",
 							ImportName: "triggerRepairTuple",
 						},
 					},
-					ImportMap:    map[string]int{"github.com/mailru/activerecord-cookbook.git/example/model/repository/repair": 0},
-					ImportPkgMap: map[string]int{"triggerRepairTuple": 0},
+						ImportMap:    map[string]int{"github.com/mailru/activerecord-cookbook.git/example/model/repository/repair": 0},
+						ImportPkgMap: map[string]int{"triggerRepairTuple": 0}},
 					TriggerMap: map[string]ds.TriggerDeclaration{
 						"RepairTuple": {
 							Name:       "RepairTuple",
@@ -727,7 +727,11 @@ type TriggersFoo struct {
 							Params:     map[string]bool{"Defaults": true},
 						},
 					},
-					FlagMap: map[string]ds.FlagDeclaration{}},
+					FlagMap:               map[string]ds.FlagDeclaration{},
+					MutatorMap:            map[string]ds.MutatorDeclaration{},
+					ImportStructFieldsMap: map[string][]ds.PartialFieldDeclaration{},
+					LinkedStructsMap:      map[string]ds.LinkedPackageDeclaration{},
+				},
 			},
 		},
 	}

@@ -21,6 +21,7 @@ var availableNodeName = []StructNameType{
 	Serializers,
 	Triggers,
 	Flags,
+	Mutators,
 }
 
 func getNodeName(node string) (name string, publicName string, packageName string, err error) {

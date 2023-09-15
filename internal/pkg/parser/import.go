@@ -8,7 +8,7 @@ import (
 	"github.com/mailru/activerecord/internal/pkg/ds"
 )
 
-func ParseImport(dst *ds.RecordPackage, importSpec *ast.ImportSpec) error {
+func ParseImport(dst *ds.ImportPackage, importSpec *ast.ImportSpec) error {
 	var pkg string
 
 	path := strings.Trim(importSpec.Path.Value, `"`)

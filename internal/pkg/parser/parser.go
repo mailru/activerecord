@@ -23,6 +23,7 @@ const (
 	Serializers  StructNameType = "Serializers"
 	Triggers     StructNameType = "Triggers"
 	Flags        StructNameType = "Flags"
+	Mutators     StructNameType = "Mutators"
 )
 
 type TagNameType string
@@ -106,6 +107,8 @@ func parseStructNameType(dst *ds.RecordPackage, nodeName string, curr *ast.Struc
 		return ParseFlags(dst, curr.Fields.List)
 	case ProcFields:
 		return ParseProcFields(dst, curr.Fields.List)
+	case Mutators:
+		return ParseMutators(dst, curr.Fields.List)
 	default:
 		return arerror.ErrUnknown
 	}
@@ -172,7 +175,7 @@ func parseTokenImport(dst *ds.RecordPackage, genD *ast.GenDecl) error {
 			return &arerror.ErrParseGenDecl{Name: genD.Tok.String(), Err: arerror.ErrParseCastImportType}
 		}
 
-		if impErr := ParseImport(dst, currImport); impErr != nil {
+		if impErr := ParseImport(&dst.ImportPackage, currImport); impErr != nil {
 			return &arerror.ErrParseGenDecl{Name: genD.Tok.String(), Err: impErr}
 		}
 	}

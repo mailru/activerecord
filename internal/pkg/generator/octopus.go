@@ -81,7 +81,7 @@ var OctopusTemplateFuncs = template.FuncMap{
 
 		return ret
 	},
-	"mutatorParam": func(mut ds.FieldMutator, format octopus.Format) OctopusMutatorParam {
+	"mutatorParam": func(mut string, format octopus.Format) OctopusMutatorParam {
 		ret, ex := OctopusMutatorMapper[mut]
 		if !ex {
 			log.Fatalf("mutator packer for type `%s` not found", format)
@@ -252,7 +252,7 @@ var OctopusFormatMapper = map[octopus.Format]OctopusFormatParam{
 	octopus.Float64: {Name: "Uint64", len: 9, convstr: "strconv.FormatFloat(%%, 64)", packConvFunc: "math.Float64bits", UnpackConvFunc: "math.Float64frombits", unpackType: "uint64", minValue: "math.MinFloat64", maxValue: "math.MaxFloat64"},
 	octopus.String:  {Name: "String", convstr: " %% ", lenFunc: octopus.ByteLen, packFunc: "octopus.PackString", unpackFunc: "octopus.UnpackString", minValue: "0", maxValue: "4096", unpackType: "string"}}
 
-var OctopusMutatorMapper = map[ds.FieldMutator]OctopusMutatorParam{
+var OctopusMutatorMapper = map[string]OctopusMutatorParam{
 	ds.IncMutator:      {Name: "Inc", AvailableType: octopus.NumericFormat},
 	ds.DecMutator:      {Name: "Dec", AvailableType: octopus.NumericFormat},
 	ds.AndMutator:      {Name: "And", AvailableType: octopus.UnsignedFormat},

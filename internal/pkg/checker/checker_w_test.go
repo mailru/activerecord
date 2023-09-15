@@ -74,7 +74,7 @@ func Test_checkLinkedObject(t *testing.T) {
 
 func Test_checkNamespace(t *testing.T) {
 	type args struct {
-		ns *ds.NamespaceDeclaration
+		ns ds.NamespaceDeclaration
 	}
 	tests := []struct {
 		name    string
@@ -84,7 +84,7 @@ func Test_checkNamespace(t *testing.T) {
 		{
 			name: "normal namespace",
 			args: args{
-				ns: &ds.NamespaceDeclaration{
+				ns: ds.NamespaceDeclaration{
 					ObjectName:  "0",
 					PublicName:  "Foo",
 					PackageName: "foo",
@@ -95,7 +95,7 @@ func Test_checkNamespace(t *testing.T) {
 		{
 			name: "empty name",
 			args: args{
-				ns: &ds.NamespaceDeclaration{
+				ns: ds.NamespaceDeclaration{
 					ObjectName:  "0",
 					PublicName:  "",
 					PackageName: "foo",
@@ -106,7 +106,7 @@ func Test_checkNamespace(t *testing.T) {
 		{
 			name: "empty package",
 			args: args{
-				ns: &ds.NamespaceDeclaration{
+				ns: ds.NamespaceDeclaration{
 					ObjectName:  "0",
 					PublicName:  "Foo",
 					PackageName: "",
@@ -225,7 +225,7 @@ func Test_checkFields(t *testing.T) {
 							Name:       "Foo",
 							Format:     "int",
 							PrimaryKey: true,
-							Mutators: []ds.FieldMutator{
+							Mutators: []string{
 								"fmut",
 							},
 						},
@@ -247,7 +247,7 @@ func Test_checkFields(t *testing.T) {
 						{
 							Name:   "Foo",
 							Format: "int",
-							Mutators: []ds.FieldMutator{
+							Mutators: []string{
 								"fmut",
 							},
 							Serializer: []string{
@@ -255,37 +255,7 @@ func Test_checkFields(t *testing.T) {
 							},
 						},
 					},
-					SerializerMap: map[string]ds.SerializerDeclaration{
-						"fser": {},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "serializer and mutators",
-			args: args{
-				cl: ds.RecordPackage{
-					Fields: []ds.FieldDeclaration{
-						{
-							Name:       "Foo",
-							Format:     "int",
-							PrimaryKey: true,
-						},
-						{
-							Name:   "Foo",
-							Format: "int",
-							Mutators: []ds.FieldMutator{
-								"fmut",
-							},
-							Serializer: []string{
-								"fser",
-							},
-						},
-					},
-					SerializerMap: map[string]ds.SerializerDeclaration{
-						"fser": {},
-					},
+					SerializerMap: map[string]ds.SerializerDeclaration{},
 				},
 			},
 			wantErr: true,
@@ -303,7 +273,7 @@ func Test_checkFields(t *testing.T) {
 						{
 							Name:   "Foo",
 							Format: "int",
-							Mutators: []ds.FieldMutator{
+							Mutators: []string{
 								"fmut",
 							},
 							ObjectLink: "Bar",
@@ -334,6 +304,67 @@ func Test_checkFields(t *testing.T) {
 					},
 					SerializerMap: map[string]ds.SerializerDeclaration{
 						"fser": {},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "custom mutator without serializer",
+			args: args{
+				cl: ds.RecordPackage{
+					Fields: []ds.FieldDeclaration{
+						{
+							Name:       "Pk",
+							Format:     "int",
+							PrimaryKey: true,
+						},
+						{
+							Name:   "Foo",
+							Format: "string",
+							Mutators: []string{
+								"cmut",
+							},
+						},
+					},
+					MutatorMap: map[string]ds.MutatorDeclaration{
+						"cmut": {
+							Name:          "cmut",
+							Type:          "pkg.Bar",
+							PartialFields: make([]ds.PartialFieldDeclaration, 1),
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "few custom mutator on field",
+			args: args{
+				cl: ds.RecordPackage{
+					Fields: []ds.FieldDeclaration{
+						{
+							Name:       "Pk",
+							Format:     "int",
+							PrimaryKey: true,
+						},
+						{
+							Name:   "Foo",
+							Format: "string",
+							Mutators: []string{
+								"dec", "cmut", "cmut2",
+							},
+						},
+					},
+					MutatorMap: map[string]ds.MutatorDeclaration{
+						"cmut": {
+							Name: "cmut",
+							Type: "string",
+						},
+						"cmut2": {
+							Name: "cmut2",
+							Type: "string",
+						},
 					},
 				},
 			},

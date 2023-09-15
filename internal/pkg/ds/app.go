@@ -70,48 +70,68 @@ type ServerDeclaration struct {
 	Host, Port, Conf string
 }
 
+type ImportPackage struct {
+	Imports      []ImportDeclaration // Список необходимых дополнительных импортов, формируется из директивы import
+	ImportMap    map[string]int      // Обратный индекс от имен по импортам
+	ImportPkgMap map[string]int      // Обратный индекс от пакетов к импортам
+}
+
 // Структура описывающая отдельную сущность представленную в декларативном файле
 type RecordPackage struct {
-	Server          ServerDeclaration                // Описание сервера
-	Namespace       NamespaceDeclaration             // Описание неймспейса/таблицы
-	Fields          []FieldDeclaration               // Описание полей, важна последовательность для некоторых хранилищ
-	FieldsMap       map[string]int                   // Обратный индекс от имен к полям
-	FieldsObjectMap map[string]FieldObject           // Обратный индекс по имени для ссылок на другие сущности
-	Indexes         []IndexDeclaration               // Список индексов, важна последовательность для некоторых хранилищ
-	IndexMap        map[string]int                   // Обратный индекс от имён для индексов
-	SelectorMap     map[string]int                   // Список селекторов, используется для контроля дублей
-	Backends        []string                         // Список бекендов для которых надо сгенерировать пакеты (сейчас допустим один и только один)
-	SerializerMap   map[string]SerializerDeclaration // Список сериализаторов используемых в этой сущности
-	Imports         []ImportDeclaration              // Список необходимых дополнительных импортов, формируется из директивы import
-	ImportMap       map[string]int                   // Обратный индекс от имен по импортам
-	ImportPkgMap    map[string]int                   // Обратный индекс от пакетов к импортам
-	TriggerMap      map[string]TriggerDeclaration    // Список триггеров используемых в сущности
-	FlagMap         map[string]FlagDeclaration       // Список флагов используемых в полях сущности
-	ProcInFields    []ProcFieldDeclaration           // Описание входных параметров процедуры, важна последовательность
-	ProcOutFields   ProcFieldDeclarations            // Описание выходных параметров процедуры, важна последовательность
-	ProcFieldsMap   map[string]int                   // Обратный индекс от имен
+	ImportPackage
+	Server                ServerDeclaration                    // Описание сервера
+	Namespace             NamespaceDeclaration                 // Описание неймспейса/таблицы
+	Fields                []FieldDeclaration                   // Описание полей, важна последовательность для некоторых хранилищ
+	FieldsMap             map[string]int                       // Обратный индекс от имен к полям
+	FieldsObjectMap       map[string]FieldObject               // Обратный индекс по имени для ссылок на другие сущности
+	Indexes               []IndexDeclaration                   // Список индексов, важна последовательность для некоторых хранилищ
+	IndexMap              map[string]int                       // Обратный индекс от имён для индексов
+	SelectorMap           map[string]int                       // Список селекторов, используется для контроля дублей
+	Backends              []string                             // Список бекендов для которых надо сгенерировать пакеты (сейчас допустим один и только один)
+	SerializerMap         map[string]SerializerDeclaration     // Список сериализаторов используемых в этой сущности
+	MutatorMap            map[string]MutatorDeclaration        // Список мутаторов используемых в этой сущности
+	TriggerMap            map[string]TriggerDeclaration        // Список триггеров используемых в сущности
+	FlagMap               map[string]FlagDeclaration           // Список флагов используемых в полях сущности
+	ProcInFields          []ProcFieldDeclaration               // Описание входных параметров процедуры, важна последовательность
+	ProcOutFields         ProcFieldDeclarations                // Описание выходных параметров процедуры, важна последовательность
+	ProcFieldsMap         map[string]int                       // Обратный индекс от имен
+	LinkedStructsMap      map[string]LinkedPackageDeclaration  // Описание пакетов связанных типов
+	ImportStructFieldsMap map[string][]PartialFieldDeclaration // Описаний структур импортируемых полей сущности
+}
+
+func NewImportPackage() ImportPackage {
+	return ImportPackage{
+		Imports:      []ImportDeclaration{},
+		ImportMap:    map[string]int{},
+		ImportPkgMap: map[string]int{},
+	}
 }
 
 // Конструктор для RecordPackage, инициализирует ссылочные типы
 func NewRecordPackage() *RecordPackage {
 	return &RecordPackage{
-		Server:          ServerDeclaration{},
-		Namespace:       NamespaceDeclaration{},
-		Fields:          []FieldDeclaration{},
-		FieldsMap:       map[string]int{},
-		FieldsObjectMap: map[string]FieldObject{},
-		Indexes:         []IndexDeclaration{},
-		IndexMap:        map[string]int{},
-		SelectorMap:     map[string]int{},
-		Imports:         []ImportDeclaration{},
-		ImportMap:       map[string]int{},
-		ImportPkgMap:    map[string]int{},
-		Backends:        []string{},
-		SerializerMap:   map[string]SerializerDeclaration{},
-		TriggerMap:      map[string]TriggerDeclaration{},
-		FlagMap:         map[string]FlagDeclaration{},
-		ProcFieldsMap:   map[string]int{},
-		ProcOutFields:   map[int]ProcFieldDeclaration{},
+		ImportPackage: ImportPackage{
+			Imports:      []ImportDeclaration{},
+			ImportMap:    map[string]int{},
+			ImportPkgMap: map[string]int{},
+		},
+		Server:                ServerDeclaration{},
+		Namespace:             NamespaceDeclaration{},
+		Fields:                []FieldDeclaration{},
+		FieldsMap:             map[string]int{},
+		FieldsObjectMap:       map[string]FieldObject{},
+		Indexes:               []IndexDeclaration{},
+		IndexMap:              map[string]int{},
+		SelectorMap:           map[string]int{},
+		Backends:              []string{},
+		SerializerMap:         map[string]SerializerDeclaration{},
+		MutatorMap:            map[string]MutatorDeclaration{},
+		TriggerMap:            map[string]TriggerDeclaration{},
+		FlagMap:               map[string]FlagDeclaration{},
+		ProcFieldsMap:         map[string]int{},
+		ProcOutFields:         map[int]ProcFieldDeclaration{},
+		LinkedStructsMap:      map[string]LinkedPackageDeclaration{},
+		ImportStructFieldsMap: map[string][]PartialFieldDeclaration{},
 	}
 }
 
@@ -150,7 +170,7 @@ type FieldDeclaration struct {
 	Name       string         // Название поля
 	Format     octopus.Format // формат поля
 	PrimaryKey bool           // участвует ли поле в первичном ключе (при изменении таких полей необходимо делать delete + insert вместо update)
-	Mutators   []FieldMutator // список мутаторов (атомарных действий на уровне БД)
+	Mutators   []string       // список мутаторов (атомарных действий на уровне БД)
 	Size       int64          // Размер поля, используется только для строковых значений
 	Serializer Serializer     // Сериализаторы для поля
 	ObjectLink string         // является ли поле ссылкой на другую сущность
@@ -255,20 +275,18 @@ func (pfd ProcFieldDeclarations) Validate() bool {
 	return maxIdx < len(pfd)
 }
 
-// Тип и константы описывающие мутаторы для поля
-type FieldMutator string
-
+// Константы описывающие мутаторы для поля
 const (
-	IncMutator      FieldMutator = "inc"       // инкремент (только для числовых типов)
-	DecMutator      FieldMutator = "dec"       // декремент (только для числовых типов)
-	SetBitMutator   FieldMutator = "set_bit"   // установка бита (только для целочисленных типов)
-	ClearBitMutator FieldMutator = "clear_bit" // снятие бита (только для целочисленных типов)
-	AndMutator      FieldMutator = "and"       // дизъюнкция (только для целочисленных типов)
-	OrMutator       FieldMutator = "or"        // конъюнкция (только для целочисленных типов)
-	XorMutator      FieldMutator = "xor"       // xor (только для целочисленных типов)
+	IncMutator      string = "inc"       // инкремент (только для числовых типов)
+	DecMutator      string = "dec"       // декремент (только для числовых типов)
+	SetBitMutator   string = "set_bit"   // установка бита (только для целочисленных типов)
+	ClearBitMutator string = "clear_bit" // снятие бита (только для целочисленных типов)
+	AndMutator      string = "and"       // дизъюнкция (только для целочисленных типов)
+	OrMutator       string = "or"        // конъюнкция (только для целочисленных типов)
+	XorMutator      string = "xor"       // xor (только для целочисленных типов)
 )
 
-var FieldMutators = [...]FieldMutator{
+var FieldMutators = [...]string{
 	IncMutator,
 	DecMutator,
 	SetBitMutator,
@@ -277,13 +295,13 @@ var FieldMutators = [...]FieldMutator{
 	OrMutator,
 	XorMutator}
 
-var fieldMutatorsChecker = map[string]FieldMutator{}
+var fieldMutatorsChecker = map[string]string{}
 var FieldMutatorsCheckerOnce sync.Once
 
-func GetFieldMutatorsChecker() map[string]FieldMutator {
+func GetFieldMutatorsChecker() map[string]string {
 	FieldMutatorsCheckerOnce.Do(func() {
 		for _, f := range FieldMutators {
-			fieldMutatorsChecker[string(f)] = f
+			fieldMutatorsChecker[f] = f
 		}
 	})
 
@@ -309,6 +327,17 @@ type SerializerDeclaration struct {
 	Unmarshaler string // Имя функции анмаршаллера
 }
 
+// MutatorDeclaration Структура описывающая мутатор
+type MutatorDeclaration struct {
+	Name          string // имя
+	Pkg           string // Пакет для импорта
+	Type          string // Тип данных
+	ImportName    string // Симлинк для импорта
+	Update        string // Имя функции для параметров обновления
+	Replace       string // Имя функции для параметров замены
+	PartialFields []PartialFieldDeclaration
+}
+
 // Структура описывающая дополнительный импорты
 type ImportDeclaration struct {
 	Path       string // Путь к пакету
@@ -328,4 +357,14 @@ type TriggerDeclaration struct {
 type FlagDeclaration struct {
 	Name  string   // Имя
 	Flags []string // Список имён флагов
+}
+
+type PartialFieldDeclaration struct {
+	Name string // Имя части поля
+	Type string // Тип части поля
+}
+
+type LinkedPackageDeclaration struct {
+	Types  map[string]struct{} // Имена типов связанных структур
+	Import ImportPackage       // Описание импорта пакета связанных структур
 }

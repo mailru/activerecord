@@ -103,7 +103,8 @@ func (a *ArGen) addRecordPackage(pkgName string) (*ds.RecordPackage, error) {
 		return nil, &arerror.ErrParseGenDecl{Name: pkgName, Err: arerror.ErrRedefined}
 	}
 
-	a.packagesParsed[pkgName] = ds.NewRecordPackage()
+	rp := ds.NewRecordPackage()
+	a.packagesParsed[pkgName] = rp
 
 	return a.packagesParsed[pkgName], nil
 }
@@ -361,6 +362,8 @@ func (a *ArGen) parse() error {
 		if err != nil {
 			return fmt.Errorf("error model(%s) parse: %s", srcFileName, err)
 		}
+
+		rc.Namespace.ModuleName = a.modName
 
 		// Запускаем процесс парсинга
 		if err := parser.Parse(srcFileName, rc); err != nil {

@@ -50,23 +50,28 @@ func TestParseImport(t *testing.T) {
 				Indexes:         []ds.IndexDeclaration{},
 				IndexMap:        map[string]int{},
 				SelectorMap:     map[string]int{},
-				Imports: []ds.ImportDeclaration{
-					{
-						Path: "github.com/mailru/activerecord-cookbook.git/example/model/dictionary",
+				ImportPackage: ds.ImportPackage{
+					Imports: []ds.ImportDeclaration{
+						{
+							Path: "github.com/mailru/activerecord-cookbook.git/example/model/dictionary",
+						},
 					},
+					ImportMap:    map[string]int{"github.com/mailru/activerecord-cookbook.git/example/model/dictionary": 0},
+					ImportPkgMap: map[string]int{"dictionary": 0},
 				},
-				ImportMap:     map[string]int{"github.com/mailru/activerecord-cookbook.git/example/model/dictionary": 0},
-				ImportPkgMap:  map[string]int{"dictionary": 0},
-				SerializerMap: map[string]ds.SerializerDeclaration{},
-				TriggerMap:    map[string]ds.TriggerDeclaration{},
-				FlagMap:       map[string]ds.FlagDeclaration{},
+				SerializerMap:         map[string]ds.SerializerDeclaration{},
+				TriggerMap:            map[string]ds.TriggerDeclaration{},
+				FlagMap:               map[string]ds.FlagDeclaration{},
+				MutatorMap:            map[string]ds.MutatorDeclaration{},
+				ImportStructFieldsMap: map[string][]ds.PartialFieldDeclaration{},
+				LinkedStructsMap:      map[string]ds.LinkedPackageDeclaration{},
 			},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := ParseImport(tt.args.dst, tt.args.importSpec); (err != nil) != tt.wantErr {
+			if err := ParseImport(&tt.args.dst.ImportPackage, tt.args.importSpec); (err != nil) != tt.wantErr {
 				t.Errorf("ParseImport() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
