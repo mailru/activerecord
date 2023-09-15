@@ -176,8 +176,9 @@ func Test_splitTag(t *testing.T) {
 		{
 			name: "emptytag", wantErr: false,
 			args: args{
-				field: &ast.Field{Tag: &ast.BasicLit{Value: "`ar:\"\"`"}},
-				rule:  map[TagNameType]ParamValueRule{},
+				field:     &ast.Field{Tag: &ast.BasicLit{Value: "`ar:\"\"`"}},
+				rule:      map[TagNameType]ParamValueRule{},
+				checkFlag: NoCheckFlag,
 			},
 			want: [][]string{},
 		},
@@ -193,16 +194,18 @@ func Test_splitTag(t *testing.T) {
 		{
 			name: "tagnoprefix", wantErr: true,
 			args: args{
-				field: &ast.Field{Tag: &ast.BasicLit{Value: "dsjfgsadkjgfdskj"}},
-				rule:  map[TagNameType]ParamValueRule{},
+				field:     &ast.Field{Tag: &ast.BasicLit{Value: "dsjfgsadkjgfdskj"}},
+				checkFlag: CheckFlagEmpty,
+				rule:      map[TagNameType]ParamValueRule{},
 			},
 			want: nil,
 		},
 		{
 			name: "tag", wantErr: false,
 			args: args{
-				field: &ast.Field{Tag: &ast.BasicLit{Value: "`ar:\"a:b;c:d;d:r,t\"`"}},
-				rule:  map[TagNameType]ParamValueRule{},
+				field:     &ast.Field{Tag: &ast.BasicLit{Value: "`ar:\"a:b;c:d;d:r,t\"`"}},
+				rule:      map[TagNameType]ParamValueRule{},
+				checkFlag: CheckFlagEmpty,
 			},
 			want: [][]string{{"a", "b"}, {"c", "d"}, {"d", "r,t"}},
 		},

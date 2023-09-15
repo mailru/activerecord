@@ -68,15 +68,31 @@ func splitTag(field *ast.Field, checkFlag uint32, rule map[TagNameType]ParamValu
 		return nil, arerror.ErrParseTagSplitAbsent
 	}
 
-	if !strings.HasPrefix(field.Tag.Value, "`ar:\"") {
+	tag := searchARTag(field)
+
+	if checkFlag&NoCheckFlag != 0 && tag == "" {
+		return [][]string{}, nil
+	}
+
+	if checkFlag&CheckFlagEmpty != 0 && (tag == "" || tag == "`ar:\"\"`") {
 		return nil, arerror.ErrParseTagInvalidFormat
 	}
 
-	if checkFlag&CheckFlagEmpty != 0 && field.Tag.Value == "`ar:\"\"`" {
-		return nil, arerror.ErrParseTagSplitEmpty
+	idx := strings.LastIndex(tag, "ar:\"")
+
+	return splitParam(tag[idx+3:len(tag)-1], rule)
+}
+
+func searchARTag(field *ast.Field) string {
+	tags := strings.Split(field.Tag.Value, " ")
+
+	for _, tag := range tags {
+		if strings.Contains(tag, "ar:\"") {
+			return tag
+		}
 	}
 
-	return splitParam(field.Tag.Value[4:len(field.Tag.Value)-1], rule)
+	return ""
 }
 
 func splitParam(str string, rule map[TagNameType]ParamValueRule) ([][]string, error) {

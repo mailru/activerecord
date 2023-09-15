@@ -8,7 +8,9 @@ import (
 )
 
 type Foo struct {
-	Bar int
+	Bar    int    `ar:"bar"`
+	Other  string `ar:"bar,ignore"`
+	Other2 string `ar:",ignore"`
 }
 
 func TestParsePartialStructFields(t *testing.T) {
@@ -41,7 +43,7 @@ func TestParsePartialStructFields(t *testing.T) {
 				path:    ".",
 			},
 			want: []ds.PartialFieldDeclaration{
-				{Name: "Bar", Type: "int"},
+				{Name: "Bar", Type: "int", MappingKeyName: "bar"},
 			},
 			wantErr: false,
 		},
