@@ -360,8 +360,9 @@ type FlagDeclaration struct {
 }
 
 type PartialFieldDeclaration struct {
-	Name string // Имя части поля
-	Type string // Тип части поля
+	Name           string // Имя части поля
+	Type           string // Тип части поля
+	MappingKeyName string // Имя ключа в мепе модифицированных полей
 }
 
 type LinkedPackageDeclaration struct {

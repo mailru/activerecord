@@ -660,7 +660,7 @@ func (obj *{{ $PublicStructName }}) pack{{ $fstruct.Name }}PartialFields(op octo
 	    {{ range $i, $f := $customMutator.PartialFields }}
 
 func (obj *{{ $PublicStructName }}) Set{{ $customMutator.Name }}{{ $f.Name }}({{ $f.Name }} {{ $f.Type }}) error {
-    obj.Mutators.{{ $customMutator.Name }}.PartialFields["{{ $f.Name }}"] = {{ $f.Name }}
+    obj.Mutators.{{ $customMutator.Name }}.PartialFields["{{ $f.MappingKeyName }}"] = {{ $f.Name }}
 
 	if err := obj.pack{{ $fstruct.Name }}PartialFields(octopus.OpUpdate); err != nil {
 		return fmt.Errorf("pack {{ $customMutator.Name }}{{ $f.Name }}: %w", err)

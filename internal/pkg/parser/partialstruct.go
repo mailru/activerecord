@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+	"strings"
 
 	"github.com/mailru/activerecord/internal/pkg/arerror"
 	"github.com/mailru/activerecord/internal/pkg/ds"
@@ -35,14 +36,24 @@ func parseStructFields(dst *ds.RecordPackage, gen *ast.GenDecl, name, pkgName st
 					continue
 				}
 
+				fName, ignore, err := parseTag(field)
+				if err != nil {
+					return nil, &arerror.ErrParseTypeStructDecl{Name: currType.Name.Name, Err: err}
+				}
+
+				if ignore {
+					continue
+				}
+
 				t, err := ParseFieldType(dst, name, pkgName, field.Type)
 				if err != nil {
 					return nil, &arerror.ErrParseTypeFieldStructDecl{Name: name, FieldType: field.Names[0].Name, Err: err}
 				}
 
 				field := ds.PartialFieldDeclaration{
-					Name: field.Names[0].Name,
-					Type: t,
+					Name:           field.Names[0].Name,
+					Type:           t,
+					MappingKeyName: fName,
 				}
 
 				partialFields = append(partialFields, field)
@@ -53,6 +64,28 @@ func parseStructFields(dst *ds.RecordPackage, gen *ast.GenDecl, name, pkgName st
 	}
 
 	return nil, nil
+}
+
+// parseTag parse tag with format `ar: "name,[ignore]"`. tag is optional
+func parseTag(field *ast.Field) (name string, ignore bool, err error) {
+	name = field.Names[0].Name
+
+	if field.Tag == nil {
+		return name, false, nil
+	}
+
+	tagParam, parseErr := splitTag(field, NoCheckFlag, map[TagNameType]ParamValueRule{})
+	if parseErr != nil {
+		return "", false, parseErr
+	}
+
+	if len(tagParam) > 0 {
+		k := strings.Split(tagParam[0][0], ",")
+		name = k[0]
+		ignore = len(k) > 1 && strings.Contains(tagParam[0][0], "ignore")
+	}
+
+	return name, ignore, err
 }
 
 func ParsePartialStructFields(dst *ds.RecordPackage, name, pkgName, path string) ([]ds.PartialFieldDeclaration, error) {
