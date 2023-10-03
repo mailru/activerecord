@@ -185,6 +185,20 @@ func GetUpdate{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Conte
     return octopus.CreateUpdateFixture(obj.MockUpdate(ctx), wrappedTrigger), promiseIsUsed
 }
 
+func {{$PublicStructName}}StoreIterator() func(it func(any) error) error {
+    init{{$PublicStructName}}()
+
+    return func(it func(e any) error) error {
+        for _, e := range {{$PackageName}}Store {
+            if err := it(e); err != nil {
+                return err
+            }
+        }
+
+        return nil
+    }
+}
+
 {{ range $ind, $fstruct := $fields -}}
 {{- range $i, $mut := $fstruct.Mutators -}}
 {{ $customMutator := index $mutators $mut -}}
@@ -327,12 +341,12 @@ func (m {{ $PublicStructName }}By{{ $ind.Selector }}Mocker) ByFixture{{ $fieldNa
         }
         {{ else }}
 		if key == nil {
-			key = &{{ $PackageName }}.{{ $ind.Type }}{ 
+			key = &{{ $PackageName }}.{{ $ind.Type }}{
                 {{ range $_, $fieldNum := $ind.Fields }}
                     {{- $ifield := index $fields $fieldNum }}
                 {{ $ifield.Name }}: fix.Get{{ $ifield.Name }}(),
                 {{ end }}
-            } 
+            }
 		} else {
             {{ range $_, $fieldNum := $ind.Fields }}
                 {{- $ifield := index $fields $fieldNum }}
