@@ -185,7 +185,9 @@ func GetUpdate{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Conte
     return octopus.CreateUpdateFixture(obj.MockUpdate(ctx), wrappedTrigger), promiseIsUsed
 }
 
-func {{$PublicStructName}}StoreIterator() func(it func(e any) error) error {
+func {{$PublicStructName}}StoreIterator() func(it func(any) error) error {
+    init{{$PublicStructName}}()
+
     return func(it func(e any) error) error {
         for _, e := range {{$PackageName}}Store {
             if err := it(e); err != nil {
