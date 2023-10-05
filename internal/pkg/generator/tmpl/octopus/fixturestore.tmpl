@@ -41,7 +41,7 @@ var {{$PackageName}}Source []byte
 
 func init{{$PublicStructName}}() {
     {{$PackageName}}Once.Do(func() {
-        {{$PackageName}}Fixtures := {{$PackageName}}.UnmarshalFixtures({{$PackageName}}Source)
+        {{$PackageName}}Fixtures = {{$PackageName}}.UnmarshalFixtures({{$PackageName}}Source)
 
         {{$PackageName}}Store = map[{{$typePK}}]int{}
         for i, f := range {{$PackageName}}Fixtures {
