@@ -40,7 +40,7 @@ type {{ $PublicStructName }}FTPK struct {
             {{ $serializer := index $serializers $sname -}}
             {{ $rtype = $serializer.Type -}}
         {{ end }}
-	    {{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}"`
+	    {{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}" mapstructure:"{{ $fstruct.Name | snakeCase -}}" json:"{{ $fstruct.Name | snakeCase -}}"`
 	{{- end }}
 }
 
@@ -107,6 +107,22 @@ func UnmarshalFixtures(source []byte) []*{{$PublicStructName}} {
 
     return objs
 }
+
+func UnmarshalFixturesFromJSON(source []byte) ([]{{$PublicStructName}}FT, error) {
+	source = bytes.TrimLeft(source, " \t\r\n")
+
+	if  len(source) > 0 && source[0] == '{' {
+		source = []byte(fmt.Sprintf("[%s]", string(source)))
+	}
+
+	var v []{{$PublicStructName}}FT
+
+	if err := json.Unmarshal([]byte(source), &v); err != nil {
+		return nil, err
+	}
+
+	return v, nil
+}
 {{ end }}
 
 func (objs {{$PublicStructName}}List) String() string {
@@ -139,8 +155,24 @@ type {{ $PublicStructName }}FT struct {
 		{{ $serializer := index $serializers $sname -}}
 		{{ $rtype = $serializer.Type -}}
 	{{ end }}
-	{{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}"`
+	{{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}" mapstructure:"{{ $fstruct.Name | snakeCase -}}" json:"{{ $fstruct.Name | snakeCase -}}"`
 {{- end }}
+}
+
+func UnmarshalFixturesFromJSON(source []byte) ([]{{$PublicStructName}}FT, error) {
+	source = bytes.TrimLeft(source, " \t\r\n")
+
+	if  len(source) > 0 && source[0] == '{' {
+		source = []byte(fmt.Sprintf("[%s]", string(source)))
+	}
+
+	var v []{{$PublicStructName}}FT
+
+	if err := json.Unmarshal([]byte(source), &v); err != nil {
+		return nil, err
+	}
+
+	return v, nil
 }
 
 func MarshalFixtures(objs []*{{$PublicStructName}}) ([]byte, error) {
