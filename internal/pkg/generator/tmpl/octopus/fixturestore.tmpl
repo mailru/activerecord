@@ -33,21 +33,22 @@ import (
 {{ if $procfields }}
 {{ $typePK := "string" -}}
 var {{$PackageName}}Once sync.Once
-var {{$PackageName}}Store map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}
+var {{$PackageName}}Store map[{{$typePK}}]int
+var {{$PackageName}}Fixtures []*{{$PackageName}}.{{$PublicStructName}}
 
 //go:embed data/{{$PackageName}}.yaml
 var {{$PackageName}}Source []byte
 
 func init{{$PublicStructName}}() {
     {{$PackageName}}Once.Do(func() {
-        fixtures := {{$PackageName}}.UnmarshalFixtures({{$PackageName}}Source)
+        {{$PackageName}}Fixtures = {{$PackageName}}.UnmarshalFixtures({{$PackageName}}Source)
 
-        {{$PackageName}}Store = map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}{}
-        for _, f := range fixtures {
+        {{$PackageName}}Store = map[{{$typePK}}]int{}
+        for i, f := range {{$PackageName}}Fixtures {
             if _, ok := {{$PackageName}}Store[f.GetParams().PK()]; ok {
                 log.Fatalf("{{$PackageName}} fixture with params %v are duplicated", f.GetParams())
             }
-            {{$PackageName}}Store[f.GetParams().PK()] = f
+            {{$PackageName}}Store[f.GetParams().PK()] = i
         }
     })
 }
@@ -55,10 +56,12 @@ func init{{$PublicStructName}}() {
 func Get{{$PublicStructName}}ByParams(params {{$PackageName}}.{{$PublicStructName}}Params) *{{$PackageName}}.{{$PublicStructName}} {
     init{{$PublicStructName}}()
 
-    res, ex := {{$PackageName}}Store[params.PK()]
+    idx, ex := {{$PackageName}}Store[params.PK()]
     if !ex {
-        log.Fatalf("{{$PublicStructName}} fixture with params %v not found", params)
+    log.Fatalf("{{$PublicStructName}} fixture with params %v not found", params)
     }
+
+    res := {{$PackageName}}Fixtures[idx]
 
     ctx := activerecord.Logger().SetLoggerValueToContext(context.Background(), map[string]interface{}{"Get{{$PublicStructName}}ByParams": params, "FixtureStore": "{{$PackageName}}Store"})
 
@@ -117,21 +120,22 @@ func (m {{ $PublicStructName }}ProcedureMocker) By{{ if ne $procInLen 0 }}Params
 
 {{ range $_, $mockOperation := split ",Update,InsertReplace" "," }}
 var {{$PackageName}}{{ $mockOperation }}Once sync.Once
-var {{$PackageName}}{{ $mockOperation }}Store map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}
+var {{$PackageName}}{{ $mockOperation }}Store map[{{$typePK}}]int
+var {{$PackageName}}{{ $mockOperation }}Fixtures []*{{$PackageName}}.{{$PublicStructName}}
 
 //go:embed data/{{$PackageName}}{{ if ne $mockOperation "" -}} _{{ $mockOperation | snakeCase }}{{ end }}.yaml
 var {{$PackageName}}{{ $mockOperation }}Source []byte
 
 func init{{$mockOperation}}{{$PublicStructName}}() {
     {{$PackageName}}{{ $mockOperation }}Once.Do(func() {
-        fixtures := {{$PackageName}}.Unmarshal{{$mockOperation}}Fixtures({{$PackageName}}{{ $mockOperation }}Source)
+        {{$PackageName}}{{$mockOperation}}Fixtures = {{$PackageName}}.Unmarshal{{$mockOperation}}Fixtures({{$PackageName}}{{ $mockOperation }}Source)
 
-        {{$PackageName}}{{$mockOperation}}Store = map[{{$typePK}}]*{{$PackageName}}.{{$PublicStructName}}{}
-        for _, f := range fixtures {
+        {{$PackageName}}{{$mockOperation}}Store = map[{{$typePK}}]int{}
+        for i, f := range {{$PackageName}}{{$mockOperation}}Fixtures {
             if _, ok := {{$PackageName}}{{$mockOperation}}Store[f.Primary()]; ok {
                 log.Fatalf("{{$PackageName}} {{ $mockOperation }} fixture with {{$fieldNamePK}} %v is duplicated", f.Primary())
             }
-            {{$PackageName}}{{ $mockOperation }}Store[f.Primary()] = f
+            {{$PackageName}}{{ $mockOperation }}Store[f.Primary()] = i
         }
     })
 }
@@ -139,10 +143,12 @@ func init{{$mockOperation}}{{$PublicStructName}}() {
 func Get{{$mockOperation}}{{$PublicStructName}}By{{$fieldNamePK}}({{$fieldNamePK}} {{$typePK}}) *{{$PackageName}}.{{$PublicStructName}} {
     init{{$mockOperation}}{{$PublicStructName}}()
 
-    res, ex := {{$PackageName}}{{$mockOperation}}Store[{{$fieldNamePK}}]
+    idx, ex := {{$PackageName}}{{$mockOperation}}Store[{{$fieldNamePK}}]
     if !ex {
         log.Fatalf("{{$PublicStructName}} {{$mockOperation}} fixture with {{$fieldNamePK}} %v not found", {{$fieldNamePK}})
     }
+
+    res := {{$PackageName}}{{$mockOperation}}Fixtures[idx]
 
     ctx := activerecord.Logger().SetLoggerValueToContext(context.Background(), map[string]interface{}{"Get{{$mockOperation}}{{$PublicStructName}}By{{$fieldNamePK}}": {{$fieldNamePK}}, "FixtureStore": "{{$PackageName}}{{$mockOperation}}Store"})
 
@@ -189,7 +195,7 @@ func {{$PublicStructName}}StoreIterator() func(it func(any) error) error {
     init{{$PublicStructName}}()
 
     return func(it func(e any) error) error {
-        for _, e := range {{$PackageName}}Store {
+        for _, e := range {{$PackageName}}Fixtures {
             if err := it(e); err != nil {
                 return err
             }

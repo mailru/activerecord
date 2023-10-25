@@ -103,7 +103,8 @@ func TestGenerateFixture(t *testing.T) {
 					`type GiftBySelectByIdMocker struct {`,
 					`func GetGiftById(Id string) *gift.Gift`,
 					`type GiftBySelectByInvMocker struct {`,
-					`var giftStore map[string]*gift.Gift`,
+					`var giftStore map[string]int`,
+					`var giftFixtures []*gift.Gift`,
 					`func initGift() {`,
 					`func GetUpdateMutatorAnyFixtureById(ctx context.Context, Id string) (fxt octopus.FixtureType) {`,
 				},
@@ -138,7 +139,8 @@ func TestGenerateFixture(t *testing.T) {
 			wantStr: map[string][]string{
 				"fixture": {
 					`package procfixture`,
-					`var giftStore map[string]*gift.Gift`,
+					`var giftStore map[string]int`,
+					`var giftFixtures []*gift.Gift`,
 					`func initGift() {`,
 					`func GetGiftByParams(params gift.GiftParams) *gift.Gift {`,
 					`type GiftProcedureMocker struct {}`,
@@ -205,7 +207,8 @@ func TestGenerateFixture(t *testing.T) {
 			wantStr: map[string][]string{
 				"fixture": {
 					`package procfixture`,
-					`var giftStore map[string]*gift.Gift`,
+					`var giftStore map[string]int`,
+					`var giftFixtures []*gift.Gift`,
 					`func initGift() {`,
 					`func GetGiftByParams(params gift.GiftParams) *gift.Gift {`,
 					`type GiftProcedureMocker struct {}`,
