@@ -2,7 +2,7 @@
 
 Простой способ организовать модель в своём приложении:
 
-- Скачайте и установите `argen`
+- Скачайте и установите `argen` (git clone http://github.com/mailru/activerecord && cd activerecord && make install)
 - Добавьте зависимость в своём пакете `go get github.com/mailru/activerecord`
 - Создайте каталог `model/repository/decl`
 - Создайте файлы декларации, например: `model/repository/decl/foo.go`
