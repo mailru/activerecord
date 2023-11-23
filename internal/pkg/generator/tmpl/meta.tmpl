@@ -8,7 +8,7 @@ import (
 type SpaceMeta struct {
     PackageName string
     Unpacker func(ctx context.Context, tuple octopus.TupleData) (any, error)
-    FixtureUnpacker func(ctx context.Context, source []byte) (any, error)
+    FixtureUnpacker func(ctx context.Context, source []byte) ([]any, error)
     Fields []FieldMeta
     PK IndexMeta
     Indexes map[string]IndexMeta
@@ -45,8 +45,17 @@ var NamespacePackages = NSPackage {
 
             return {{ $ns.Namespace.PackageName }}.MarshalFixtures([]*{{ $ns.Namespace.PackageName }}.{{ $ns.Namespace.PublicName }}{obj})
         },
-		FixtureUnpacker: func(ctx context.Context, source []byte) (any, error) {
-			return {{ $ns.Namespace.PackageName }}.UnmarshalFixturesFromJSON(source)
+		FixtureUnpacker: func(ctx context.Context, source []byte) (res []any, err error) {
+            fxts, err := {{ $ns.Namespace.PackageName }}.UnmarshalFixturesFromJSON(source)
+            if err != nil {
+                return nil, fmt.Errorf("can't decode tuple: %s", err)
+            }
+
+            for _, v := range fxts {
+                res = append(res, v)
+            }
+
+            return
 		},
         Fields: []FieldMeta{
             {{- range $_, $field := $ns.Fields }}
