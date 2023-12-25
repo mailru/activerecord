@@ -46,6 +46,11 @@ type ShardInstance struct {
 	ParamsID string
 	Config   ShardInstanceConfig
 	Options  interface{}
+	Offline  bool
+}
+
+func (s *ShardInstance) IsOffline() bool {
+	return s.Offline
 }
 
 // Структура описывающая конкретный шард. Каждый шард может состоять из набора мастеров и реплик
@@ -58,39 +63,54 @@ type Shard struct {
 
 // Функция выбирающая следующий инстанс мастера в конкретном шарде
 func (s *Shard) NextMaster() ShardInstance {
-	length := len(s.Masters)
+	masters := Online(s.Masters)
+	length := len(masters)
 	switch length {
 	case 0:
 		panic("no master configured")
 	case 1:
-		return s.Masters[0]
+		return masters[0]
 	}
 
 	newVal := atomic.AddInt32(&s.curMaster, 1)
-	newValMod := newVal % int32(len(s.Masters))
+	newValMod := newVal % int32(len(masters))
 
 	if newValMod != newVal {
 		atomic.CompareAndSwapInt32(&s.curMaster, newVal, newValMod)
 	}
 
-	return s.Masters[newValMod]
+	return masters[newValMod]
+}
+
+func Online(shards []ShardInstance) []ShardInstance {
+	ret := make([]ShardInstance, 0, len(shards))
+	for _, replica := range shards {
+		if replica.Offline {
+			continue
+		}
+
+		ret = append(ret, replica)
+	}
+
+	return ret
 }
 
 // Инстанс выбирающий конкретный инстанс реплики в конкретном шарде
 func (s *Shard) NextReplica() ShardInstance {
-	length := len(s.Replicas)
+	replicas := Online(s.Replicas)
+	length := len(replicas)
 	if length == 1 {
-		return s.Replicas[0]
+		return replicas[0]
 	}
 
 	newVal := atomic.AddInt32(&s.curReplica, 1)
-	newValMod := newVal % int32(len(s.Replicas))
+	newValMod := newVal % int32(len(replicas))
 
 	if newValMod != newVal {
 		atomic.CompareAndSwapInt32(&s.curReplica, newVal, newValMod)
 	}
 
-	return s.Replicas[newValMod]
+	return replicas[newValMod]
 }
 
 // Тип описывающий кластер. Сейчас кластер - это набор шардов.
@@ -280,8 +300,18 @@ func (cc *DefaultConfigCacher) Get(ctx context.Context, path string, globs MapGl
 			return Cluster{}, fmt.Errorf("can't get config: %w", err)
 		}
 
-		cc.container[path] = conf
+		_, _ = cc.Update(ctx, path, conf)
 	}
 
 	return conf, nil
+}
+
+func (cc *DefaultConfigCacher) Update(ctx context.Context, path string, clusterConf Cluster) (Cluster, error) {
+	if cc.updateTime.Sub(Config().GetLastUpdateTime()) < 0 {
+		return nil, fmt.Errorf("cluster config was modified since %s", cc.updateTime)
+	}
+
+	cc.container[path] = clusterConf
+
+	return clusterConf, nil
 }
