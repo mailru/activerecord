@@ -28,6 +28,12 @@ func WithMetrics(metric MetricInterface) Option {
 	})
 }
 
+func WithConnectionPinger(pc PingerInterface) Option {
+	return optionFunc(func(a *ActiveRecord) {
+		a.pinger = pc
+	})
+}
+
 type clusterOption interface {
 	apply(*Cluster)
 }

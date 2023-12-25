@@ -258,6 +258,15 @@ func newConfigCacher() *DefaultConfigCacher {
 	}
 }
 
+func (cc *DefaultConfigCacher) GetNoOps(ctx context.Context, path string) (Cluster, bool) {
+	cc.lock.Lock()
+	defer cc.lock.Unlock()
+
+	conf, ex := cc.container[path]
+
+	return conf, ex
+}
+
 // Получение конфигурации. Если есть в кеше и он еще валидный, то конфигурация берётся из кешаб
 // если в кеше нет, то достаём из конфига и кешируем.
 func (cc *DefaultConfigCacher) Get(ctx context.Context, path string, globs MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (Cluster, error) {

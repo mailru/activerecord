@@ -92,6 +92,11 @@ type ConnectionCacherInterface interface {
 
 type ConfigCacherInterface interface {
 	Get(ctx context.Context, path string, glob MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (Cluster, error)
+	GetNoOps(ctx context.Context, path string) (Cluster, bool)
+}
+
+type PingerInterface interface {
+	Add(ctx context.Context, path string, ping func(ctx context.Context) error) bool
 }
 
 type SerializerInterface interface {
@@ -125,6 +130,7 @@ type ActiveRecord struct {
 	metric           MetricInterface
 	connectionCacher ConnectionCacherInterface
 	configCacher     ConfigCacherInterface
+	pinger           PingerInterface
 }
 
 var instance *ActiveRecord
@@ -191,4 +197,8 @@ func ConnectionCacher() ConnectionCacherInterface {
 
 func ConfigCacher() ConfigCacherInterface {
 	return GetInstance().configCacher
+}
+
+func ConnectionPinger() PingerInterface {
+	return GetInstance().pinger
 }
