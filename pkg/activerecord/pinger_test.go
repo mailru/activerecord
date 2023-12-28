@@ -12,7 +12,7 @@ func TestNewPinger(t *testing.T) {
 	tests := []struct {
 		name    string
 		opts    []OptionPinger
-		pingFns map[string]func(ctx context.Context) error
+		pingFns map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error)
 		want    bool
 	}{
 		{
@@ -26,17 +26,17 @@ func TestNewPinger(t *testing.T) {
 		},
 		{
 			name: "started pinger funcs",
-			opts: []OptionPinger{WithPingInterval(time.Microsecond)},
-			pingFns: map[string]func(ctx context.Context) error{
-				"conf": func(ctx context.Context) error { return nil },
+			opts: []OptionPinger{WithPingInterval(time.Microsecond), WithConfigCache(newConfigCacher())},
+			pingFns: map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error){
+				"conf": func(ctx context.Context, instance ShardInstance) (ServerModeType, error) { return 0, nil },
 			},
 			want: true,
 		},
 		{
 			name: "started panic pinger funcs",
-			opts: []OptionPinger{WithPingInterval(time.Microsecond)},
-			pingFns: map[string]func(ctx context.Context) error{
-				"panicConf": func(ctx context.Context) error { panic("panic pinger") },
+			opts: []OptionPinger{WithPingInterval(time.Microsecond), WithConfigCache(newConfigCacher())},
+			pingFns: map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error){
+				"panicConf": func(ctx context.Context, instance ShardInstance) (ServerModeType, error) { panic("panic pinger") },
 			},
 			want: true,
 		},
@@ -46,7 +46,8 @@ func TestNewPinger(t *testing.T) {
 			p := NewPinger(tt.opts...)
 
 			for c, fn := range tt.pingFns {
-				p.Add(context.Background(), c, fn)
+				_, err := p.SchedulePingIfNotExists(context.Background(), c, fn)
+				require.NoError(t, err)
 			}
 
 			time.Sleep(time.Millisecond)

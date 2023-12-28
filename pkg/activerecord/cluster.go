@@ -193,6 +193,7 @@ func getShardInfoFromCfg(ctx context.Context, path string, globParam MapGlobPara
 	shardTimeout := cfg.GetDuration(ctx, path+"/Timeout", globParam.Timeout)
 	shardPoolSize := cfg.GetInt(ctx, path+"/PoolSize", globParam.PoolSize)
 
+	var instances []ShardInstance
 	// информация по местерам
 	master, exMaster := cfg.GetStringIfExists(ctx, path+"/master")
 	if !exMaster {
@@ -220,7 +221,7 @@ func getShardInfoFromCfg(ctx context.Context, path string, globParam MapGlobPara
 				return Shard{}, fmt.Errorf("can't create instanceOption: %w", err)
 			}
 
-			ret.Masters = append(ret.Masters, ShardInstance{
+			instances = append(instances, ShardInstance{
 				ParamsID: opt.GetConnectionID(),
 				Config:   shardCfg,
 				Options:  opt,
@@ -248,11 +249,20 @@ func getShardInfoFromCfg(ctx context.Context, path string, globParam MapGlobPara
 				return Shard{}, fmt.Errorf("can't create instanceOption: %w", err)
 			}
 
-			ret.Replicas = append(ret.Replicas, ShardInstance{
+			instances = append(instances, ShardInstance{
 				ParamsID: opt.GetConnectionID(),
 				Config:   shardCfg,
 				Options:  opt,
 			})
+		}
+	}
+
+	for _, shardInstance := range instances {
+		switch shardInstance.Config.Mode {
+		case ModeMaster:
+			ret.Masters = append(ret.Masters, shardInstance)
+		case ModeReplica:
+			ret.Replicas = append(ret.Replicas, shardInstance)
 		}
 	}
 
@@ -278,15 +288,6 @@ func newConfigCacher() *DefaultConfigCacher {
 	}
 }
 
-func (cc *DefaultConfigCacher) GetNoOps(ctx context.Context, path string) (Cluster, bool) {
-	cc.lock.Lock()
-	defer cc.lock.Unlock()
-
-	conf, ex := cc.container[path]
-
-	return conf, ex
-}
-
 // Получение конфигурации. Если есть в кеше и он еще валидный, то конфигурация берётся из кешаб
 // если в кеше нет, то достаём из конфига и кешируем.
 func (cc *DefaultConfigCacher) Get(ctx context.Context, path string, globs MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (Cluster, error) {
@@ -309,10 +310,83 @@ func (cc *DefaultConfigCacher) Get(ctx context.Context, path string, globs MapGl
 			return Cluster{}, fmt.Errorf("can't get config: %w", err)
 		}
 
-		_, _ = cc.Update(ctx, path, conf)
+		cc.container[path] = conf
 	}
 
 	return conf, nil
+}
+
+// Актуализирует конфигурацию кластера path, синхронизируя состояние конфигурации узлов кластера с серверной стороной (тип узла и его доступность)
+// Проверка типа и доступности узлов выполняется с помощью функции instanceChecker
+func (cc *DefaultConfigCacher) Actualize(ctx context.Context, path string, instanceChecker func(ctx context.Context, instance ShardInstance) (ServerModeType, error)) (Cluster, error) {
+	cc.lock.Lock()
+	defer cc.lock.Unlock()
+
+	clusterConfig, ex := cc.container[path]
+	if !ex || instanceChecker == nil {
+		return nil, nil
+	}
+
+	updatedConfig := make(Cluster, 0, len(clusterConfig))
+
+	for _, shard := range clusterConfig {
+		clusterShard := Shard{
+			Masters:  []ShardInstance{},
+			Replicas: []ShardInstance{},
+		}
+
+		var instances []ShardInstance
+
+		for _, master := range shard.Masters {
+			serverType, connErr := instanceChecker(ctx, master)
+
+			if connErr == nil {
+				master.Config.Mode = serverType
+			}
+
+			instances = append(instances, ShardInstance{
+				ParamsID: master.ParamsID,
+				Config:   master.Config,
+				Options:  master.Options,
+				Offline:  connErr != nil,
+			})
+		}
+
+		for _, replica := range shard.Replicas {
+			serverType, connErr := instanceChecker(ctx, replica)
+
+			if connErr == nil {
+				replica.Config.Mode = serverType
+			}
+
+			instances = append(instances, ShardInstance{
+				ParamsID: replica.ParamsID,
+				Config:   replica.Config,
+				Options:  replica.Options,
+				Offline:  connErr != nil,
+			})
+		}
+
+		for _, shardInstance := range instances {
+			switch shardInstance.Config.Mode {
+			case ModeMaster:
+				clusterShard.Masters = append(clusterShard.Masters, shardInstance)
+			case ModeReplica:
+				clusterShard.Replicas = append(clusterShard.Replicas, shardInstance)
+			}
+		}
+
+		updatedConfig = append(updatedConfig, clusterShard)
+	}
+
+	// TODO: Сравнить конфигуации перед обновлением
+	if len(updatedConfig) > 0 {
+		cc.container[path] = updatedConfig
+
+		return updatedConfig, nil
+	}
+
+	return clusterConfig, nil
 }
 
 func (cc *DefaultConfigCacher) Update(ctx context.Context, path string, clusterConf Cluster) (Cluster, error) {
