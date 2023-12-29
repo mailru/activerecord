@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"runtime/debug"
-	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -41,7 +40,6 @@ func WithConfigCache(configCache ConfigCacherInterface) OptionPinger {
 type Pinger struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
-	mu          sync.Mutex
 	pingers     map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error)
 	eg          *errgroup.Group
 	started     bool
@@ -57,7 +55,6 @@ func NewPinger(opts ...OptionPinger) *Pinger {
 	p := &Pinger{
 		ctx:      ctx,
 		cancel:   cancel,
-		mu:       sync.Mutex{},
 		pingers:  map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error){},
 		eg:       &errgroup.Group{},
 		interval: time.Second,
@@ -98,7 +95,9 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 				err = ctx.Err()
 				continue
 			case <-t.C:
-				p.mu.Lock()
+				start := time.Now().UnixMilli()
+				p.logger.Warn(ctx, "starting ping")
+
 				for cfgPath, ping := range p.pingers {
 					clusterConf, warn := p.clusterConfig().Actualize(ctx, cfgPath, ping)
 					if warn != nil {
@@ -107,13 +106,13 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 
 					p.log(ctx, clusterConf)
 				}
-				p.mu.Unlock()
+				p.logger.Info(ctx, "ping finished after ", time.Now().UnixMilli()-start, " ms")
 			}
 		}
 
 		return err
 	})
-
+	p.logger.Info(ctx, "start instance watcher")
 	p.ticker = t
 	p.started = true
 }
@@ -138,12 +137,10 @@ func (p *Pinger) StopWatch() error {
 	return err
 }
 
-// SchedulePingIfNotExists добавляет кластер в локальный пингер, для нового кластера предварительно актуализируя типы и доступность узлов
-func (p *Pinger) SchedulePingIfNotExists(ctx context.Context, path string, ping func(ctx context.Context, instance ShardInstance) (ServerModeType, error)) (Cluster, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
+// AddClusterChecker добавляет в локальный пингер конфигурации кластера, актуализируя типы и доступность узлов
+func (p *Pinger) AddClusterChecker(ctx context.Context, path string, ping func(ctx context.Context, instance ShardInstance) (ServerModeType, error)) (*Cluster, error) {
 	_, ok := p.pingers[path]
+
 	if !ok {
 		p.pingers[path] = ping
 
@@ -172,8 +169,9 @@ func (p *Pinger) clusterConfig() ConfigCacherInterface {
 	return ConfigCacher()
 }
 
-func (p *Pinger) log(ctx context.Context, clusterConf Cluster) {
-	for _, shard := range clusterConf {
+func (p *Pinger) log(ctx context.Context, clusterConf *Cluster) {
+	for i := 0; i < clusterConf.Len(); i++ {
+		shard := clusterConf.Shard(i)
 		for _, shardInstance := range append(shard.Masters, shard.Replicas...) {
 			if !shardInstance.Offline {
 				continue

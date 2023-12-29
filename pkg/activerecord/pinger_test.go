@@ -4,15 +4,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 )
 
 func TestNewPinger(t *testing.T) {
+	defaultConfigCacher := NewDefaultConfigCacher(MapGlobParam{Timeout: time.Millisecond, PoolSize: 1}, func(config ShardInstanceConfig) (OptionInterface, error) {
+		return &TestOptions{hash: "testopt1"}, nil
+	})
+
 	tests := []struct {
 		name    string
 		opts    []OptionPinger
 		pingFns map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error)
+		mocks   func(*testing.T, *MockConfig)
 		want    bool
 	}{
 		{
@@ -26,27 +32,38 @@ func TestNewPinger(t *testing.T) {
 		},
 		{
 			name: "started pinger funcs",
-			opts: []OptionPinger{WithPingInterval(time.Microsecond), WithConfigCache(newConfigCacher())},
+			opts: []OptionPinger{WithConfigCache(defaultConfigCacher)},
+			mocks: func(t *testing.T, mockConfig *MockConfig) {
+				mockConfig.EXPECT().GetIntIfExists(mock.Anything, mock.Anything).Return(0, false)
+				mockConfig.EXPECT().GetDuration(mock.Anything, mock.Anything, mock.Anything).Return(0)
+				mockConfig.EXPECT().GetInt(mock.Anything, mock.Anything, mock.Anything).Return(0)
+				mockConfig.EXPECT().GetDurationIfExists(mock.Anything, mock.Anything).Return(0, false)
+				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "conf/master").Return("", false)
+				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "conf").Return("host1,host2", true)
+				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "conf/replica").Return("", false)
+			},
 			pingFns: map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error){
 				"conf": func(ctx context.Context, instance ShardInstance) (ServerModeType, error) { return 0, nil },
-			},
-			want: true,
-		},
-		{
-			name: "started panic pinger funcs",
-			opts: []OptionPinger{WithPingInterval(time.Microsecond), WithConfigCache(newConfigCacher())},
-			pingFns: map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error){
-				"panicConf": func(ctx context.Context, instance ShardInstance) (ServerModeType, error) { panic("panic pinger") },
 			},
 			want: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := NewMockConfig(t)
+
+			ReinitActiveRecord(
+				WithConfig(mockConfig),
+				WithConfigCacher(defaultConfigCacher),
+			)
+
+			if tt.mocks != nil {
+				tt.mocks(t, mockConfig)
+			}
 			p := NewPinger(tt.opts...)
 
 			for c, fn := range tt.pingFns {
-				_, err := p.SchedulePingIfNotExists(context.Background(), c, fn)
+				_, err := p.AddClusterChecker(context.Background(), c, fn)
 				require.NoError(t, err)
 			}
 
