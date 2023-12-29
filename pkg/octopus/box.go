@@ -10,58 +10,64 @@ import (
 	"github.com/mailru/activerecord/pkg/iproto/iproto"
 )
 
+var DefaultOptionCreator = func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
+	return NewOptions(
+		sic.Addr,
+		ServerModeType(sic.Mode),
+		WithTimeout(sic.Timeout, sic.Timeout),
+		WithPoolSize(sic.PoolSize),
+		WithPoolLogger(activerecord.IprotoLogger{}),
+	)
+}
+
+var DefaultConnectionParams = activerecord.MapGlobParam{
+	Timeout:  DefaultConnectionTimeout,
+	PoolSize: DefaultPoolSize,
+}
+
+var ClusterConfigParams = activerecord.NewClusterConfigParameters(DefaultConnectionParams, DefaultOptionCreator, CheckShardInstance)
+
 // Box - возвращает коннектор для БД
 // TODO
 // - сделать статистику по используемым инстансам
 // - прикрутить локальный пингер и исключать недоступные инстансы
 func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType, configPath string, optionCreator func(activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error)) (*Connection, error) {
 	if optionCreator == nil {
-		optionCreator = func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
-			return NewOptions(
-				sic.Addr,
-				ServerModeType(sic.Mode),
-				WithTimeout(sic.Timeout, sic.Timeout),
-				WithPoolSize(sic.PoolSize),
-				WithPoolLogger(activerecord.IprotoLogger{}),
-			)
-		}
+		optionCreator = DefaultOptionCreator
 	}
 
 	clusterInfo, err := activerecord.ConfigCacher().Get(
 		ctx,
 		configPath,
-		activerecord.MapGlobParam{
-			Timeout:  DefaultConnectionTimeout,
-			PoolSize: DefaultPoolSize,
-		},
+		DefaultConnectionParams,
 		optionCreator,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("can't get cluster %s info: %w", configPath, err)
 	}
 
-	if len(clusterInfo) < shard {
-		return nil, fmt.Errorf("invalid shard num %d, max = %d", shard, len(clusterInfo))
+	if clusterInfo.Len() < shard {
+		return nil, fmt.Errorf("invalid shard num %d, max = %d", shard, clusterInfo.Len())
 	}
 
 	var configBox activerecord.ShardInstance
 
 	switch instType {
 	case activerecord.ReplicaInstanceType:
-		if len(clusterInfo[shard].Replicas) == 0 {
+		if len(clusterInfo.OnlineReplicas(shard)) == 0 {
 			return nil, fmt.Errorf("replicas not set")
 		}
 
-		configBox = clusterInfo[shard].NextReplica()
+		configBox = clusterInfo.NextReplica(shard)
 	case activerecord.ReplicaOrMasterInstanceType:
-		if len(clusterInfo[shard].Replicas) != 0 {
-			configBox = clusterInfo[shard].NextReplica()
+		if len(clusterInfo.OnlineReplicas(shard)) != 0 {
+			configBox = clusterInfo.NextReplica(shard)
 			break
 		}
 
 		fallthrough
 	case activerecord.MasterInstanceType:
-		configBox = clusterInfo[shard].NextMaster()
+		configBox = clusterInfo.NextMaster(shard)
 	}
 
 	conn, err := activerecord.ConnectionCacher().GetOrAdd(configBox, func(options interface{}) (activerecord.ConnectionInterface, error) {
@@ -82,6 +88,50 @@ func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType
 	}
 
 	return box, nil
+}
+
+func CheckShardInstance(ctx context.Context, instance activerecord.ShardInstance) (activerecord.OptionInterface, error) {
+	octopusOpt, ok := instance.Options.(*ConnectionOptions)
+	if !ok {
+		return nil, fmt.Errorf("invalit type of options %T, want Options", instance.Options)
+	}
+
+	var err error
+	c := activerecord.ConnectionCacher().Get(instance)
+	if c == nil {
+		c, err = GetConnection(ctx, octopusOpt)
+		if err != nil {
+			return nil, fmt.Errorf("error from connectionCacher: %w", err)
+		}
+	}
+
+	conn, ok := c.(*Connection)
+	if !ok {
+		return nil, fmt.Errorf("invalid connection type %T, want *octopus.Connection", conn)
+	}
+
+	if len(conn.pool.Online()) == 0 {
+		return nil, fmt.Errorf("no online channels")
+	}
+
+	td, err := CallLua(ctx, conn, "box.dostring", "return box.info.status")
+	if err != nil {
+		return nil, fmt.Errorf("can't get status: %w", err)
+	}
+
+	if len(td) == 1 {
+		ret := td[0]
+		switch string(ret.Data[0]) {
+		case "primary":
+			octopusOpt.Mode = ModeMaster
+		default:
+			octopusOpt.Mode = ModeReplica
+		}
+
+		return octopusOpt, nil
+	}
+
+	return nil, fmt.Errorf("can't parse status: %w", err)
 }
 
 func ProcessResp(respBytes []byte, cntFlag CountFlags) ([]TupleData, error) {

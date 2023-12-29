@@ -92,12 +92,12 @@ type ConnectionCacherInterface interface {
 }
 
 type PingerInterface interface {
-	SchedulePingIfNotExists(ctx context.Context, path string, instanceChecker func(ctx context.Context, instance ShardInstance) (ServerModeType, error)) (Cluster, error)
+	AddClusterChecker(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error)
 }
 
 type ConfigCacherInterface interface {
-	Get(ctx context.Context, path string, glob MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (Cluster, error)
-	Actualize(ctx context.Context, path string, instanceChecker func(ctx context.Context, instance ShardInstance) (ServerModeType, error)) (Cluster, error)
+	Get(ctx context.Context, path string, glob MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (*Cluster, error)
+	Actualize(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error)
 }
 
 type SerializerInterface interface {
@@ -200,10 +200,10 @@ func ConfigCacher() ConfigCacherInterface {
 	return GetInstance().configCacher
 }
 
-func Ping(ctx context.Context, path string, ping func(ctx context.Context, instance ShardInstance) (ServerModeType, error)) (Cluster, error) {
-	if instance == nil || instance.pinger == nil {
+func AddClusterChecker(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error) {
+	if instance == nil || instance.pinger == nil || !params.Validate() {
 		return nil, nil
 	}
 
-	return instance.pinger.SchedulePingIfNotExists(ctx, path, ping)
+	return instance.pinger.AddClusterChecker(ctx, path, params)
 }

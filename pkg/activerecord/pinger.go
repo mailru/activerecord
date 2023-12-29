@@ -39,29 +39,31 @@ func WithConfigCache(configCache ConfigCacherInterface) OptionPinger {
 }
 
 type Pinger struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	mu          sync.Mutex
-	pingers     map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error)
-	eg          *errgroup.Group
-	started     bool
-	interval    time.Duration
-	ticker      *time.Ticker
-	logger      LoggerInterface
-	configCache ConfigCacherInterface
+	ctx           context.Context
+	cancel        context.CancelFunc
+	m             sync.RWMutex
+	clusterParams map[string]ClusterConfigParameters
+	instances     map[string][]ShardInstance
+	eg            *errgroup.Group
+	started       bool
+	interval      time.Duration
+	ticker        *time.Ticker
+	logger        LoggerInterface
+	configCache   ConfigCacherInterface
 }
 
 func NewPinger(opts ...OptionPinger) *Pinger {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Pinger{
-		ctx:      ctx,
-		cancel:   cancel,
-		mu:       sync.Mutex{},
-		pingers:  map[string]func(ctx context.Context, instance ShardInstance) (ServerModeType, error){},
-		eg:       &errgroup.Group{},
-		interval: time.Second,
-		logger:   NewLogger(),
+		ctx:           ctx,
+		m:             sync.RWMutex{},
+		cancel:        cancel,
+		clusterParams: map[string]ClusterConfigParameters{},
+		instances:     make(map[string][]ShardInstance, 1),
+		eg:            &errgroup.Group{},
+		interval:      time.Second,
+		logger:        NewLogger(),
 	}
 
 	for _, opt := range opts {
@@ -98,22 +100,24 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 				err = ctx.Err()
 				continue
 			case <-t.C:
-				p.mu.Lock()
-				for cfgPath, ping := range p.pingers {
-					clusterConf, warn := p.clusterConfig().Actualize(ctx, cfgPath, ping)
+				start := time.Now().UnixMilli()
+				p.logger.Warn(ctx, "starting ping")
+
+				for cfgPath, params := range p.clusterParams {
+					clusterConf, warn := p.clusterConfig().Actualize(ctx, cfgPath, params)
 					if warn != nil {
 						p.logger.Warn(p.ctx, warn)
 					}
 
-					p.log(ctx, clusterConf)
+					p.collectInfo(ctx, cfgPath, clusterConf)
 				}
-				p.mu.Unlock()
+				p.logger.Info(ctx, "ping finished after ", time.Now().UnixMilli()-start, " ms")
 			}
 		}
 
 		return err
 	})
-
+	p.logger.Info(ctx, "start instance watcher")
 	p.ticker = t
 	p.started = true
 }
@@ -125,6 +129,7 @@ func (p *Pinger) StopWatch() error {
 
 	defer func() {
 		p.started = false
+		p.logger.Info(p.ctx, "pinger stopped")
 	}()
 
 	p.cancel()
@@ -138,23 +143,21 @@ func (p *Pinger) StopWatch() error {
 	return err
 }
 
-// SchedulePingIfNotExists добавляет кластер в локальный пингер, для нового кластера предварительно актуализируя типы и доступность узлов
-func (p *Pinger) SchedulePingIfNotExists(ctx context.Context, path string, ping func(ctx context.Context, instance ShardInstance) (ServerModeType, error)) (Cluster, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+// AddClusterChecker добавляет в локальный пингер конфигурации кластера, актуализируя типы и доступность узлов
+func (p *Pinger) AddClusterChecker(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error) {
+	_, ok := p.clusterParams[path]
 
-	_, ok := p.pingers[path]
 	if !ok {
-		p.pingers[path] = ping
+		p.clusterParams[path] = params
 
 		// если пингер для конфигурации кластер не зарегистрировался ранее (конфигурация загружена впервые)
 		// актуализируем конфигурацию кластера
-		clusterConf, err := p.clusterConfig().Actualize(ctx, path, ping)
+		clusterConf, err := p.clusterConfig().Actualize(ctx, path, params)
 		if err != nil {
 			return nil, err
 		}
 
-		p.log(ctx, clusterConf)
+		p.collectInfo(ctx, path, clusterConf)
 
 		p.StartWatch(p.ctx)
 
@@ -172,20 +175,37 @@ func (p *Pinger) clusterConfig() ConfigCacherInterface {
 	return ConfigCacher()
 }
 
-func (p *Pinger) log(ctx context.Context, clusterConf Cluster) {
-	for _, shard := range clusterConf {
-		for _, shardInstance := range append(shard.Masters, shard.Replicas...) {
-			if !shardInstance.Offline {
+func (p *Pinger) collectInfo(ctx context.Context, path string, clusterConf *Cluster) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	shardInstances := make([]ShardInstance, 0, len(p.instances[path]))
+
+	for i := 0; i < clusterConf.Len(); i++ {
+		shard := clusterConf.Shard(i)
+		instances := append(shard.Masters, shard.Replicas...)
+		for _, instance := range instances {
+			if !instance.Offline {
 				continue
 			}
 
-			switch shardInstance.Config.Mode {
+			switch instance.Config.Mode {
 			case ModeMaster:
-				p.logger.Warn(ctx, "master:", shardInstance.Config.Addr, "is unavailable")
+				p.logger.Warn(ctx, "master:", instance.Config.Addr, "is unavailable")
 			case ModeReplica:
-				p.logger.Warn(ctx, "replica:", shardInstance.Config.Addr, "is unavailable")
+				p.logger.Warn(ctx, "replica:", instance.Config.Addr, "is unavailable")
 			}
-
 		}
+
+		shardInstances = append(shardInstances, instances...)
 	}
+
+	p.instances[path] = shardInstances
+}
+
+func (p *Pinger) ObservedInstances(path string) []ShardInstance {
+	p.m.RLock()
+	defer p.m.RUnlock()
+
+	return p.instances[path]
 }

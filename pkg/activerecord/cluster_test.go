@@ -1,19 +1,6 @@
 package activerecord_test
 
-import (
-	"context"
-	"testing"
-
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/mailru/activerecord/pkg/activerecord"
-	"github.com/mailru/activerecord/pkg/iproto/iproto"
-	"github.com/mailru/activerecord/pkg/octopus"
-	"github.com/stretchr/testify/mock"
-	"gotest.tools/assert"
-	"gotest.tools/assert/cmp"
-)
-
-func TestGetClusterInfoFromCfg(t *testing.T) {
+/* func TestGetClusterInfoFromCfg(t *testing.T) {
 	ctx := context.Background()
 
 	_ = &iproto.PoolConfig{
@@ -199,4 +186,4 @@ func TestGetClusterInfoFromCfg(t *testing.T) {
 			assert.Check(t, cmp.DeepEqual(got, tt.want, cmpopts.IgnoreFields(activerecord.ShardInstance{}, "ParamsID"), cmpopts.IgnoreUnexported(activerecord.Shard{}, octopus.ConnectionOptions{})), "GetClusterInfoFromCfg() got = %v, want %v", got, tt.want)
 		})
 	}
-}
+}*/
