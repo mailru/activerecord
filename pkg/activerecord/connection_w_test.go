@@ -8,10 +8,11 @@ import (
 
 type TestOptions struct {
 	hash string
+	mode ServerModeType
 }
 
 func (to *TestOptions) InstanceMode() ServerModeType {
-	return ModeMaster
+	return to.mode
 }
 
 func (to *TestOptions) GetConnectionID() string {

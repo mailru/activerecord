@@ -62,6 +62,6 @@ func WithShard(masters []OptionInterface, replicas []OptionInterface) clusterOpt
 			})
 		}
 
-		c.append(newShard)
+		c.Append(newShard)
 	})
 }

@@ -107,8 +107,8 @@ func (c *Shard) Instances() []ShardInstance {
 	return instances
 }
 
-// append добавляет инстанс в шарду
-func (c *Shard) append(instance ShardInstance) {
+// Append добавляет инстанс в шарду
+func (c *Shard) Append(instance ShardInstance) {
 	if instance.Offline {
 		c.Offlines = append(c.Offlines, instance)
 		return
@@ -213,8 +213,8 @@ func (c *Cluster) HasReplicas(shard int) bool {
 	return len(c.shards[shard].Replicas) > 0
 }
 
-// append добавляет новый шард в кластер
-func (c *Cluster) append(shard Shard) {
+// Append добавляет новый шард в кластер
+func (c *Cluster) Append(shard Shard) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -320,7 +320,7 @@ func GetClusterInfoFromCfg(ctx context.Context, path string, globs MapGlobParam,
 				return nil, fmt.Errorf("can't get shard %d info: %w", f, err)
 			}
 
-			cluster.append(shard)
+			cluster.Append(shard)
 		}
 	} else {
 		// Когда только один шард
@@ -329,7 +329,7 @@ func GetClusterInfoFromCfg(ctx context.Context, path string, globs MapGlobParam,
 			return nil, fmt.Errorf("can't get shard info: %w", err)
 		}
 
-		cluster.append(shard)
+		cluster.Append(shard)
 	}
 
 	return cluster, nil
@@ -433,7 +433,7 @@ type DefaultConfigCacher struct {
 }
 
 // Конструктор для создания нового кешера конфигов
-func newConfigCacher() *DefaultConfigCacher {
+func NewConfigCacher() *DefaultConfigCacher {
 	return &DefaultConfigCacher{
 		lock:       sync.RWMutex{},
 		container:  make(map[string]*Cluster),
@@ -519,7 +519,7 @@ func (cc *DefaultConfigCacher) Actualize(ctx context.Context, path string, param
 
 		egAcc.Go(func() error {
 			for instance := range instancesCh {
-				actualShard.append(instance)
+				actualShard.Append(instance)
 			}
 
 			return nil

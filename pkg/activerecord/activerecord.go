@@ -164,7 +164,7 @@ func InitActiveRecord(opts ...Option) {
 		config:           NewDefaultConfig(),
 		metric:           NewDefaultNoopMetric(),
 		connectionCacher: newConnectionPool(),
-		configCacher:     newConfigCacher(),
+		configCacher:     NewConfigCacher(),
 	}
 
 	for _, opt := range opts {
