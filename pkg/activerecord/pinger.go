@@ -54,12 +54,8 @@ type Pinger struct {
 }
 
 func NewPinger(opts ...OptionPinger) *Pinger {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	p := &Pinger{
-		ctx:           ctx,
 		m:             sync.RWMutex{},
-		cancel:        cancel,
 		clusterParams: map[string]ClusterConfigParameters{},
 		instances:     make(map[string][]ShardInstance, 1),
 		eg:            &errgroup.Group{},
@@ -83,6 +79,8 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 		return
 	}
 
+	p.ctx, p.cancel = context.WithCancel(ctx)
+
 	t := time.NewTicker(p.interval)
 
 	p.eg.Go(func() error {
@@ -97,28 +95,28 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 
 		for err == nil {
 			select {
-			case <-ctx.Done():
-				err = ctx.Err()
+			case <-p.ctx.Done():
+				err = p.ctx.Err()
 				continue
 			case <-t.C:
 				start := time.Now().UnixMilli()
-				p.logger.Info(ctx, "starting ping")
+				p.logger.Info(p.ctx, "starting ping")
 
 				for cfgPath, params := range p.clusterParams {
-					clusterConf, e := p.clusterConfig().Actualize(ctx, cfgPath, params)
+					clusterConf, e := p.clusterConfig().Actualize(p.ctx, cfgPath, params)
 					if e != nil {
 						p.logger.Error(p.ctx, fmt.Errorf("can't actualize '%s' configuration: %w", cfgPath, e))
 					}
 
-					p.collectInfo(ctx, cfgPath, clusterConf)
+					p.collectInfo(p.ctx, cfgPath, clusterConf)
 				}
-				p.logger.Info(ctx, "ping finished after ", time.Now().UnixMilli()-start, " ms")
+				p.logger.Info(p.ctx, "ping finished after ", time.Now().UnixMilli()-start, " ms")
 			}
 		}
 
 		return err
 	})
-	p.logger.Warn(ctx, "start clusters watcher")
+	p.logger.Warn(p.ctx, "start clusters watcher")
 	p.ticker = t
 	p.started = true
 }
@@ -164,7 +162,7 @@ func (p *Pinger) AddClusterChecker(ctx context.Context, path string, params Clus
 
 		p.collectInfo(ctx, path, clusterConf)
 
-		p.StartWatch(p.ctx)
+		p.StartWatch(ctx)
 
 		return clusterConf, nil
 	}
