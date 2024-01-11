@@ -105,9 +105,9 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 				p.logger.Info(ctx, "starting ping")
 
 				for cfgPath, params := range p.clusterParams {
-					clusterConf, err := p.clusterConfig().Actualize(ctx, cfgPath, params)
-					if err != nil {
-						p.logger.Error(p.ctx, fmt.Errorf("can't actualize '%s' configuration: %w", cfgPath, err))
+					clusterConf, e := p.clusterConfig().Actualize(ctx, cfgPath, params)
+					if e != nil {
+						p.logger.Error(p.ctx, fmt.Errorf("can't actualize '%s' configuration: %w", cfgPath, e))
 					}
 
 					p.collectInfo(ctx, cfgPath, clusterConf)
@@ -186,9 +186,8 @@ func (p *Pinger) collectInfo(ctx context.Context, path string, clusterConf *Clus
 
 	shardInstances := make([]ShardInstance, 0, len(p.instances[path]))
 
-	for i := 0; i < clusterConf.Len(); i++ {
-		shard := clusterConf.Shard(i)
-		instances := append(shard.Masters, shard.Replicas...)
+	for i := 0; i < clusterConf.Shards(); i++ {
+		instances := clusterConf.ShardInstances(i)
 		for _, instance := range instances {
 			if !instance.Offline {
 				continue

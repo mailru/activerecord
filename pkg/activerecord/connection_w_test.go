@@ -61,7 +61,7 @@ func Test_connectionPool_Add(t *testing.T) {
 		{
 			name: "first connection",
 			args: args{
-				shard:     clusterInfo.Shard(0).NextMaster(),
+				shard:     clusterInfo.NextMaster(0),
 				connector: connectorFunc,
 			},
 			wantErr: false,
@@ -71,7 +71,7 @@ func Test_connectionPool_Add(t *testing.T) {
 		{
 			name: "again first connection",
 			args: args{
-				shard:     clusterInfo.Shard(0).NextMaster(),
+				shard:     clusterInfo.NextMaster(0),
 				connector: connectorFunc,
 			},
 			wantErr: true,

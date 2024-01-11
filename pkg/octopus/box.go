@@ -46,21 +46,21 @@ func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType
 		return nil, fmt.Errorf("can't get cluster %s info: %w", configPath, err)
 	}
 
-	if clusterInfo.Len() < shard {
-		return nil, fmt.Errorf("invalid shard num %d, max = %d", shard, clusterInfo.Len())
+	if clusterInfo.Shards() < shard {
+		return nil, fmt.Errorf("invalid shard num %d, max = %d", shard, clusterInfo.Shards())
 	}
 
 	var configBox activerecord.ShardInstance
 
 	switch instType {
 	case activerecord.ReplicaInstanceType:
-		if len(clusterInfo.OnlineReplicas(shard)) == 0 {
+		if !clusterInfo.HasReplicas(shard) {
 			return nil, fmt.Errorf("replicas not set")
 		}
 
 		configBox = clusterInfo.NextReplica(shard)
 	case activerecord.ReplicaOrMasterInstanceType:
-		if len(clusterInfo.OnlineReplicas(shard)) != 0 {
+		if clusterInfo.HasReplicas(shard) {
 			configBox = clusterInfo.NextReplica(shard)
 			break
 		}
