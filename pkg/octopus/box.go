@@ -123,12 +123,10 @@ func CheckShardInstance(ctx context.Context, instance activerecord.ShardInstance
 		ret := td[0]
 		switch string(ret.Data[0]) {
 		case "primary":
-			octopusOpt.Mode = ModeMaster
+			return NewOptions(octopusOpt.server, ModeMaster)
 		default:
-			octopusOpt.Mode = ModeReplica
+			return NewOptions(octopusOpt.server, ModeReplica)
 		}
-
-		return octopusOpt, nil
 	}
 
 	return nil, fmt.Errorf("can't parse status: %w", err)

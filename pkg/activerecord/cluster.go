@@ -97,6 +97,63 @@ func (s *Shard) NextReplica() ShardInstance {
 	return s.Replicas[newValMod]
 }
 
+// Instances копия всех инстансов шарды
+func (c *Shard) Instances() []ShardInstance {
+	instances := make([]ShardInstance, 0, len(c.Offlines)+len(c.Masters)+len(c.Replicas))
+	instances = append(instances, c.Offlines...)
+	instances = append(instances, c.Masters...)
+	instances = append(instances, c.Replicas...)
+
+	return instances
+}
+
+// append добавляет инстанс в шарду
+func (c *Shard) append(instance ShardInstance) {
+	if instance.Offline {
+		c.Offlines = append(c.Offlines, instance)
+		return
+	}
+
+	switch instance.Config.Mode {
+	case ModeMaster:
+		c.Masters = append(c.Masters, instance)
+	case ModeReplica:
+		c.Replicas = append(c.Replicas, instance)
+	}
+}
+
+// Equal проверяет что инстансы в instances эквивалентны инстансам в шарде
+func (c *Shard) Equal(instances []ShardInstance) bool {
+	if len(c.Masters)+len(c.Replicas)+len(c.Offlines) != len(instances) {
+		return false
+	}
+
+	m := make(map[string]ShardInstance, len(instances))
+	for _, instance := range instances {
+		m[instance.ParamsID] = instance
+	}
+
+	for _, online := range append(c.Masters, c.Replicas...) {
+		instance, ok := m[online.ParamsID]
+		if !ok || instance.Offline {
+			return false
+		}
+
+		if instance.Config.Mode != online.Config.Mode {
+			return false
+		}
+	}
+
+	for _, replica := range c.Offlines {
+		instance, ok := m[replica.ParamsID]
+		if !ok || !instance.Offline {
+			return false
+		}
+	}
+
+	return true
+}
+
 type ClusterConfigParameters struct {
 	globs         MapGlobParam
 	optionCreator func(ShardInstanceConfig) (OptionInterface, error)
@@ -164,18 +221,12 @@ func (c *Cluster) append(shard Shard) {
 	c.shards = append(c.shards, shard)
 }
 
-// ShardInstances копия всех инстансов в шарде shardNum
+// ShardInstances копия всех инстансов из шарды shardNum
 func (c *Cluster) ShardInstances(shardNum int) []ShardInstance {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	shard := c.shards[shardNum]
-	instances := make([]ShardInstance, 0, len(shard.Offlines)+len(shard.Masters)+len(shard.Replicas))
-	instances = append(instances, shard.Offlines...)
-	instances = append(instances, shard.Masters...)
-	instances = append(instances, shard.Replicas...)
-
-	return instances
+	return c.shards[shardNum].Instances()
 }
 
 // Shards кол-во доступных шард кластера
@@ -436,13 +487,15 @@ func (cc *DefaultConfigCacher) Actualize(ctx context.Context, path string, param
 	}
 
 	for i := 0; i < clusterConfig.Shards(); i++ {
-		var instances []ShardInstance
+		var actualShard Shard
 
 		eg := &errgroup.Group{}
 
 		instancesCh := make(chan ShardInstance)
 
-		for _, si := range clusterConfig.ShardInstances(i) {
+		curInstances := clusterConfig.ShardInstances(i)
+
+		for _, si := range curInstances {
 			si := si
 			eg.Go(func() error {
 				opts, connErr := params.optionChecker(ctx, si)
@@ -466,7 +519,7 @@ func (cc *DefaultConfigCacher) Actualize(ctx context.Context, path string, param
 
 		egAcc.Go(func() error {
 			for instance := range instancesCh {
-				instances = append(instances, instance)
+				actualShard.append(instance)
 			}
 
 			return nil
@@ -476,7 +529,9 @@ func (cc *DefaultConfigCacher) Actualize(ctx context.Context, path string, param
 		close(instancesCh)
 		_ = egAcc.Wait()
 
-		clusterConfig.setShardInstances(i, instances)
+		if !actualShard.Equal(curInstances) {
+			clusterConfig.setShardInstances(i, actualShard.Instances())
+		}
 	}
 
 	cc.lock.Lock()
