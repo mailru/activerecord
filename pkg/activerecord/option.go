@@ -34,7 +34,7 @@ func WithMetrics(metric MetricInterface) Option {
 	})
 }
 
-func WithConnectionPinger(pc PingerInterface) Option {
+func WithConnectionPinger(pc ClusterCheckerInterface) Option {
 	return optionFunc(func(a *ActiveRecord) {
 		a.pinger = pc
 	})

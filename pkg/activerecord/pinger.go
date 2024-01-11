@@ -3,6 +3,7 @@ package activerecord
 import (
 	"context"
 	"errors"
+	"fmt"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -101,12 +102,12 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 				continue
 			case <-t.C:
 				start := time.Now().UnixMilli()
-				p.logger.Warn(ctx, "starting ping")
+				p.logger.Info(ctx, "starting ping")
 
 				for cfgPath, params := range p.clusterParams {
-					clusterConf, warn := p.clusterConfig().Actualize(ctx, cfgPath, params)
-					if warn != nil {
-						p.logger.Warn(p.ctx, warn)
+					clusterConf, err := p.clusterConfig().Actualize(ctx, cfgPath, params)
+					if err != nil {
+						p.logger.Error(p.ctx, fmt.Errorf("can't actualize '%s' configuration: %w", cfgPath, err))
 					}
 
 					p.collectInfo(ctx, cfgPath, clusterConf)
@@ -117,7 +118,7 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 
 		return err
 	})
-	p.logger.Info(ctx, "start instance watcher")
+	p.logger.Warn(ctx, "start clusters watcher")
 	p.ticker = t
 	p.started = true
 }
@@ -129,7 +130,7 @@ func (p *Pinger) StopWatch() error {
 
 	defer func() {
 		p.started = false
-		p.logger.Info(p.ctx, "pinger stopped")
+		p.logger.Warn(p.ctx, "clusters watcher stopped")
 	}()
 
 	p.cancel()
@@ -145,6 +146,10 @@ func (p *Pinger) StopWatch() error {
 
 // AddClusterChecker добавляет в локальный пингер конфигурации кластера, актуализируя типы и доступность узлов
 func (p *Pinger) AddClusterChecker(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error) {
+	if !params.Validate() {
+		return nil, fmt.Errorf("invalid cluster configuration parameters %v", params)
+	}
+
 	_, ok := p.clusterParams[path]
 
 	if !ok {

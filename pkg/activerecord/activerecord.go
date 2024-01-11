@@ -91,7 +91,7 @@ type ConnectionCacherInterface interface {
 	CloseConnection(context.Context)
 }
 
-type PingerInterface interface {
+type ClusterCheckerInterface interface {
 	AddClusterChecker(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error)
 }
 
@@ -131,7 +131,7 @@ type ActiveRecord struct {
 	metric           MetricInterface
 	connectionCacher ConnectionCacherInterface
 	configCacher     ConfigCacherInterface
-	pinger           PingerInterface
+	pinger           ClusterCheckerInterface
 }
 
 var instance *ActiveRecord
@@ -200,10 +200,11 @@ func ConfigCacher() ConfigCacherInterface {
 	return GetInstance().configCacher
 }
 
-func AddClusterChecker(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error) {
-	if instance == nil || instance.pinger == nil || !params.Validate() {
-		return nil, nil
+// AddClusterChecker регистрирует конфигурацию кластера в локальном пингере
+func AddClusterChecker(ctx context.Context, configPath string, params ClusterConfigParameters) (*Cluster, error) {
+	if GetInstance().pinger == nil {
+		return nil, fmt.Errorf("connection pinger is not configured. Configure it with function InitActiveRecord and WithConnectionPinger option ")
 	}
 
-	return instance.pinger.AddClusterChecker(ctx, path, params)
+	return GetInstance().pinger.AddClusterChecker(ctx, configPath, params)
 }

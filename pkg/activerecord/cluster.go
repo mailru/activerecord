@@ -116,8 +116,6 @@ func (s *Shard) NextReplica() ShardInstance {
 }
 
 // Тип описывающий кластер. Сейчас кластер - это набор шардов.
-//type Cluster []Shard
-
 type Cluster struct {
 	m      sync.RWMutex
 	shards []Shard
@@ -259,8 +257,6 @@ func GetClusterInfoFromCfg(ctx context.Context, path string, globs MapGlobParam,
 	}
 
 	globs.PoolSize = globalPoolSize
-
-	//var err error
 
 	if exMaxShardOK {
 		// Если используется много шардов
@@ -431,10 +427,6 @@ func (cc *DefaultConfigCacher) loadClusterInfo(ctx context.Context, path string,
 // Актуализирует конфигурацию кластера path, синхронизируя состояние конфигурации узлов кластера с серверной стороной (тип узла и его доступность)
 // Проверка типа и доступности узлов выполняется с помощью функции instanceChecker
 func (cc *DefaultConfigCacher) Actualize(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error) {
-	if !params.Validate() {
-		return nil, nil
-	}
-
 	clusterConfig, err := cc.Get(ctx, path, params.globs, params.optionCreator)
 	if err != nil {
 		return nil, fmt.Errorf("can't load cluster info: %w", err)
