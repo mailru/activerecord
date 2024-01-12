@@ -27,9 +27,9 @@ func WithPingInterval(interval time.Duration) OptionPinger {
 	})
 }
 
-func WithStart() OptionPinger {
+func WithStart(ctx context.Context) OptionPinger {
 	return OptionPingerFunc(func(p *Pinger) {
-		p.StartWatch(p.ctx)
+		p.StartWatch(ctx)
 	})
 }
 
@@ -103,7 +103,7 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 				p.logger.Info(p.ctx, "starting ping")
 
 				for cfgPath, params := range p.clusterParams {
-					clusterConf, e := p.clusterConfig().Actualize(p.ctx, cfgPath, params)
+					clusterConf, e := p.actualize(p.ctx, cfgPath, params)
 					if e != nil {
 						p.logger.Error(p.ctx, fmt.Errorf("can't actualize '%s' configuration: %w", cfgPath, e))
 					}
@@ -119,6 +119,69 @@ func (p *Pinger) StartWatch(ctx context.Context) {
 	p.logger.Warn(p.ctx, "start clusters watcher")
 	p.ticker = t
 	p.started = true
+}
+
+// Актуализирует конфигурацию кластера path, синхронизируя состояние конфигурации узлов кластера с серверной стороной (тип узла и его доступность)
+// Проверка типа и доступности узлов выполняется с помощью функции instanceChecker
+func (p *Pinger) actualize(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error) {
+	clusterConfig, err := p.clusterConfig().Get(ctx, path, params.globs, params.optionCreator)
+	if err != nil {
+		return nil, fmt.Errorf("can't load cluster info: %w", err)
+	}
+
+	for i := 0; i < clusterConfig.Shards(); i++ {
+		var actualShard Shard
+
+		eg := &errgroup.Group{}
+
+		instancesCh := make(chan ShardInstance)
+
+		curInstances := clusterConfig.ShardInstances(i)
+
+		for _, si := range curInstances {
+			si := si
+			eg.Go(func() error {
+				opts, connErr := params.optionChecker(ctx, si)
+
+				if opts != nil {
+					si.Config.Mode = opts.InstanceMode()
+				}
+
+				instancesCh <- ShardInstance{
+					ParamsID: si.ParamsID,
+					Config:   si.Config,
+					Options:  si.Options,
+					Offline:  connErr != nil,
+				}
+
+				return nil
+			})
+		}
+
+		egAcc := &errgroup.Group{}
+
+		egAcc.Go(func() error {
+			for instance := range instancesCh {
+				actualShard.Append(instance)
+			}
+
+			return nil
+		})
+
+		_ = eg.Wait()
+		close(instancesCh)
+		_ = egAcc.Wait()
+
+		if !actualShard.Equal(curInstances) {
+			clusterConfig.setShardInstances(i, actualShard.Instances())
+		}
+	}
+
+	if err := p.clusterConfig().UpdateConfig(ctx, path, clusterConfig); err != nil {
+		return nil, err
+	}
+
+	return clusterConfig, nil
 }
 
 func (p *Pinger) StopWatch() error {
@@ -155,8 +218,12 @@ func (p *Pinger) AddClusterChecker(ctx context.Context, path string, params Clus
 
 		// если пингер для конфигурации кластер не зарегистрировался ранее (конфигурация загружена впервые)
 		// актуализируем конфигурацию кластера
-		clusterConf, err := p.clusterConfig().Actualize(ctx, path, params)
+		clusterConf, err := p.actualize(ctx, path, params)
 		if err != nil {
+			return nil, err
+		}
+
+		if err := p.clusterConfig().UpdateConfig(ctx, path, clusterConf); err != nil {
 			return nil, err
 		}
 

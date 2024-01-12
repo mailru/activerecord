@@ -23,7 +23,7 @@ func TestNewPinger(t *testing.T) {
 		},
 		{
 			name: "started without pinger funcs",
-			opts: []OptionPinger{WithPingInterval(time.Microsecond), WithStart()},
+			opts: []OptionPinger{WithPingInterval(time.Microsecond), WithStart(context.Background())},
 			want: true,
 		},
 		{
