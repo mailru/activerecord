@@ -25,8 +25,6 @@ var DefaultConnectionParams = activerecord.MapGlobParam{
 	PoolSize: DefaultPoolSize,
 }
 
-var ClusterConfigParams = activerecord.NewClusterConfigParameters(DefaultConnectionParams, DefaultOptionCreator, CheckShardInstance)
-
 // Box - возвращает коннектор для БД
 // TODO
 // - сделать статистику по используемым инстансам
@@ -50,18 +48,20 @@ func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType
 		return nil, fmt.Errorf("invalid shard num %d, max = %d", shard, clusterInfo.Shards())
 	}
 
-	var configBox activerecord.ShardInstance
+	var (
+		configBox activerecord.ShardInstance
+		ok        bool
+	)
 
 	switch instType {
 	case activerecord.ReplicaInstanceType:
-		if !clusterInfo.HasReplicas(shard) {
+		configBox, ok = clusterInfo.NextReplica(shard)
+		if !ok {
 			return nil, fmt.Errorf("replicas not set")
 		}
-
-		configBox = clusterInfo.NextReplica(shard)
 	case activerecord.ReplicaOrMasterInstanceType:
-		if clusterInfo.HasReplicas(shard) {
-			configBox = clusterInfo.NextReplica(shard)
+		configBox, ok = clusterInfo.NextReplica(shard)
+		if ok {
 			break
 		}
 

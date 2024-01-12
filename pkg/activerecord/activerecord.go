@@ -97,7 +97,6 @@ type ClusterCheckerInterface interface {
 
 type ConfigCacherInterface interface {
 	Get(ctx context.Context, path string, glob MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (*Cluster, error)
-	Actualize(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error)
 }
 
 type SerializerInterface interface {
