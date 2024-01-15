@@ -82,8 +82,8 @@ func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType
 		return nil, fmt.Errorf("error from connectionCacher: %w", err)
 	}
 
-	box, ok := conn.(*Connection)
-	if !ok {
+	box, ex := conn.(*Connection)
+	if !ex {
 		return nil, fmt.Errorf("invalid connection type %T, want *octopus.Connection", conn)
 	}
 
