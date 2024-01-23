@@ -824,8 +824,8 @@ func selectBox (ctx context.Context, indexnum uint32, keysPacked [][][]byte, lim
 		logger.Warn(ctx, "Select limit reached. Result may less than db records.")
 	}
 
-	mode, ok := connection.InstanceMode().(octopus.ServerModeType)
-	if !ok || activerecord.ServerModeType(mode) == activerecord.ModeReplica {
+	mode, ok := connection.InstanceMode().(activerecord.ServerModeType)
+	if !ok || mode == activerecord.ModeReplica {
 		if !ok {
 			logger.Error(ctx, "Invalid server mode type: %T", connection.InstanceMode())
 		}

@@ -8,10 +8,11 @@ import (
 
 type TestOptions struct {
 	hash string
+	mode ServerModeType
 }
 
-func (to *TestOptions) InstanceMode() any {
-	return ModeMaster
+func (to *TestOptions) InstanceMode() ServerModeType {
+	return to.mode
 }
 
 func (to *TestOptions) GetConnectionID() string {
@@ -61,7 +62,7 @@ func Test_connectionPool_Add(t *testing.T) {
 		{
 			name: "first connection",
 			args: args{
-				shard:     clusterInfo[0].NextMaster(),
+				shard:     clusterInfo.NextMaster(0),
 				connector: connectorFunc,
 			},
 			wantErr: false,
@@ -71,7 +72,7 @@ func Test_connectionPool_Add(t *testing.T) {
 		{
 			name: "again first connection",
 			args: args{
-				shard:     clusterInfo[0].NextMaster(),
+				shard:     clusterInfo.NextMaster(0),
 				connector: connectorFunc,
 			},
 			wantErr: true,

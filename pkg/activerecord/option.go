@@ -22,9 +22,21 @@ func WithConfig(config ConfigInterface) Option {
 	})
 }
 
+func WithConfigCacher(configCacher ConfigCacherInterface) Option {
+	return optionFunc(func(a *ActiveRecord) {
+		a.configCacher = configCacher
+	})
+}
+
 func WithMetrics(metric MetricInterface) Option {
 	return optionFunc(func(a *ActiveRecord) {
 		a.metric = metric
+	})
+}
+
+func WithConnectionPinger(pc ClusterCheckerInterface) Option {
+	return optionFunc(func(a *ActiveRecord) {
+		a.pinger = pc
 	})
 }
 
@@ -50,6 +62,6 @@ func WithShard(masters []OptionInterface, replicas []OptionInterface) clusterOpt
 			})
 		}
 
-		*c = append(*c, newShard)
+		c.Append(newShard)
 	})
 }

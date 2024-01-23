@@ -8,6 +8,7 @@ import (
 	"hash/crc32"
 	"time"
 
+	"github.com/mailru/activerecord/pkg/activerecord"
 	"github.com/mailru/activerecord/pkg/iproto/iproto"
 )
 
@@ -116,8 +117,8 @@ func (o *ConnectionOptions) GetConnectionID() string {
 }
 
 // InstanceMode - метод для получения режима аботы инстанса RO или RW
-func (o *ConnectionOptions) InstanceMode() any {
-	return o.Mode
+func (o *ConnectionOptions) InstanceMode() activerecord.ServerModeType {
+	return activerecord.ServerModeType(o.Mode)
 }
 
 // ConnectionOption - интерфейс которому должны соответствовать опции передаваемые в конструктор

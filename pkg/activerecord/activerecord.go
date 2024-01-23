@@ -55,6 +55,7 @@ func (l Limiter) String() string {
 	return fmt.Sprintf("Limit: %d, Offset: %d, Is Threshold: %t", l.limit, l.offset, l.fullfillWarn)
 }
 
+//go:generate mockery --name ConfigInterface --filename mock_config.go --structname MockConfig --with-expecter=true  --inpackage
 type ConfigInterface interface {
 	GetBool(ctx context.Context, confPath string, dfl ...bool) bool
 	GetBoolIfExists(ctx context.Context, confPath string) (value bool, ok bool)
@@ -90,8 +91,12 @@ type ConnectionCacherInterface interface {
 	CloseConnection(context.Context)
 }
 
+type ClusterCheckerInterface interface {
+	AddClusterChecker(ctx context.Context, path string, params ClusterConfigParameters) (*Cluster, error)
+}
+
 type ConfigCacherInterface interface {
-	Get(ctx context.Context, path string, glob MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (Cluster, error)
+	Get(ctx context.Context, path string, glob MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (*Cluster, error)
 }
 
 type SerializerInterface interface {
@@ -125,6 +130,7 @@ type ActiveRecord struct {
 	metric           MetricInterface
 	connectionCacher ConnectionCacherInterface
 	configCacher     ConfigCacherInterface
+	pinger           ClusterCheckerInterface
 }
 
 var instance *ActiveRecord
@@ -157,7 +163,7 @@ func InitActiveRecord(opts ...Option) {
 		config:           NewDefaultConfig(),
 		metric:           NewDefaultNoopMetric(),
 		connectionCacher: newConnectionPool(),
-		configCacher:     newConfigCacher(),
+		configCacher:     NewConfigCacher(),
 	}
 
 	for _, opt := range opts {
@@ -191,4 +197,13 @@ func ConnectionCacher() ConnectionCacherInterface {
 
 func ConfigCacher() ConfigCacherInterface {
 	return GetInstance().configCacher
+}
+
+// AddClusterChecker регистрирует конфигурацию кластера в локальном пингере
+func AddClusterChecker(ctx context.Context, configPath string, params ClusterConfigParameters) (*Cluster, error) {
+	if GetInstance().pinger == nil {
+		return nil, fmt.Errorf("connection pinger is not configured. Configure it with function InitActiveRecord and WithConnectionPinger option ")
+	}
+
+	return GetInstance().pinger.AddClusterChecker(ctx, configPath, params)
 }
