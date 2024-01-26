@@ -184,3 +184,59 @@ func TestGetClusterInfoFromCfg(t *testing.T) {
 		})
 	}
 }
+
+func TestShard_Instances(t *testing.T) {
+	tests := []struct {
+		name  string
+		shard Shard
+		want  []ShardInstance
+	}{
+		{
+			name: "unordered sequence",
+			shard: Shard{
+				Masters: []ShardInstance{
+					{
+						ParamsID: "Master2",
+					},
+					{
+						ParamsID: "Master1",
+					},
+				},
+				Replicas: []ShardInstance{
+					{
+						ParamsID: "Replica2",
+					},
+					{
+						ParamsID: "Replica3",
+					},
+					{
+						ParamsID: "Replica1",
+					},
+				},
+			},
+			want: []ShardInstance{
+				{
+					ParamsID: "Master1",
+				},
+				{
+					ParamsID: "Master2",
+				},
+				{
+					ParamsID: "Replica1",
+				},
+				{
+					ParamsID: "Replica2",
+				},
+				{
+					ParamsID: "Replica3",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.shard.Instances()
+			assert.Check(t, cmp.DeepEqual(tt.want, got))
+		})
+	}
+}

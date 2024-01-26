@@ -1,9 +1,13 @@
 package activerecord
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"hash"
+	"hash/crc32"
 	"math/rand"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -130,11 +134,21 @@ func (s *Shard) NextReplica() ShardInstance {
 	return s.Replicas[rand.Int()%length]
 }
 
-// Instances копия всех инстансов шарды
+// Instances копия списка конфигураций всех инстансов шарды. В начале списка следуют мастера, потом реплики
 func (c *Shard) Instances() []ShardInstance {
 	instances := make([]ShardInstance, 0, len(c.Masters)+len(c.Replicas))
 	instances = append(instances, c.Masters...)
+	// сортировка в подсписках чтобы не зависет от порядка в котором инстансы добавлялись в конфигурацию
+	sort.Slice(instances, func(i, j int) bool {
+		return instances[i].ParamsID < instances[j].ParamsID
+	})
+
 	instances = append(instances, c.Replicas...)
+
+	replicas := instances[len(c.Masters):]
+	sort.Slice(replicas, func(i, j int) bool {
+		return replicas[i].ParamsID < replicas[j].ParamsID
+	})
 
 	return instances
 }
@@ -143,12 +157,14 @@ func (c *Shard) Instances() []ShardInstance {
 type Cluster struct {
 	m      sync.RWMutex
 	shards []Shard
+	hash   hash.Hash
 }
 
 func NewCluster(shardCnt int) *Cluster {
 	return &Cluster{
 		m:      sync.RWMutex{},
 		shards: make([]Shard, 0, shardCnt),
+		hash:   crc32.NewIEEE(),
 	}
 }
 
@@ -183,6 +199,13 @@ func (c *Cluster) Append(shard Shard) {
 	defer c.m.Unlock()
 
 	c.shards = append(c.shards, shard)
+
+	c.hash.Reset()
+	for i := 0; i < len(c.shards); i++ {
+		for _, instance := range c.shards[i].Instances() {
+			c.hash.Write([]byte(instance.ParamsID))
+		}
+	}
 }
 
 // ShardInstances копия всех инстансов из шарды shardNum
@@ -216,7 +239,19 @@ func (c *Cluster) SetShardInstances(shardNum int, instances []ShardInstance) {
 	}
 
 	c.shards[shardNum] = shard
+}
 
+// Equal сравнивает загруженные конфигурации кластеров на основе контрольной суммы всех инстансов кластера
+func (c *Cluster) Equal(c2 *Cluster) bool {
+	if c == nil {
+		return false
+	}
+
+	if c2 == nil {
+		return false
+	}
+
+	return bytes.Equal(c.hash.Sum(nil), c2.hash.Sum(nil))
 }
 
 // Тип используемый для передачи набора значений по умолчанию для параметров
@@ -230,9 +265,7 @@ type MapGlobParam struct {
 // непосредственно в декларации модели, а не в конфиге.
 // Так же используется при тестировании.
 func NewClusterInfo(opts ...clusterOption) *Cluster {
-	cl := &Cluster{
-		m: sync.RWMutex{},
-	}
+	cl := NewCluster(0)
 
 	for _, opt := range opts {
 		opt.apply(cl)
@@ -388,6 +421,7 @@ func NewConfigCacher() *DefaultConfigCacher {
 // Получение конфигурации. Если есть в кеше и он еще валидный, то конфигурация берётся из кешаб
 // если в кеше нет, то достаём из конфига и кешируем.
 func (cc *DefaultConfigCacher) Get(ctx context.Context, path string, globs MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (*Cluster, error) {
+	curConf := cc.container[path]
 	if cc.lock.TryLock() {
 		if cc.updateTime.Sub(Config().GetLastUpdateTime()) < 0 {
 			// Очищаем кеш если поменялся конфиг
@@ -402,19 +436,23 @@ func (cc *DefaultConfigCacher) Get(ctx context.Context, path string, globs MapGl
 	cc.lock.RUnlock()
 
 	if !ex {
-		return cc.loadClusterInfo(ctx, path, globs, optionCreator)
+		return cc.loadClusterInfo(ctx, curConf, path, globs, optionCreator)
 	}
 
 	return conf, nil
 }
 
-func (cc *DefaultConfigCacher) loadClusterInfo(ctx context.Context, path string, globs MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (*Cluster, error) {
+func (cc *DefaultConfigCacher) loadClusterInfo(ctx context.Context, curConf *Cluster, path string, globs MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (*Cluster, error) {
 	cc.lock.Lock()
 	defer cc.lock.Unlock()
 
 	conf, err := GetClusterInfoFromCfg(ctx, path, globs, optionCreator)
 	if err != nil {
 		return nil, fmt.Errorf("can't get config: %w", err)
+	}
+
+	if conf.Equal(curConf) {
+		conf = curConf
 	}
 
 	cc.container[path] = conf
