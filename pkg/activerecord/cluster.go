@@ -421,8 +421,9 @@ func NewConfigCacher() *DefaultConfigCacher {
 // Получение конфигурации. Если есть в кеше и он еще валидный, то конфигурация берётся из кешаб
 // если в кеше нет, то достаём из конфига и кешируем.
 func (cc *DefaultConfigCacher) Get(ctx context.Context, path string, globs MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (*Cluster, error) {
-	curConf := cc.container[path]
+	var curConf *Cluster
 	if cc.lock.TryLock() {
+		curConf = cc.container[path]
 		if cc.updateTime.Sub(Config().GetLastUpdateTime()) < 0 {
 			// Очищаем кеш если поменялся конфиг
 			cc.container = make(map[string]*Cluster)
