@@ -7,7 +7,6 @@ import (
 	"hash"
 	"hash/crc32"
 	"math/rand"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -138,17 +137,7 @@ func (s *Shard) NextReplica() ShardInstance {
 func (c *Shard) Instances() []ShardInstance {
 	instances := make([]ShardInstance, 0, len(c.Masters)+len(c.Replicas))
 	instances = append(instances, c.Masters...)
-	// сортировка в подсписках чтобы не зависет от порядка в котором инстансы добавлялись в конфигурацию
-	sort.Slice(instances, func(i, j int) bool {
-		return instances[i].ParamsID < instances[j].ParamsID
-	})
-
 	instances = append(instances, c.Replicas...)
-
-	replicas := instances[len(c.Masters):]
-	sort.Slice(replicas, func(i, j int) bool {
-		return replicas[i].ParamsID < replicas[j].ParamsID
-	})
 
 	return instances
 }
@@ -421,41 +410,30 @@ func NewConfigCacher() *DefaultConfigCacher {
 // Получение конфигурации. Если есть в кеше и он еще валидный, то конфигурация берётся из кешаб
 // если в кеше нет, то достаём из конфига и кешируем.
 func (cc *DefaultConfigCacher) Get(ctx context.Context, path string, globs MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (*Cluster, error) {
-	curConf := cc.container[path]
-	if cc.lock.TryLock() {
-		if cc.updateTime.Sub(Config().GetLastUpdateTime()) < 0 {
-			// Очищаем кеш если поменялся конфиг
-			cc.container = make(map[string]*Cluster)
-			cc.updateTime = time.Now()
-		}
-		cc.lock.Unlock()
-	}
-
 	cc.lock.RLock()
 	conf, ex := cc.container[path]
+	confUpdateTime := cc.updateTime
 	cc.lock.RUnlock()
 
-	if !ex {
-		return cc.loadClusterInfo(ctx, curConf, path, globs, optionCreator)
+	// Если конфигурация не найдена в кеше или конфигурация была обновлена, то перегружаем конфигурацию
+	if !ex || confUpdateTime.Sub(Config().GetLastUpdateTime()) < 0 {
+		cc.lock.Lock()
+		newConf, err := GetClusterInfoFromCfg(ctx, path, globs, optionCreator)
+		if err != nil {
+			cc.lock.Unlock()
+
+			return nil, fmt.Errorf("can't get config: %w", err)
+		}
+
+		// если конфигурация поменялась, то обновляем её в кеше
+		if !newConf.Equal(conf) {
+			conf = newConf
+			cc.container[path] = conf
+			cc.updateTime = time.Now()
+		}
+
+		cc.lock.Unlock()
 	}
-
-	return conf, nil
-}
-
-func (cc *DefaultConfigCacher) loadClusterInfo(ctx context.Context, curConf *Cluster, path string, globs MapGlobParam, optionCreator func(ShardInstanceConfig) (OptionInterface, error)) (*Cluster, error) {
-	cc.lock.Lock()
-	defer cc.lock.Unlock()
-
-	conf, err := GetClusterInfoFromCfg(ctx, path, globs, optionCreator)
-	if err != nil {
-		return nil, fmt.Errorf("can't get config: %w", err)
-	}
-
-	if conf.Equal(curConf) {
-		conf = curConf
-	}
-
-	cc.container[path] = conf
 
 	return conf, nil
 }
