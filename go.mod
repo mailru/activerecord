@@ -8,6 +8,7 @@ require (
 	github.com/mailru/mapstructure v0.0.0-20230117153631-a4140f9ccc45
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4
+	github.com/tarantool/go-tarantool v1.6.0
 	golang.org/x/mod v0.7.0
 	golang.org/x/net v0.7.0
 	golang.org/x/sync v0.1.0
