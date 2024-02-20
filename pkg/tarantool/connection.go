@@ -14,6 +14,7 @@ var DefaultConnectionParams = activerecord.MapGlobParam{
 
 type Connection struct {
 	*tarantool.Connection
+	opts *ConnectionOptions
 }
 
 func GetConnection(_ context.Context, opts *ConnectionOptions) (*Connection, error) {
@@ -22,7 +23,14 @@ func GetConnection(_ context.Context, opts *ConnectionOptions) (*Connection, err
 		return nil, fmt.Errorf("error connect to tarantool %s with connect timeout '%d': %s", opts.server, opts.cfg.Timeout, err)
 	}
 
-	return &Connection{conn}, nil
+	return &Connection{
+		Connection: conn,
+		opts:       opts,
+	}, nil
+}
+
+func (c *Connection) InstanceMode() any {
+	return c.opts.InstanceMode()
 }
 
 func (c *Connection) Close() {
@@ -34,4 +42,8 @@ func (c *Connection) Close() {
 
 func (c *Connection) Done() <-chan struct{} {
 	return nil
+}
+
+func (c *Connection) Info() string {
+	return fmt.Sprintf("Server: %s, timeout; %d, user: %s", c.opts.server, c.opts.cfg.Timeout, c.opts.cfg.User)
 }

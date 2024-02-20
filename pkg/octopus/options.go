@@ -81,7 +81,7 @@ func NewOptions(server string, mode ServerModeType, opts ...ConnectionOption) (*
 
 // UpdateHash - функция расчета ConnectionID, необходима для шаринга конектов между моделями.
 func (o *ConnectionOptions) UpdateHash(data ...interface{}) error {
-	if err := o.GroupHash.UpdateHash(data); err != nil {
+	if err := o.GroupHash.UpdateHash(data...); err != nil {
 		return fmt.Errorf("can't calculate group hash: %w", err)
 	}
 

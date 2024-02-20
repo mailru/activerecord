@@ -21,10 +21,10 @@ func (o *GroupHash) UpdateHash(data ...interface{}) error {
 		return fmt.Errorf("can't update hash after calculate")
 	}
 
-	for _, data := range data {
+	for _, v := range data {
 		var err error
 
-		switch v := data.(type) {
+		switch v := v.(type) {
 		case string:
 			err = binary.Write(o.hash, binary.LittleEndian, []byte(v))
 		case int:
