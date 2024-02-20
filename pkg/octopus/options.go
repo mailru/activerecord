@@ -1,10 +1,7 @@
 package octopus
 
 import (
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
-	"hash"
 	"hash/crc32"
 	"time"
 
@@ -36,11 +33,10 @@ const (
 
 // ConnectionOptions - опции используемые для подключения
 type ConnectionOptions struct {
-	server         string
-	Mode           ServerModeType
-	poolCfg        *iproto.PoolConfig
-	connectionHash hash.Hash32
-	calculated     bool
+	*activerecord.GroupHash
+	server  string
+	Mode    ServerModeType
+	poolCfg *iproto.PoolConfig
 }
 
 // NewOptions - cоздание структуры с опциями и дефолтными значениями. Для мидификации значений по умолчанию,
@@ -65,8 +61,9 @@ func NewOptions(server string, mode ServerModeType, opts ...ConnectionOption) (*
 				PingInterval:   DefaultPingInterval,
 			},
 		},
-		connectionHash: crc32.New(crc32table),
 	}
+
+	octopusOpts.GroupHash = activerecord.NewGroupHash(crc32.New(crc32table))
 
 	for _, opt := range opts {
 		if err := opt.apply(octopusOpts); err != nil {
@@ -84,25 +81,8 @@ func NewOptions(server string, mode ServerModeType, opts ...ConnectionOption) (*
 
 // UpdateHash - функция расчета ConnectionID, необходима для шаринга конектов между моделями.
 func (o *ConnectionOptions) UpdateHash(data ...interface{}) error {
-	if o.calculated {
-		return fmt.Errorf("can't update hash after calculate")
-	}
-
-	for _, data := range data {
-		var err error
-
-		switch v := data.(type) {
-		case string:
-			err = binary.Write(o.connectionHash, binary.LittleEndian, []byte(v))
-		case int:
-			err = binary.Write(o.connectionHash, binary.LittleEndian, int64(v))
-		default:
-			err = binary.Write(o.connectionHash, binary.LittleEndian, v)
-		}
-
-		if err != nil {
-			return fmt.Errorf("can't calculate connectionID: %w", err)
-		}
+	if err := o.GroupHash.UpdateHash(data...); err != nil {
+		return fmt.Errorf("can't calculate group hash: %w", err)
 	}
 
 	return nil
@@ -110,10 +90,7 @@ func (o *ConnectionOptions) UpdateHash(data ...interface{}) error {
 
 // GetConnectionID - получение ConnecitionID. После первого получения, больше нельзя его модифицировать. Можно только новый Options создать
 func (o *ConnectionOptions) GetConnectionID() string {
-	o.calculated = true
-	hashInBytes := o.connectionHash.Sum(nil)[:]
-
-	return hex.EncodeToString(hashInBytes)
+	return o.GroupHash.GetHash()
 }
 
 // InstanceMode - метод для получения режима аботы инстанса RO или RW
