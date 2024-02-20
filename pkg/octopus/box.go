@@ -91,18 +91,16 @@ func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType
 }
 
 func CheckShardInstance(ctx context.Context, instance activerecord.ShardInstance) (activerecord.OptionInterface, error) {
-	octopusOpt, ok := instance.Options.(*ConnectionOptions)
-	if !ok {
-		return nil, fmt.Errorf("invalit type of options %T, want Options", instance.Options)
-	}
-
-	var err error
-	c := activerecord.ConnectionCacher().Get(instance)
-	if c == nil {
-		c, err = GetConnection(ctx, octopusOpt)
-		if err != nil {
-			return nil, fmt.Errorf("error from connectionCacher: %w", err)
+	c, err := activerecord.ConnectionCacher().GetOrAdd(instance, func(options interface{}) (activerecord.ConnectionInterface, error) {
+		octopusOpt, ok := options.(*ConnectionOptions)
+		if !ok {
+			return nil, fmt.Errorf("invalit type of options %T, want Options", options)
 		}
+
+		return GetConnection(ctx, octopusOpt)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error from connectionCacher: %w", err)
 	}
 
 	conn, ok := c.(*Connection)
@@ -123,10 +121,12 @@ func CheckShardInstance(ctx context.Context, instance activerecord.ShardInstance
 		ret := td[0]
 		switch string(ret.Data[0]) {
 		case "primary":
-			return NewOptions(octopusOpt.server, ModeMaster)
+			instance.Config.Mode = activerecord.ServerModeType(ModeMaster)
 		default:
-			return NewOptions(octopusOpt.server, ModeReplica)
+			instance.Config.Mode = activerecord.ServerModeType(ModeReplica)
 		}
+
+		return DefaultOptionCreator(instance.Config)
 	}
 
 	return nil, fmt.Errorf("can't parse status: %w", err)
