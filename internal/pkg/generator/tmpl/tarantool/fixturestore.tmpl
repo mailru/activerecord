@@ -1,0 +1,72 @@
+package {{ .FixturePkg }}
+
+import (
+    _ "embed"
+    "context"
+    "fmt"
+    "log"
+    "sync"
+
+    "gopkg.in/yaml.v3"
+
+    "github.com/mailru/activerecord/pkg/activerecord"
+
+{{- range $ind, $imp := .Imports }}
+{{ if ne $imp.ImportName "" }}{{- $imp.ImportName }} {{ end }}"{{ $imp.Path }}"
+{{- end }}
+)
+
+{{ $serializers := .Serializers -}}
+{{ $PackageName := .ARPkg -}}
+{{ $PublicStructName := .ARPkgTitle -}}
+{{ $fields := .FieldList }}
+{{ $typePK := "" -}}
+{{ $fieldNamePK := "" -}}
+
+{{ range $num, $ind := .Indexes -}}
+{{ $lenfld := len $ind.Fields -}}
+    {{ if $ind.Primary }}
+        {{ if ne $lenfld 1 }}
+        {{ $typePK = print $PackageName "." $ind.Type }}
+        {{ else }}
+        {{- $typePK = $ind.Type -}}
+        {{ end }}
+    {{- $fieldNamePK = $ind.Name -}}
+    {{ end }}
+{{ end }}
+
+var {{$PackageName}}Once sync.Once
+var {{$PackageName}}Store map[{{$typePK}}]int
+var {{$PackageName}}Fixtures []*{{$PackageName}}.{{$PublicStructName}}
+
+//go:embed data/{{$PackageName}}.yaml
+var {{$PackageName}}Source []byte
+
+func init{{$PublicStructName}}() {
+    {{$PackageName}}Once.Do(func() {
+        {{$PackageName}}Fixtures = {{$PackageName}}.UnmarshalFixtures({{$PackageName}}Source)
+
+        {{$PackageName}}Store = map[{{$typePK}}]int{}
+        for i, f := range {{$PackageName}}Fixtures {
+            if _, ok := {{$PackageName}}Store[f.Primary()]; ok {
+                log.Fatalf("{{$PackageName}}  fixture with {{$fieldNamePK}} %v is duplicated", f.Primary())
+            }
+
+            {{$PackageName}}Store[f.Primary()] = i
+        }
+    })
+}
+
+
+func Get{{$PublicStructName}}By{{$fieldNamePK}}({{$fieldNamePK}} {{$typePK}}) *{{$PackageName}}.{{$PublicStructName}} {
+    init{{$PublicStructName}}()
+
+    idx, ex := {{$PackageName}}Store[{{$fieldNamePK}}]
+    if !ex {
+    log.Fatalf("{{$PublicStructName}}  fixture with {{$fieldNamePK}} %v not found", {{$fieldNamePK}})
+    }
+
+    res := {{$PackageName}}Fixtures[idx]
+
+    return res
+}

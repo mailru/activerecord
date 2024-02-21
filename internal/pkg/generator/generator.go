@@ -12,6 +12,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/mailru/activerecord/pkg/iproto/util/text"
 	"github.com/pkg/errors"
 	"golang.org/x/tools/imports"
 
@@ -115,8 +116,13 @@ func GenerateMeta(params MetaData) ([]GenerateFile, *arerror.ErrGeneratorFile) {
 	return []GenerateFile{genRes}, nil
 }
 
-func GenerateByTmpl(dstFile io.Writer, params any, name, tmpl string) *arerror.ErrGeneratorPhases {
-	templatePackage, err := template.New(TemplateName).Funcs(funcs).Funcs(OctopusTemplateFuncs).Parse(disclaimer + tmpl)
+func GenerateByTmpl(dstFile io.Writer, params any, name, tmpl string, tmplFuncs ...template.FuncMap) *arerror.ErrGeneratorPhases {
+	template := template.New(TemplateName).Funcs(funcs)
+	for _, f := range tmplFuncs {
+		template = template.Funcs(f)
+	}
+
+	templatePackage, err := template.Parse(disclaimer + tmpl)
 	if err != nil {
 		tmplLines, errgetline := getTmplErrorLine(strings.SplitAfter(disclaimer+tmpl, "\n"), err.Error())
 		if errgetline != nil {
@@ -162,7 +168,18 @@ func Generate(appInfo string, cl ds.RecordPackage, linkObject map[string]ds.Reco
 		case "tarantool16":
 			fallthrough
 		case "tarantool2":
-			return nil, &arerror.ErrGeneratorFile{Name: cl.Namespace.PublicName, Backend: backend, Err: arerror.ErrGeneratorBackendNotImplemented}
+			params := NewPkgData(appInfo, cl)
+			params.LinkedObject = linkObject
+
+			log.Printf("Generate tarantool package (%v)", cl)
+
+			var err *arerror.ErrGeneratorPhases
+
+			generated, err = GenerateTarantool(params)
+			if err != nil {
+				err.Name = cl.Namespace.PublicName
+				return nil, err
+			}
 		case "postgres":
 			return nil, &arerror.ErrGeneratorFile{Name: cl.Namespace.PublicName, Backend: backend, Err: arerror.ErrGeneratorBackendNotImplemented}
 		default:
@@ -224,53 +241,98 @@ func ErrorLine(errIn error, genData string) error {
 }
 
 func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string, pkgFixture string) ([]GenerateFile, error) {
-	var generated map[string]bytes.Buffer
+	var ret []GenerateFile
 
-	ret := make([]GenerateFile, 0, 1)
+	for _, backend := range cl.Backends {
+		var generated map[string]bytes.Buffer
 
-	params := FixturePkgData{
-		FixturePkg:       pkgFixture,
-		ARPkg:            pkg,
-		ARPkgTitle:       cl.Namespace.PublicName,
-		FieldList:        cl.Fields,
-		FieldMap:         cl.FieldsMap,
-		FieldObject:      cl.FieldsObjectMap,
-		ProcInFieldList:  cl.ProcInFields,
-		ProcOutFieldList: cl.ProcOutFields.List(),
-		Container:        cl.Namespace,
-		Indexes:          cl.Indexes,
-		Serializers:      cl.SerializerMap,
-		Mutators:         cl.MutatorMap,
-		Imports:          cl.Imports,
-		AppInfo:          appInfo,
-	}
+		switch backend {
+		case "tarantool15":
+			fallthrough
+		case "octopus":
+			params := FixturePkgData{
+				FixturePkg:       pkgFixture,
+				ARPkg:            pkg,
+				ARPkgTitle:       cl.Namespace.PublicName,
+				FieldList:        cl.Fields,
+				FieldMap:         cl.FieldsMap,
+				FieldObject:      cl.FieldsObjectMap,
+				ProcInFieldList:  cl.ProcInFields,
+				ProcOutFieldList: cl.ProcOutFields.List(),
+				Container:        cl.Namespace,
+				Indexes:          cl.Indexes,
+				Serializers:      cl.SerializerMap,
+				Mutators:         cl.MutatorMap,
+				Imports:          cl.Imports,
+				AppInfo:          appInfo,
+			}
 
-	log.Printf("Generate package (%v)", cl)
+			log.Printf("Generate package (%v)", cl)
 
-	var err *arerror.ErrGeneratorPhases
+			var err *arerror.ErrGeneratorPhases
 
-	generated, err = generateFixture(params)
-	if err != nil {
-		err.Name = cl.Namespace.PublicName
-		return nil, err
-	}
+			generated, err = GenerateOctopusFixtureStore(params)
+			if err != nil {
+				err.Name = cl.Namespace.PublicName
+				return nil, err
+			}
+		case "tarantool16":
+			fallthrough
+		case "tarantool2":
+			params := FixturePkgData{
+				FixturePkg:       pkgFixture,
+				ARPkg:            pkg,
+				ARPkgTitle:       cl.Namespace.PublicName,
+				FieldList:        cl.Fields,
+				FieldMap:         cl.FieldsMap,
+				FieldObject:      cl.FieldsObjectMap,
+				ProcInFieldList:  cl.ProcInFields,
+				ProcOutFieldList: cl.ProcOutFields.List(),
+				Container:        cl.Namespace,
+				Indexes:          cl.Indexes,
+				Serializers:      cl.SerializerMap,
+				Mutators:         cl.MutatorMap,
+				Imports:          cl.Imports,
+				AppInfo:          appInfo,
+			}
 
-	for _, data := range generated {
-		genRes := GenerateFile{
-			Dir:  pkgFixture,
-			Name: cl.Namespace.PackageName + "_gen.go",
+			log.Printf("Generate package (%v)", cl)
+
+			var err *arerror.ErrGeneratorPhases
+
+			generated, err = GenerateTarantoolFixtureStore(params)
+			if err != nil {
+				err.Name = cl.Namespace.PublicName
+				return nil, err
+			}
+		case "postgres":
+			return nil, &arerror.ErrGeneratorFile{Name: cl.Namespace.PublicName, Backend: backend, Err: arerror.ErrGeneratorBackendNotImplemented}
+		default:
+			return nil, &arerror.ErrGeneratorFile{Name: cl.Namespace.PublicName, Backend: backend, Err: arerror.ErrGeneratorBackendUnknown}
 		}
 
-		genData := data.Bytes()
+		for _, data := range generated {
+			genRes := GenerateFile{
+				Dir:  pkgFixture,
+				Name: cl.Namespace.PackageName + "_gen.go",
+			}
 
-		dataImp, err := imports.Process("", genData, nil)
-		if err != nil {
-			return nil, &arerror.ErrGeneratorFile{Name: cl.Namespace.PublicName, Backend: "fixture", Filename: genRes.Name, Err: ErrorLine(err, string(genData))}
+			genData := data.Bytes()
+
+			dataImp, err := imports.Process("", genData, nil)
+			if err != nil {
+				return nil, &arerror.ErrGeneratorFile{Name: cl.Namespace.PublicName, Backend: "fixture", Filename: genRes.Name, Err: ErrorLine(err, string(genData))}
+			}
+
+			genRes.Data = dataImp
+			ret = append(ret, genRes)
 		}
-
-		genRes.Data = dataImp
-		ret = append(ret, genRes)
 	}
 
 	return ret, nil
+}
+
+var funcs = template.FuncMap{
+	"snakeCase": text.ToSnakeCase,
+	"split":     strings.Split,
 }

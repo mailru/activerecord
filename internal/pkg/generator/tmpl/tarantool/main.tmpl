@@ -1,0 +1,210 @@
+package {{ .ARPkg }}
+
+import (
+    "bytes"
+    "context"
+    "fmt"
+    "log"
+{{ if eq .Server.Conf "" -}}
+    "time"
+{{ end }}
+    "strings"
+
+    "github.com/mailru/activerecord/pkg/activerecord"
+    "github.com/mailru/activerecord/pkg/tarantool"
+    tarantool2 "github.com/tarantool/go-tarantool"
+
+
+{{- range $ind, $imp := .Imports }}
+{{ if ne $imp.ImportName "" }}{{ $imp.ImportName }} {{ end }}"{{ $imp.Path }}"
+{{- end }}
+{{- range $i, $imp := addImport .FieldList }}
+    "{{ $imp }}"
+{{- end }}
+)
+
+{{ $pkgName := .ARPkg }}
+{{ $serializers := .Serializers -}}
+{{ $mutators := .Mutators -}}
+{{ $PublicStructName := .ARPkgTitle -}}
+{{ $LinkedObject := .LinkedObject }}
+{{ $flags := .Flags }}
+{{ $fields := .FieldList }}
+{{ $procfields := .ProcOutFieldList }}
+{{ $procInLen := len .ProcInFieldList }}
+{{ $mutatorLen := len .Mutators }}
+
+{{ if $fields }}
+type {{ $PublicStructName }} struct {
+tarantool.BaseField
+{{- range $ind, $fstruct := .FieldList -}}
+{{ $rtype := $fstruct.Format -}}
+{{ $serlen := len $fstruct.Serializer -}}
+{{ if ne $serlen 0 -}}
+{{ $sname := index $fstruct.Serializer 0 -}}
+{{ $serializer := index $serializers $sname -}}
+{{ $rtype = $serializer.Type -}}
+{{ end }}
+field{{ $fstruct.Name }} {{ $rtype -}}
+{{ end }}
+}
+
+const (
+    namespace uint32 = {{ .Container.ObjectName }}
+            cntFields uint32 = {{ len .FieldList }}
+{{- range $fieldname, $flag := .Flags -}}
+{{ range $i, $flagname := $flag.Flags }}
+{{ $fieldname }}{{ $flagname }}Flag = 1 << {{ $i -}}
+{{ end -}}
+{{ end }}
+)
+
+
+func New(ctx context.Context) *{{ $PublicStructName }} {
+    newObj := {{ $PublicStructName }}{}
+    {{- if $fields }}
+    newObj.BaseField.UpdateOps = []tarantool2.Op{}
+    newObj.BaseField.Objects = map[string][]tarantool.ModelStruct{}
+    {{ end }}
+    return &newObj
+}
+
+func Create(
+	ctx context.Context,
+{{- range $ind, $fstruct := .FieldList -}}
+{{ $rtype := $fstruct.Format -}}
+{{ $serlen := len $fstruct.Serializer -}}
+{{ if ne $serlen 0 -}}
+{{ $sname := index $fstruct.Serializer 0 -}}
+{{ $serializer := index $serializers $sname -}}
+{{ $rtype = $serializer.Type -}}
+{{ end }}
+        v{{ $fstruct.Name }} {{ $rtype -}},
+{{- end -}}
+) (*{{ $PublicStructName }}, error) {
+    obj := New(ctx)
+
+    {{ range $ind, $fstruct := .FieldList }}
+    if err := obj.Set{{$fstruct.Name}}(v{{$fstruct.Name}}); err != nil {
+        return nil, fmt.Errorf("can't create new {{ $PublicStructName }}: %w", err)
+    }
+    {{ end }}
+
+    return obj, nil
+}
+
+func (obj *{{ $PublicStructName }}) PrimaryString() string {
+    ret := []string{
+        {{- range $ind, $fstruct := .FieldList }}
+        {{- if $fstruct.PrimaryKey }}
+       obj.Get{{ $fstruct.Name }}(),
+        {{- end }}
+        {{- end }}
+    }
+
+    return strings.Join(ret, ", ")
+}
+
+
+{{ $pktype := "" }}
+{{ $pklenfld := 1 }}
+{{ $pkind := index .Indexes 0 }}
+{{ range $num, $ind := .Indexes -}}
+{{ $lenfld := len $ind.Fields -}}
+{{ if $ind.Primary }}
+{{ $pktype = $ind.Type }}
+{{ $pklenfld = len $ind.Fields }}
+{{ $pkind = $ind }}
+func (obj *{{ $PublicStructName }}) Primary() {{ $ind.Type }} {
+    {{ if ne $lenfld 1 }}
+    return {{ $ind.Type }}{
+        {{- range $_, $fieldNum := $ind.Fields }}
+        {{- $ifield := index $fields $fieldNum }}
+        {{ $ifield.Name }}: obj.Get{{ $ifield.Name }}(),
+        {{- end }}
+    }
+    {{ else }}
+    {{- range $_, $fieldNum := $ind.Fields }}
+    {{- $ifield := index $fields $fieldNum }}
+    return obj.Get{{ $ifield.Name }}()
+    {{- end }}
+    {{ end -}}
+}
+
+{{ end }}
+{{ end }}
+
+
+
+{{end}}
+
+// Getters,Setters and Mutators
+
+{{ range $ind, $fstruct := .FieldList -}}
+{{ $rtype := $fstruct.Format -}}
+{{ $sname := $fstruct.Serializer.Name -}}
+    {{ if ne $sname "" -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $rtype = $serializer.Type -}}
+    func Marshal{{ $fstruct.Name }}({{ $fstruct.Name }} {{ $rtype }}) (any, error) {
+        {{ $serparams := $fstruct.Serializer.Params -}}
+        pvar, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $fstruct.Name }})
+        if err != nil {
+            return nil, fmt.Errorf("error marshal field {{ $fstruct.Name }}: %w", err)
+        }
+
+        return pvar, nil
+    }
+
+    {{ end -}}
+
+func (obj *{{ $PublicStructName }}) Get{{ $fstruct.Name }}() {{ $rtype }} {
+    return obj.field{{ $fstruct.Name }}
+}
+
+func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {{ $rtype }}) error {
+    {{- if $fstruct.PrimaryKey }}
+    if obj.BaseField.Exists {
+        return fmt.Errorf("can't modify field included in primary key")
+    }
+
+    {{ end -}}
+
+    {{ if ne $sname "" -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $serparams := $fstruct.Serializer.Params -}}
+    data, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}{{ $fstruct.Name }})
+    if err != nil {
+        return fmt.Errorf("error marshal field {{ $fstruct.Name }}: %w", err)
+    }
+    {{- else }}
+    data := {{ $fstruct.Name }}
+	{{ end }}
+
+    {{- if eq $fstruct.Format "string" "[]byte" -}}
+    {{- if gt $fstruct.Size 0 }}
+
+    if len({{ $fstruct.Name }}) > {{ $fstruct.Size }} {
+        return fmt.Errorf("max length of field '{{ $PublicStructName }}.{{ $fstruct.Name }}' is '%d' (received '%d')", {{ $fstruct.Size }}, len(data))
+    }
+    {{- else }}
+
+    logger := activerecord.Logger()
+
+    logger.Warn(context.TODO(), "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Size for field '{{ $fstruct.Name }}' not set. Cur field size: %d. Object: '{{ $PublicStructName }}'", len(data)))
+    {{- end }}
+    {{- end }}
+
+    obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, tarantool2.Op{"=", {{ $ind }}, data })
+    obj.field{{ $fstruct.Name }} = {{ $fstruct.Name}}
+
+    {{- if ne $fstruct.ObjectLink "" }}
+            delete(obj.BaseField.Objects, "{{ $fstruct.ObjectLink }}")
+    {{- end }}
+
+    return nil
+}
+
+{{ end -}}
+
+// End of Getters, Setters and Mutators

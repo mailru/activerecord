@@ -222,7 +222,7 @@ func TestGenerateFixture(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ret, got := generateFixture(tt.args.params)
+			ret, got := GenerateOctopusFixtureStore(tt.args.params)
 			if got != tt.want {
 				t.Errorf("GenerateFixture() = %v, want %v", got, tt.want)
 			}

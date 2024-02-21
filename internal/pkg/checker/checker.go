@@ -213,6 +213,12 @@ func Check(files map[string]*ds.RecordPackage, linkedObjects map[string]string) 
 		// Бекендозависимые проверки
 		for _, backend := range cl.Backends {
 			switch backend {
+			case "tarantool16":
+				fallthrough
+			case "tarantool2":
+				fallthrough
+			case "tarantool15":
+				fallthrough
 			case "octopus":
 				if err := checkOctopus(cl); err != nil {
 					return err

@@ -10,7 +10,6 @@ import (
 
 	"github.com/mailru/activerecord/internal/pkg/arerror"
 	"github.com/mailru/activerecord/internal/pkg/ds"
-	"github.com/mailru/activerecord/pkg/iproto/util/text"
 	"github.com/mailru/activerecord/pkg/octopus"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -28,8 +27,6 @@ var OctopusRootRepositoryTmpl string
 //go:embed tmpl/octopus/fixture.tmpl
 var OctopusFixtureRepositoryTmpl string
 
-var funcs = template.FuncMap{"snakeCase": text.ToSnakeCase}
-
 func GenerateOctopus(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGeneratorPhases) {
 	octopusWriter := bytes.Buffer{}
 	mockWriter := bytes.Buffer{}
@@ -38,7 +35,7 @@ func GenerateOctopus(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGener
 	octopusFile := bufio.NewWriter(&octopusWriter)
 
 	//TODO возможно имеет смысл разделить большой шаблон OctopusRootRepositoryTmpl для удобства поддержки
-	err := GenerateByTmpl(octopusFile, params, "octopus", OctopusRootRepositoryTmpl)
+	err := GenerateByTmpl(octopusFile, params, "octopus", OctopusRootRepositoryTmpl, OctopusTemplateFuncs)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +44,7 @@ func GenerateOctopus(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGener
 
 	mockFile := bufio.NewWriter(&mockWriter)
 
-	err = GenerateByTmpl(mockFile, params, "octopus", OctopusMockRepositoryTmpl)
+	err = GenerateByTmpl(mockFile, params, "octopus", OctopusMockRepositoryTmpl, OctopusTemplateFuncs)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +53,7 @@ func GenerateOctopus(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGener
 
 	fixtureFile := bufio.NewWriter(&fixtureWriter)
 
-	err = GenerateByTmpl(fixtureFile, params, "octopus", OctopusFixtureRepositoryTmpl)
+	err = GenerateByTmpl(fixtureFile, params, "octopus", OctopusFixtureRepositoryTmpl, OctopusTemplateFuncs)
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +63,43 @@ func GenerateOctopus(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGener
 	ret := map[string]bytes.Buffer{
 		"octopus": octopusWriter,
 		"mock":    mockWriter,
+		"fixture": fixtureWriter,
+	}
+
+	return ret, nil
+}
+
+//go:embed tmpl/octopus/fixturestore.tmpl
+var fixtureStoreTmpl string
+
+func GenerateOctopusFixtureStore(params FixturePkgData) (map[string]bytes.Buffer, *arerror.ErrGeneratorPhases) {
+	fixtureWriter := bytes.Buffer{}
+
+	file := bufio.NewWriter(&fixtureWriter)
+
+	templatePackage, err := template.New(TemplateName).Funcs(funcs).Funcs(OctopusTemplateFuncs).Parse(disclaimer + fixtureStoreTmpl)
+	if err != nil {
+		tmplLines, errgetline := getTmplErrorLine(strings.SplitAfter(disclaimer+fixtureStoreTmpl, "\n"), err.Error())
+		if errgetline != nil {
+			tmplLines = errgetline.Error()
+		}
+
+		return nil, &arerror.ErrGeneratorPhases{Backend: "fixture", Phase: "parse", TmplLines: tmplLines, Err: err}
+	}
+
+	err = templatePackage.Execute(file, params)
+	if err != nil {
+		tmplLines, errgetline := getTmplErrorLine(strings.SplitAfter(disclaimer+fixtureStoreTmpl, "\n"), err.Error())
+		if errgetline != nil {
+			tmplLines = errgetline.Error()
+		}
+
+		return nil, &arerror.ErrGeneratorPhases{Backend: "fixture", Phase: "execute", TmplLines: tmplLines, Err: err}
+	}
+
+	file.Flush()
+
+	ret := map[string]bytes.Buffer{
 		"fixture": fixtureWriter,
 	}
 
