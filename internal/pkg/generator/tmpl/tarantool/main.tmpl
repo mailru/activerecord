@@ -130,7 +130,7 @@ func (obj *{{ $PublicStructName }}) packTuple() (any, error) {
     tuple = append(tuple, v)
     {{ end }}
 
-    return tuple, nil
+    return tuple, err
 }
 
 
@@ -286,6 +286,8 @@ func (idxs {{ $ind.Type }}s) buildSQLPredicateIN() (string, []any) {
     return buf.String(), args
 }
 {{- else -}}
+{{ $ifld := index $ind.Fields 0 }}
+{{ $ifield := index $fields $ifld }}
 type {{ $ind.Name }}s []{{ $ind.Type }}
 
 func (idxs {{ $ind.Name }}s) buildSQLPredicateIN() (string, []any) {
@@ -294,7 +296,7 @@ func (idxs {{ $ind.Name }}s) buildSQLPredicateIN() (string, []any) {
         args = append(args, key)
     }
 
-    return tarantool.BuildSQLPredicateIN("{{ $ind.Name }}", len(idxs)), args
+    return tarantool.BuildSQLPredicateIN("{{ $ifield.Name }}", len(idxs)), args
 }
 {{ end }}
 
@@ -312,8 +314,7 @@ func {{ $ind.Selector }}(ctx context.Context, key {{ $ind.Type }}{{ if not $ind.
     {{ if $ind.Unique }}
     limiter := activerecord.EmptyLimiter()
     {{ end }}
-
-    selected, err := selectBox(ctx, 0, {{ if ne $lenfld 1 -}} key.pack() {{- else }} []any{key} {{- end }}, tarantool.IterEq, limiter)
+    selected, err := selectBox(ctx, {{$ind.Num}}, {{ if ne $lenfld 1 -}} key.pack() {{- else }} []any{key} {{- end }}, tarantool.IterEq, limiter)
     if err != nil {
         return nil, err
     }
