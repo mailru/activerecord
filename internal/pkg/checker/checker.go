@@ -216,7 +216,9 @@ func Check(files map[string]*ds.RecordPackage, linkedObjects map[string]string) 
 			case "tarantool16":
 				fallthrough
 			case "tarantool2":
-				fallthrough
+				if err := checkTarantool(cl); err != nil {
+					return err
+				}
 			case "tarantool15":
 				fallthrough
 			case "octopus":
@@ -275,6 +277,41 @@ func checkOctopus(cl *ds.RecordPackage) error {
 			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldInvalidFormat}
 		}
 
+		if fld.Format != octopus.String && len(fld.Serializer) == 0 {
+			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
+		}
+	}
+
+	return nil
+}
+
+//nolint:gocognit,gocyclo
+func checkTarantool(cl *ds.RecordPackage) error {
+	if cl.Server.Host == "" && cl.Server.Conf == "" {
+		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckServerEmpty}
+	}
+
+	if cl.Server.Host == "" && cl.Server.Port != "" {
+		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckPortEmpty}
+	}
+
+	if cl.Server.Host != "" && cl.Server.Conf != "" {
+		return &arerror.ErrCheckPackageDecl{Pkg: cl.Namespace.PackageName, Err: arerror.ErrCheckServerConflict}
+	}
+
+	for _, fl := range cl.Fields {
+		if (fl.Format == "string" || fl.Format == "[]byte") && fl.Size == 0 {
+			log.Printf("Warn: field `%s` declaration. Field with type string or []byte not contain size.", fl.Name)
+		}
+	}
+
+	for _, ind := range cl.Indexes {
+		if len(ind.Fields) == 0 {
+			return &arerror.ErrCheckPackageIndexDecl{Pkg: cl.Namespace.PackageName, Index: ind.Name, Err: arerror.ErrCheckFieldIndexEmpty}
+		}
+	}
+
+	for _, fld := range cl.ProcInFields {
 		if fld.Format != octopus.String && len(fld.Serializer) == 0 {
 			return &arerror.ErrCheckPackageFieldDecl{Pkg: cl.Namespace.PackageName, Field: fld.Name, Err: arerror.ErrCheckFieldSerializerNotFound}
 		}

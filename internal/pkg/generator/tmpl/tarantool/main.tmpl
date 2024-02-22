@@ -13,7 +13,7 @@ import (
     "github.com/mailru/activerecord/pkg/activerecord"
     "github.com/mailru/activerecord/pkg/tarantool"
     tarantool2 "github.com/tarantool/go-tarantool"
-
+    "gopkg.in/vmihailenco/msgpack.v2"
 
 {{- range $ind, $imp := .Imports }}
 {{ if ne $imp.ImportName "" }}{{ $imp.ImportName }} {{ end }}"{{ $imp.Path }}"
@@ -35,6 +35,7 @@ import (
 {{ $mutatorLen := len .Mutators }}
 
 {{ if $fields }}
+
 type {{ $PublicStructName }} struct {
 tarantool.BaseField
 {{- range $ind, $fstruct := .FieldList -}}
@@ -50,8 +51,8 @@ field{{ $fstruct.Name }} {{ $rtype -}}
 }
 
 const (
-    namespace uint32 = {{ .Container.ObjectName }}
-            cntFields uint32 = {{ len .FieldList }}
+    namespace = "{{ .Container.ObjectName }}"
+	cntFields uint32 = {{ len .FieldList }}
 {{- range $fieldname, $flag := .Flags -}}
 {{ range $i, $flagname := $flag.Flags }}
 {{ $fieldname }}{{ $flagname }}Flag = 1 << {{ $i -}}
@@ -59,6 +60,19 @@ const (
 {{ end }}
 )
 
+{{ if eq .Server.Conf "" -}}
+var boxOption, _ = tarantool.NewOptions(
+    "{{ .Server.Host }}:{{ .Server.Port }}",
+    activerecord.ModeMaster,
+    tarantool.WithTimeout(time.Millisecond * {{ .Server.Timeout }}, time.Millisecond * {{ .Server.Timeout }}),
+)
+
+var clusterInfo = activerecord.NewClusterInfo(
+    activerecord.WithShard([]activerecord.OptionInterface{boxOption}, []activerecord.OptionInterface{}),
+)
+{{ else}}
+var cfgName = "{{.Server.Conf }}"
+{{ end }}
 
 func New(ctx context.Context) *{{ $PublicStructName }} {
     newObj := {{ $PublicStructName }}{}
@@ -93,11 +107,72 @@ func Create(
     return obj, nil
 }
 
+func (obj *{{ $PublicStructName }}) packTuple() (any, error) {
+    tuple := make([]any, 0, cntFields)
+
+    var (
+        v any
+        err error
+    )
+
+    {{- range $ind, $fstruct := .FieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $serlen := len $fstruct.Serializer -}}
+    {{ if ne $serlen 0 }}
+    v, err = Marshal{{ $fstruct.Name }}(obj.field{{ $fstruct.Name }})
+    if err != nil {
+        return nil, fmt.Errorf("can't pack tuple field '{{ $fstruct.Name }}': %w", err)
+    }
+	{{ else }}
+    v = obj.field{{ $fstruct.Name }}
+    {{ end }}
+
+    tuple = append(tuple, v)
+    {{ end }}
+
+    return tuple, nil
+}
+
+
+func (obj *{{ $PublicStructName }}) DecodeMsgpack(dec *msgpack.Decoder) error {
+    l, err := dec.DecodeArrayLen()
+    if err != nil {
+        return err
+    }
+
+    if l != int(cntFields) {
+        return fmt.Errorf("unexpected count of fields")
+    }
+
+    {{ range $ind, $fstruct := .FieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $sname := $fstruct.Serializer.Name -}}
+        {{ if ne $sname "" -}}
+    var v{{ $fstruct.Name }}  {{ $rtype }}
+    if err := dec.Decode(&v{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't decode '{{ $fstruct.Name }}' field: %w", err)
+    }
+
+    if err := serializer.MapstructureUnmarshal(v{{ $fstruct.Name }}, &obj.field{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't unpack '{{ $fstruct.Name }}' field: %w", err)
+    }
+        {{- else }}
+    if err := dec.Decode(&obj.field{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't decode field '{{ $fstruct.Name }}': %w", err)
+    }
+        {{ end }}
+    {{ end }}
+
+    return nil
+}
+
 func (obj *{{ $PublicStructName }}) PrimaryString() string {
     ret := []string{
         {{- range $ind, $fstruct := .FieldList }}
         {{- if $fstruct.PrimaryKey }}
-       obj.Get{{ $fstruct.Name }}(),
+        {{- $packerparam := packerParam $fstruct.Format }}
+        {{- $tostr := $packerparam.ToString }}
+        {{ index $tostr 0 }}obj.Get{{ $fstruct.Name }}(){{ index $tostr 1 }},
         {{- end }}
         {{- end }}
     }
@@ -131,12 +206,138 @@ func (obj *{{ $PublicStructName }}) Primary() {{ $ind.Type }} {
     {{ end -}}
 }
 
+func (obj *{{ $PublicStructName }}) packPrimary() []any {
+    return []any{
+        {{- range $_, $fieldNum := $ind.Fields }}
+        {{- $ifield := index $fields $fieldNum }}
+        {{ $rtype := $ifield.Format -}}
+        obj.Get{{ $ifield.Name }}(),
+        {{- end }}
+    }
+}
+
+func SelectByPrimary(ctx context.Context, pk {{ $ind.Type }}) (*{{ $PublicStructName }}, error) {
+    return {{ $ind.Selector }}(ctx, pk)
+}
+
 {{ end }}
 {{ end }}
 
 
 
 {{end}}
+
+
+// Induces
+
+{{ range $num, $ind := .Indexes -}}
+{{ $lenfld := len $ind.Fields -}}
+{{ if ne $lenfld 1 }}
+type {{ $ind.Type }} struct {
+{{- range $_, $fieldNum := $ind.Fields }}
+{{- $ifield := index $fields $fieldNum }}
+{{ $rtype := $ifield.Format -}}
+{{ $serlen := len $ifield.Serializer -}}
+{{ if ne $serlen 0 -}}
+{{ $sname := index $ifield.Serializer 0 -}}
+{{ $serializer := index $serializers $sname -}}
+{{ $rtype = $serializer.Type -}}
+{{ end }}
+{{ $ifield.Name }} {{ $rtype -}}
+{{- end }}
+}
+
+type {{ $ind.Type }}s []{{ $ind.Type }}
+
+func (idx {{ $ind.Type }}) pack() []any {
+	return []any{
+        {{- range $_, $fieldNum := $ind.Fields }}
+        {{- $ifield := index $fields $fieldNum }}
+        {{ $rtype := $ifield.Format -}}
+        idx.{{ $ifield.Name }},
+		{{- end }}
+    }
+}
+
+// возвращает предикат для sql запроса формата IN (?,..) OR IN (?,..) и список параметров для него
+func (idxs {{ $ind.Type }}s) buildSQLPredicateIN() (string, []any) {
+    args := make([]any, 0, len(idxs))
+
+    var (
+    	buf strings.Builder
+		predicate string
+    )
+
+    {{- range $_, $fieldNum := $ind.Fields }}
+    {{- $ifield := index $fields $fieldNum }}
+    {{ $rtype := $ifield.Format -}}
+    predicate = tarantool.BuildSQLPredicateIN("{{ $ifield.Name }}", len(idxs))
+    buf.WriteString(predicate)
+
+    for _, idx := range idxs {
+        args = append(args, idx.{{ $ifield.Name }})
+    }
+
+    buf.WriteString(" AND ")
+	{{ end }}
+
+    buf.WriteString(" 1 = 1 ")
+
+    return buf.String(), args
+}
+{{- else -}}
+type {{ $ind.Name }}s []{{ $ind.Type }}
+
+func (idxs {{ $ind.Name }}s) buildSQLPredicateIN() (string, []any) {
+    args := make([]any, 0, len(idxs))
+    for _, key := range idxs {
+        args = append(args, key)
+    }
+
+    return tarantool.BuildSQLPredicateIN("{{ $ind.Name }}", len(idxs)), args
+}
+{{ end }}
+
+func {{ $ind.Selector }}s(ctx context.Context, keys []{{ $ind.Type }}{{ if not $ind.Unique }}, limiter activerecord.SelectorLimiter{{ end }}) ([]*{{ $PublicStructName }}, error) {
+    ctx = activerecord.Logger().SetLoggerValueToContext(ctx, map[string]interface{}{"{{ $ind.Selector }}s": keys, "Repo": "{{ $PublicStructName }}"})
+
+    inPredicate, args := {{ if ne $lenfld 1 -}} {{ $ind.Type }} {{- else }} {{ $ind.Name }} {{- end }}s(keys).buildSQLPredicateIN()
+
+    return executeSQL(ctx, "SELECT * FROM \"" + namespace + "\" WHERE " + inPredicate, args)
+}
+
+func {{ $ind.Selector }}(ctx context.Context, key {{ $ind.Type }}{{ if not $ind.Unique }}, limiter activerecord.SelectorLimiter{{ end }}) ({{ if $ind.Unique }}{{ else }}[]{{ end }}*{{ $PublicStructName }}, error) {
+    ctx = activerecord.Logger().SetLoggerValueToContext(ctx, map[string]interface{}{"{{ $ind.Selector }}": key, "Repo": "{{ $PublicStructName }}"})
+
+    {{ if $ind.Unique }}
+    limiter := activerecord.EmptyLimiter()
+    {{ end }}
+
+    selected, err := selectBox(ctx, 0, {{ if ne $lenfld 1 -}} key.pack() {{- else }} []any{key} {{- end }}, tarantool.IterEq, limiter)
+    if err != nil {
+        return nil, err
+    }
+
+    {{ if $ind.Unique -}}
+    if len(selected) > 0 {
+        if len(selected) > 1 {
+            activerecord.Logger().Error(ctx, "{{ $PublicStructName }}", "More than one tuple for uniq key ID '%s': %d", key, len(selected))
+        }
+
+        return selected[0], nil
+    }
+
+    return nil, nil
+    {{- else }}
+
+    return selected, nil
+    {{- end }}
+}
+
+// template content
+
+{{ end }}
+// End Induces
 
 // Getters,Setters and Mutators
 
@@ -184,7 +385,7 @@ func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {
     {{- if eq $fstruct.Format "string" "[]byte" -}}
     {{- if gt $fstruct.Size 0 }}
 
-    if len({{ $fstruct.Name }}) > {{ $fstruct.Size }} {
+    if len(data) > {{ $fstruct.Size }} {
         return fmt.Errorf("max length of field '{{ $PublicStructName }}.{{ $fstruct.Name }}' is '%d' (received '%d')", {{ $fstruct.Size }}, len(data))
     }
     {{- else }}
@@ -208,3 +409,331 @@ func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {
 {{ end -}}
 
 // End of Getters, Setters and Mutators
+
+func SelectAll(ctx context.Context, limiter activerecord.SelectorLimiter) ([]*{{ $PublicStructName }}, error) {
+    ctx = activerecord.Logger().SetLoggerValueToContext(ctx, map[string]interface{}{"SelectAll": "", "Repo": "{{ $PublicStructName }}"})
+
+    res, err := selectBox(ctx, 0, []any{}, tarantool2.IterAll, limiter)
+    if err != nil {
+        return res, err
+    }
+
+    return res, nil
+}
+
+func (obj *{{ $PublicStructName }}) Delete(ctx context.Context) error {
+    logger := activerecord.Logger()
+    metricTimer := activerecord.Metric().Timer("tarantool", "{{ $PublicStructName }}")
+    metricStatCnt := activerecord.Metric().StatCount("tarantool", "{{ $PublicStructName }}")
+    metricErrCnt := activerecord.Metric().ErrorCount("tarantool", "{{ $PublicStructName }}")
+
+    metricStatCnt.Inc(ctx, "delete_request", 1)
+
+    if !obj.BaseField.Exists {
+        return fmt.Errorf("can't delete not exists object")
+    }
+
+    connection, err := tarantool.Box(ctx, 0, activerecord.MasterInstanceType, cfgName, nil)
+    if err != nil {
+        metricErrCnt.Inc(ctx, "delete_preparebox", 1)
+        logger.Error(ctx, "PromoBunches", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
+
+        return err
+    }
+
+    _, errCall := connection.Delete(namespace, 0, obj.packPrimary())
+    if errCall != nil {
+        metricErrCnt.Inc(ctx, "delete_box", 1)
+        logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error delete from box", errCall, connection.Info())
+
+        return errCall
+    }
+
+    metricStatCnt.Inc(ctx, "delete_success", 1)
+
+    obj.BaseField.Exists = false
+    obj.BaseField.UpdateOps = []tarantool2.Op{}
+
+    logger.Debug(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Success delete")
+
+    metricTimer.Finish(ctx, "delete")
+
+    return nil
+}
+
+func (obj *{{ $PublicStructName }}) Update(ctx context.Context) error {
+    logger := activerecord.Logger()
+    metricTimer := activerecord.Metric().Timer("tarantool", "{{ $PublicStructName }}")
+    metricStatCnt := activerecord.Metric().StatCount("tarantool", "{{ $PublicStructName }}")
+    metricErrCnt := activerecord.Metric().ErrorCount("tarantool", "{{ $PublicStructName }}")
+
+    metricStatCnt.Inc(ctx, "update_request", 1)
+
+    if !obj.BaseField.Exists {
+        metricErrCnt.Inc(ctx, "update_notexists", 1)
+        return fmt.Errorf("can't update not exists object")
+    }
+
+    /*	if obj.BaseField.Repaired {
+    	metricStatCnt.Inc(ctx, "update_repaired", 1)
+    	logger.Debug(ctx, "", obj.PrimaryString(), "Flag 'Repaired' is true! Insert instead Update")
+
+    	return obj.Replace(ctx)
+    }*/
+
+    connection, err := tarantool.Box(ctx, 0, activerecord.MasterInstanceType, cfgName, nil)
+    if err != nil {
+        metricErrCnt.Inc(ctx, "update_preparebox", 1)
+        logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
+        return err
+    }
+
+    if len(obj.BaseField.UpdateOps) == 0 {
+        metricStatCnt.Inc(ctx, "update_empty", 1)
+        logger.Debug(ctx, "", obj.PrimaryString(), "Empty update")
+
+        return nil
+    }
+
+    _, errCall := connection.Update(namespace, 0, obj.packPrimary(), obj.UpdateOps)
+    if errCall != nil {
+        metricErrCnt.Inc(ctx, "update_box", 1)
+        logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error update ia a box", errCall, connection.Info())
+        return errCall
+    }
+
+    metricTimer.Timing(ctx, "update_box")
+
+    obj.BaseField.UpdateOps = []tarantool2.Op{}
+
+    logger.Debug(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Success update")
+
+    metricStatCnt.Inc(ctx, "update_success", 1)
+    metricTimer.Finish(ctx, "update")
+
+    return nil
+}
+
+func (obj *{{ $PublicStructName }}) Insert(ctx context.Context) error {
+    logger := activerecord.Logger()
+    metricStatCnt := activerecord.Metric().StatCount("tarantool", "{{ $PublicStructName }}")
+    metricErrCnt := activerecord.Metric().ErrorCount("tarantool", "{{ $PublicStructName }}")
+
+    metricStatCnt.Inc(ctx, "insert_request", 1)
+
+    if obj.BaseField.Exists {
+        metricErrCnt.Inc(ctx, "insert_exists", 1)
+        return fmt.Errorf("can't insert already exists object")
+    }
+
+    connection, err := tarantool.Box(ctx, 0, activerecord.MasterInstanceType, cfgName, nil)
+    if err != nil {
+        metricErrCnt.Inc(ctx, "insertreplace_preparebox", 1)
+        logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
+        return err
+    }
+
+    tuple, err := obj.packTuple()
+    if err != nil {
+        metricErrCnt.Inc(ctx, "insertreplace_packfield", 1)
+
+        return err
+    }
+
+    _, errCall := connection.Insert(namespace, tuple)
+    if errCall != nil {
+        metricErrCnt.Inc(ctx, "insertreplace_box", 1)
+        logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error insert into box", errCall, connection.Info())
+
+        return errCall
+    }
+
+    if err == nil {
+        metricStatCnt.Inc(ctx, "insert_success", 1)
+    }
+
+    obj.UpdateOps = []tarantool2.Op{}
+    obj.BaseField.Exists = true
+
+    return err
+}
+
+func (obj *{{ $PublicStructName }}) Replace(ctx context.Context) error {
+    logger := activerecord.Logger()
+    metricStatCnt := activerecord.Metric().StatCount("tarantool", "{{ $PublicStructName }}")
+    metricErrCnt := activerecord.Metric().ErrorCount("tarantool", "{{ $PublicStructName }}")
+
+    metricStatCnt.Inc(ctx, "replace_request", 1)
+
+    if !obj.BaseField.Exists {
+        metricErrCnt.Inc(ctx, "replace_notexists", 1)
+        return fmt.Errorf("can't replace not exists object")
+    }
+
+    connection, err := tarantool.Box(ctx, 0, activerecord.MasterInstanceType, cfgName, nil)
+    if err != nil {
+        metricErrCnt.Inc(ctx, "insertreplace_preparebox", 1)
+        logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
+
+        return err
+    }
+
+    tuple, err := obj.packTuple()
+    if err != nil {
+        metricErrCnt.Inc(ctx, "insertreplace_packfield", 1)
+
+        return err
+    }
+
+    _, errCall := connection.Replace(namespace, tuple)
+    if errCall != nil {
+        metricErrCnt.Inc(ctx, "insertreplace_box", 1)
+        logger.Error(ctx, "PromoBunches", obj.PrimaryString(), "Error replace on box", errCall, connection.Info())
+
+        return errCall
+    }
+
+    if err == nil {
+        metricStatCnt.Inc(ctx, "replace_success", 1)
+    }
+
+    obj.UpdateOps = []tarantool2.Op{}
+    obj.BaseField.Exists = true
+
+    return err
+}
+
+func (obj *{{ $PublicStructName }}) InsertOrReplace(ctx context.Context) error {
+    logger := activerecord.Logger()
+    metricStatCnt := activerecord.Metric().StatCount("tarantool", "{{ $PublicStructName }}")
+    metricErrCnt := activerecord.Metric().ErrorCount("tarantool", "{{ $PublicStructName }}")
+
+    metricStatCnt.Inc(ctx, "insertorreplace_request", 1)
+
+    connection, err := tarantool.Box(ctx, 0, activerecord.MasterInstanceType, cfgName, nil)
+    if err != nil {
+        metricErrCnt.Inc(ctx, "insertreplace_preparebox", 1)
+        logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), fmt.Sprintf("Error get box '%s'", err))
+        return err
+    }
+
+    tuple, err := obj.packTuple()
+    if err != nil {
+        metricErrCnt.Inc(ctx, "insertreplace_packfield", 1)
+
+        return err
+    }
+
+    _, errCall := connection.Upsert(namespace, tuple, obj.UpdateOps)
+    if errCall != nil {
+        metricErrCnt.Inc(ctx, "insertreplace_box", 1)
+        logger.Error(ctx, "{{ $PublicStructName }}", obj.PrimaryString(), "Error upsert box", errCall, connection.Info())
+
+        return errCall
+    }
+
+    if err == nil {
+        metricStatCnt.Inc(ctx, "insertorreplace_success", 1)
+    }
+
+    obj.UpdateOps = []tarantool2.Op{}
+    obj.BaseField.Exists = true
+
+    return err
+}
+
+func selectBox(ctx context.Context, indexnum uint32, keys []interface{}, iterType uint32, limiter activerecord.SelectorLimiter) ([]*{{ $PublicStructName }}, error) {
+    logger := activerecord.Logger()
+    ctx = logger.SetLoggerValueToContext(ctx, activerecord.ValueLogPrefix{"limiter": limiter.String()})
+    metricTimer := activerecord.Metric().Timer("tarantool", "{{ $PublicStructName }}")
+    metricStatCnt := activerecord.Metric().StatCount("tarantool", "{{ $PublicStructName }}")
+    metricErrCnt := activerecord.Metric().ErrorCount("tarantool", "{{ $PublicStructName }}")
+
+    connection, err := tarantool.Box(ctx, 0, activerecord.ReplicaOrMasterInstanceType, cfgName, nil)
+    if err != nil {
+        metricErrCnt.Inc(ctx, "select_preparebox", 1)
+        logger.Error(ctx, fmt.Sprintf("Error get box '%s'", err))
+
+        return nil, err
+    }
+
+    var res []*{{ $PublicStructName }}
+
+    limit := limiter.Limit()
+    if limiter.Limit() == 0 {
+        limit = math.MaxInt32
+    }
+
+    errCall := connection.SelectTyped(namespace, indexnum, limiter.Offset(), limit, iterType, keys, &res)
+    if errCall != nil {
+        metricErrCnt.Inc(ctx, "select_box", 1)
+        logger.Error(ctx, "Error select from box", errCall, connection.Info())
+
+        return nil, errCall
+    }
+
+    metricTimer.Timing(ctx, "select_box")
+    metricStatCnt.Inc(ctx, "select_tuples_res", float64(len(res)))
+
+    if limiter.FullfillWarn() && len(res) == int(limiter.Limit()) {
+        logger.Warn(ctx, "Select limit reached. Result may less than db records.")
+    }
+
+    mode, ok := connection.InstanceMode().(activerecord.ServerModeType)
+    if !ok || mode == activerecord.ModeReplica {
+        if !ok {
+            logger.Error(ctx, "Invalid server mode type: %T", connection.InstanceMode())
+        }
+
+        for _, r := range res {
+            r.BaseField.IsReplica = true
+            r.BaseField.ReadOnly = true
+        }
+    }
+
+    for _, r := range res {
+        r.BaseField.Exists = true
+    }
+
+    logger.Debug(ctx, "Success select")
+
+    metricTimer.Finish(ctx, "select")
+
+    return res, nil
+}
+
+func executeSQL(ctx context.Context, sqlText string, args []any) ([]*{{ $PublicStructName }}, error) {
+    logger := activerecord.Logger()
+    metricTimer := activerecord.Metric().Timer("tarantool", "{{ $PublicStructName }}")
+    metricStatCnt := activerecord.Metric().StatCount("tarantool", "{{ $PublicStructName }}")
+    metricErrCnt := activerecord.Metric().ErrorCount("tarantool", "{{ $PublicStructName }}")
+
+    connection, err := tarantool.Box(ctx, 0, activerecord.ReplicaOrMasterInstanceType, cfgName, nil)
+    if err != nil {
+        metricErrCnt.Inc(ctx, "execute_preparebox", 1)
+        logger.Error(ctx, fmt.Sprintf("Error get box '%s'", err))
+
+        return nil, err
+    }
+
+    var res []*{{ $PublicStructName }}
+
+    if _, _, errCall := connection.ExecuteTyped(sqlText, args, &res); err != nil {
+        metricErrCnt.Inc(ctx, "execute_box", 1)
+        logger.Error(ctx, "Error execute from box", errCall, connection.Info())
+
+        return nil, errCall
+    }
+
+    for _, r := range res {
+        r.BaseField.Exists = true
+    }
+
+    metricStatCnt.Inc(ctx, "execute_tuples_res", float64(len(res)))
+
+    logger.Debug(ctx, "Success execute")
+
+    metricTimer.Finish(ctx, "execute")
+
+    return res, nil
+}

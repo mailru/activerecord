@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
+	"log"
 	"strings"
 	"text/template"
 
 	"github.com/mailru/activerecord/internal/pkg/arerror"
 	"github.com/mailru/activerecord/internal/pkg/ds"
+	"github.com/mailru/activerecord/pkg/octopus"
 )
 
 //nolint:revive
@@ -87,6 +89,14 @@ func GenerateTarantoolFixtureStore(params FixturePkgData) (map[string]bytes.Buff
 }
 
 var Tarantool2TmplFunc = template.FuncMap{
+	"packerParam": func(format octopus.Format) TarantoolFormatParam {
+		ret, ex := PrimitiveTypeFormatConverter[format]
+		if !ex {
+			log.Fatalf("packer for type `%s` not found", format)
+		}
+
+		return ret
+	},
 	"addImport": func(flds []ds.FieldDeclaration) (imports []string) {
 		var needStrconv bool
 
@@ -102,4 +112,27 @@ var Tarantool2TmplFunc = template.FuncMap{
 
 		return
 	},
+}
+
+type TarantoolFormatParam string
+
+func (p TarantoolFormatParam) ToString() []string {
+	return strings.SplitN(string(p), `%%`, 2)
+}
+
+var PrimitiveTypeFormatConverter = map[octopus.Format]TarantoolFormatParam{
+	octopus.Bool:    "strconv.FormatBool(%%)",
+	octopus.Uint8:   "strconv.FormatUint(uint64(%%), 10)",
+	octopus.Uint16:  "strconv.FormatUint(uint64(%%), 10)",
+	octopus.Uint32:  "strconv.FormatUint(uint64(%%), 10)",
+	octopus.Uint64:  "strconv.FormatUint(%%, 10)",
+	octopus.Uint:    "strconv.FormatUint(uint64(%%), 10)",
+	octopus.Int8:    "strconv.FormatInt(int64(%%), 10)",
+	octopus.Int16:   "strconv.FormatInt(int64(%%), 10)",
+	octopus.Int32:   "strconv.FormatInt(int64(%%), 10)",
+	octopus.Int64:   "strconv.FormatInt(%%, 10)",
+	octopus.Int:     "strconv.FormatInt(int64(%%), 10)",
+	octopus.Float32: "strconv.FormatFloat(%%, 32)",
+	octopus.Float64: "strconv.FormatFloat(%%, 64)",
+	octopus.String:  "%%",
 }
