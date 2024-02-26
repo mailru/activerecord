@@ -271,7 +271,7 @@ func (idxs {{ $ind.Type }}s) buildSQLPredicateIN() (string, []any) {
     {{- range $_, $fieldNum := $ind.Fields }}
     {{- $ifield := index $fields $fieldNum }}
     {{ $rtype := $ifield.Format -}}
-    predicate = tarantool.BuildSQLPredicateIN("{{ $ifield.Name }}", len(idxs))
+    predicate = tarantool.BuildSQLPredicateIN("{{ $ifield.Name | lowerCase -}}", len(idxs))
     buf.WriteString(predicate)
 
     for _, idx := range idxs {
@@ -296,7 +296,7 @@ func (idxs {{ $ind.Name }}s) buildSQLPredicateIN() (string, []any) {
         args = append(args, key)
     }
 
-    return tarantool.BuildSQLPredicateIN("{{ $ifield.Name }}", len(idxs)), args
+    return tarantool.BuildSQLPredicateIN("{{ $ifield.Name | lowerCase -}}", len(idxs)), args
 }
 {{ end }}
 
@@ -335,10 +335,58 @@ func {{ $ind.Selector }}(ctx context.Context, key {{ $ind.Type }}{{ if not $ind.
     {{- end }}
 }
 
-// template content
 
 {{ end }}
 // End Induces
+
+
+// linked objects
+{{ range $name, $fobj := .FieldObject -}}
+{{ $linkedobj := index $LinkedObject $fobj.ObjectName }}
+func (obj *{{ $PublicStructName }}) Get{{ $name }}(ctx context.Context) ({{ if not $fobj.Unique }}[]{{ end }}*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}, error){
+    {{- if $fobj.Unique }}
+    if ret, ok := obj.BaseField.Objects["{{ $name }}"]; ok && len(ret) == 1 {
+        return ret[0].(*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}), nil
+    }
+
+    ret, err := {{ $linkedobj.Namespace.PackageName }}.SelectBy{{ $fobj.Key }}(ctx, obj.Get{{ $fobj.Field }}())
+    if err != nil {
+        return nil, err
+    }
+
+    obj.BaseField.Objects["{{ $name }}"] = []tarantool.ModelStruct{ret}
+    {{- else }}
+
+    var ret []*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}
+
+    if retI, ok := obj.BaseField.Objects["{{ $name }}"]; ok && len(retI) > 0 {
+        for _, ri := range retI {
+            ret = append(ret, ri.(*{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}))
+        }
+
+        return ret, nil
+    }
+
+    ret, err := {{ $linkedobj.Namespace.PackageName }}.SelectBy{{ $fobj.Key }}(ctx, obj.Get{{ $fobj.Field }}(), activerecord.NewLimiter(100)) //ToDo default limit for multi object
+    if err != nil {
+        return nil, err
+    }
+
+    if len(ret) == 100 {
+        activerecord.Logger().Warn(ctx, "limit for multiple linked object riched '{{ $linkedobj.Namespace.PackageName }}.{{ $linkedobj.Namespace.PublicName }}' '{{ $PublicStructName }}'")
+    }
+
+    for _, r := range ret {
+        obj.BaseField.Objects["{{ $name }}"] = append(obj.BaseField.Objects["{{ $name }}"], r)
+    }
+    {{- end }}
+
+    return ret, nil
+}
+
+{{ end -}}
+// End linked objects
+
 
 // Getters,Setters and Mutators
 
@@ -406,6 +454,80 @@ func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {
 
     return nil
 }
+
+{{- range $i, $mut := $fstruct.Mutators -}}
+{{ $mtype := $fstruct.Format }}
+
+func (obj *{{ $PublicStructName }}) {{ $mut | snakeToCamelCase }}{{ $fstruct.Name }}(mutArg {{ $mtype }}) error {
+    {{- if eq $mut "inc" }}
+    if mutArg == 0 {
+        return nil
+    }
+
+    obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, tarantool2.Op{Field: {{ $ind }}, Op: "+", Arg: mutArg})
+    obj.field{{ $fstruct.Name }} += mutArg
+    {{- else if eq $mut "dec" }}
+    if mutArg == 0 {
+        return nil
+    }
+
+    obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, tarantool2.Op{Field: {{ $ind }}, Op: "-", Arg: mutArg})
+    obj.field{{ $fstruct.Name }} -= mutArg
+    {{- else if eq $mut "and" }}
+    if obj.field{{ $fstruct.Name }} == 0 || obj.field{{ $fstruct.Name }} & mutArg == obj.field{{ $fstruct.Name }} {
+        return nil
+    }
+
+    obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, tarantool2.Op{Field: {{ $ind }}, Op: "&", Arg: mutArg})
+    obj.field{{ $fstruct.Name }} &= mutArg
+    {{- else if eq $mut "or" "set_bit" }}
+    if mutArg == 0 || obj.field{{ $fstruct.Name }} | mutArg == obj.field{{ $fstruct.Name }} {
+        return nil
+    }
+
+    obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, tarantool2.Op{Field: {{ $ind }}, Op: "|", Arg: mutArg})
+    obj.field{{ $fstruct.Name }} |= mutArg
+    {{- else if eq $mut "clear_bit" }}
+    if mutArg == 0 || obj.field{{ $fstruct.Name }} & ^mutArg == obj.field{{ $fstruct.Name }} {
+        return nil
+    }
+
+    mutArg &= ^mutArg
+
+    obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, tarantool2.Op{Field: {{ $ind }}, Op: "=", Arg: mutArg})
+    obj.field{{ $fstruct.Name }} = mutArg
+    {{- else if eq $mut "xor" }}
+    if mutArg == 0 || obj.field{{ $fstruct.Name }} ^ mutArg == obj.field{{ $fstruct.Name }} {
+        return nil
+    }
+
+    obj.BaseField.UpdateOps = append(obj.BaseField.UpdateOps, tarantool2.Op{Field: {{ $ind }}, Op: "^", Arg: mutArg})
+    obj.field{{ $fstruct.Name }} ^= mutArg
+    {{- else }}
+    Unknown mutator type in template!!!
+    {{- end }}
+
+    return nil
+}
+{{- end }}
+
+{{- $fl := index $flags $fstruct.Name }}
+{{- if $fl }}
+{{- range $i, $flag := $fl.Flags }}
+
+func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}{{ $flag }}() error {
+    return obj.SetBit{{ $fstruct.Name }}( {{ $fstruct.Name }}{{ $flag }}Flag )
+}
+
+func (obj *{{ $PublicStructName }}) Clear{{ $fstruct.Name }}{{ $flag }}() error {
+    return obj.ClearBit{{ $fstruct.Name }}( {{ $fstruct.Name }}{{ $flag }}Flag )
+}
+
+func (obj *{{ $PublicStructName }}) Is{{ $fstruct.Name }}{{ $flag }}() bool {
+    return obj.Get{{ $fstruct.Name }}() & {{ $fstruct.Name }}{{ $flag }}Flag == {{ $fstruct.Name }}{{ $flag }}Flag
+}
+{{- end }}
+{{- end }}
 
 {{ end -}}
 
