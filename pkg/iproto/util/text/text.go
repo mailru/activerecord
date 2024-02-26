@@ -3,6 +3,8 @@ package text
 
 import (
 	"bytes"
+	"regexp"
+	"strings"
 	"unicode"
 )
 
@@ -79,4 +81,12 @@ func ToSnakeCase(name string) string {
 	}
 
 	return ret.String()
+}
+
+var snakePattern = regexp.MustCompile("(^[A-Za-z])|_([A-Za-z])")
+
+func SnakeToCamelCase(str string) string {
+	return snakePattern.ReplaceAllStringFunc(str, func(s string) string {
+		return strings.ToUpper(strings.Replace(s, "_", "", -1))
+	})
 }

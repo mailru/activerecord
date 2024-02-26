@@ -10,6 +10,7 @@ import (
 
 	"github.com/mailru/activerecord/internal/pkg/arerror"
 	"github.com/mailru/activerecord/internal/pkg/ds"
+	"github.com/mailru/activerecord/pkg/iproto/util/text"
 	"github.com/mailru/activerecord/pkg/octopus"
 )
 
@@ -112,6 +113,10 @@ var Tarantool2TmplFunc = template.FuncMap{
 
 		return
 	},
+	"trimPrefix":       strings.TrimPrefix,
+	"hasPrefix":        strings.HasPrefix,
+	"lowerCase":        strings.ToLower,
+	"snakeToCamelCase": text.SnakeToCamelCase,
 }
 
 type TarantoolFormatParam string
