@@ -148,12 +148,14 @@ func (obj *{{ $PublicStructName }}) DecodeMsgpack(dec *msgpack.Decoder) error {
     {{ $rtype := $fstruct.Format -}}
     {{ $sname := $fstruct.Serializer.Name -}}
         {{ if ne $sname "" -}}
+        {{ $serializer := index $serializers $sname -}}
+        {{ $serparams := $fstruct.Serializer.Params }}
     var v{{ $fstruct.Name }}  {{ $rtype }}
     if err := dec.Decode(&v{{ $fstruct.Name }}); err != nil {
         return fmt.Errorf("can't decode '{{ $fstruct.Name }}' field: %w", err)
     }
 
-    if err := serializer.MapstructureUnmarshal(v{{ $fstruct.Name }}, &obj.field{{ $fstruct.Name }}); err != nil {
+    if err := {{ $serializer.ImportName }}.{{ $serializer.Unmarshaler }}({{ $serparams }}v{{ $fstruct.Name }}, &obj.field{{ $fstruct.Name }}); err != nil {
         return fmt.Errorf("can't unpack '{{ $fstruct.Name }}' field: %w", err)
     }
         {{- else }}
@@ -314,7 +316,7 @@ func {{ $ind.Selector }}(ctx context.Context, key {{ $ind.Type }}{{ if not $ind.
     {{ if $ind.Unique }}
     limiter := activerecord.EmptyLimiter()
     {{ end }}
-    selected, err := selectBox(ctx, {{$ind.Num}}, {{ if ne $lenfld 1 -}} key.pack() {{- else }} []any{key} {{- end }}, tarantool.IterEq, limiter)
+    selected, err := selectBox(ctx, {{$ind.Num}}, {{ if ne $lenfld 1 -}} key.pack() {{- else }} []any{key} {{- end }}, tarantool2.IterEq, limiter)
     if err != nil {
         return nil, err
     }
