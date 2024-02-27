@@ -240,7 +240,7 @@ func (a *ArGen) generate() error {
 			return fmt.Errorf("generate meta error: %s", genErr)
 		}
 
-		if err := a.saveGenerateResult("meta", a.dst, genRes); err != nil {
+		if genErr := a.saveGenerateResult("meta", a.dst, genRes); genErr != nil {
 			return fmt.Errorf("error save meta result: %w", err)
 		}
 	}
@@ -255,7 +255,7 @@ func (a *ArGen) generate() error {
 		return fmt.Errorf("prepare fixture store error: %s", err)
 	}
 
-	dir, pkg := filepath.Split(a.dstFixture)
+	fixtureDir, fxtPkg := filepath.Split(a.dstFixture)
 
 	for name, cl := range a.packagesParsed {
 		// Подготовка информации по ссылкам на другие пакеты
@@ -265,14 +265,31 @@ func (a *ArGen) generate() error {
 		}
 
 		// Процесс генерации
-		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, pkg)
+		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, fxtPkg)
 		if genErr != nil {
 			return fmt.Errorf("generate %s fixture store error: %w", name, genErr)
 		}
 
-		if err := a.saveGenerateResult(name, dir, genRes); err != nil {
+		if err := a.saveGenerateResult(name, fixtureDir, genRes); err != nil {
 			return fmt.Errorf("error save generated %s fixture result: %w", name, err)
 		}
+	}
+
+	namespaces := map[string][]*ds.RecordPackage{}
+
+	for _, cl := range a.packagesParsed {
+		for _, backend := range cl.Backends {
+			namespaces[backend] = append(namespaces[backend], cl)
+		}
+	}
+
+	genRes, genErr := generator.GenerateFixtureMeta(namespaces, a.appInfo.String(), fxtPkg)
+	if genErr != nil {
+		return fmt.Errorf("generate fixture meta error: %s", genErr)
+	}
+
+	if err := a.saveGenerateResult("fixture_meta", fixtureDir, genRes); err != nil {
+		return fmt.Errorf("error save fixture meta result: %w", err)
 	}
 
 	return nil

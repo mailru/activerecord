@@ -44,7 +44,7 @@ var {{$PackageName}}Source []byte
 
 func init{{$PublicStructName}}() {
     {{$PackageName}}Once.Do(func() {
-        {{$PackageName}}Fixtures = {{$PackageName}}.UnmarshalFixtures({{$PackageName}}Source)
+        {{$PackageName}}Fixtures = {{$PackageName}}.UnmarshalFromYaml({{$PackageName}}Source)
 
         {{$PackageName}}Store = map[{{$typePK}}]int{}
         for i, f := range {{$PackageName}}Fixtures {
@@ -69,4 +69,18 @@ func Get{{$PublicStructName}}By{{$fieldNamePK}}({{$fieldNamePK}} {{$typePK}}) *{
     res := {{$PackageName}}Fixtures[idx]
 
     return res
+}
+
+func {{$PublicStructName}}Iterator() func(it func(any) error) error {
+    return func(it func(e any) error) error {
+        init{{$PublicStructName}}()
+
+        for _, e := range {{$PackageName}}Fixtures {
+            if err := it(e); err != nil {
+                return err
+            }
+        }
+
+        return nil
+    }
 }

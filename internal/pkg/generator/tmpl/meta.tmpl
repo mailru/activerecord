@@ -46,7 +46,7 @@ var NamespacePackages = NSPackage {
             return {{ $ns.Namespace.PackageName }}.MarshalFixtures([]*{{ $ns.Namespace.PackageName }}.{{ $ns.Namespace.PublicName }}{obj})
         },
 		FixtureUnpacker: func(ctx context.Context, source []byte) (res []any, err error) {
-            fxts, err := {{ $ns.Namespace.PackageName }}.UnmarshalFixturesFromJSON(source)
+            fxts, err := {{ $ns.Namespace.PackageName }}.UnmarshalFixtures(source)
             if err != nil {
                 return nil, fmt.Errorf("can't decode tuple: %s", err)
             }
