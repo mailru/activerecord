@@ -458,8 +458,28 @@ func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {
 }
 
 {{- range $i, $mut := $fstruct.Mutators -}}
-{{ $mtype := $fstruct.Format }}
+{{ $customMutator := index $mutators $mut -}}
+    {{- if $customMutator.Name }}
 
+    {{ range $i, $f := $customMutator.PartialFields }}
+// Set{{ $customMutator.Name }}{{ $f.Name }} is a stub for backport compatibility
+func (obj *{{ $PublicStructName }}) Set{{ $customMutator.Name }}{{ $f.Name }}({{ $f.Name }} {{ $f.Type }}) error {
+    pVar := obj.Get{{ $fstruct.Name }}()
+    {{ $underlyingType := trimPrefix (printf "%s" $rtype) "*"}}
+    {{- $isPointer := hasPrefix (printf "%s" $rtype) "*" -}}
+    {{- if $isPointer -}}
+    if pVar == nil {
+        pVar = new({{$underlyingType}})
+    }
+	{{ end}}
+
+    pVar.{{ $f.Name }} = {{ $f.Name }}
+
+    return obj.Set{{ $fstruct.Name }}(pVar)
+}
+        {{ end }}
+    {{ else }}
+    {{ $mtype := $fstruct.Format }}
 func (obj *{{ $PublicStructName }}) {{ $mut | snakeToCamelCase }}{{ $fstruct.Name }}(mutArg {{ $mtype }}) error {
     {{- if eq $mut "inc" }}
     if mutArg == 0 {
@@ -511,7 +531,8 @@ func (obj *{{ $PublicStructName }}) {{ $mut | snakeToCamelCase }}{{ $fstruct.Nam
 
     return nil
 }
-{{- end }}
+    {{- end }}
+{{ end}}
 
 {{- $fl := index $flags $fstruct.Name }}
 {{- if $fl }}
