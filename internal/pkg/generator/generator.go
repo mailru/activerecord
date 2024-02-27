@@ -243,6 +243,25 @@ func ErrorLine(errIn error, genData string) error {
 func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string, pkgFixture string) ([]GenerateFile, error) {
 	var ret []GenerateFile
 
+	params := FixturePkgData{
+		FixturePkg:       pkgFixture,
+		ARPkg:            pkg,
+		ARPkgTitle:       cl.Namespace.PublicName,
+		FieldList:        cl.Fields,
+		FieldMap:         cl.FieldsMap,
+		FieldObject:      cl.FieldsObjectMap,
+		ProcInFieldList:  cl.ProcInFields,
+		ProcOutFieldList: cl.ProcOutFields.List(),
+		Container:        cl.Namespace,
+		Indexes:          cl.Indexes,
+		Serializers:      cl.SerializerMap,
+		Mutators:         cl.MutatorMap,
+		Imports:          cl.Imports,
+		AppInfo:          appInfo,
+	}
+
+	log.Printf("Generate package (%v)", cl)
+
 	for _, backend := range cl.Backends {
 		var generated map[string]bytes.Buffer
 
@@ -250,24 +269,6 @@ func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string, pkgFixture
 		case "tarantool15":
 			fallthrough
 		case "octopus":
-			params := FixturePkgData{
-				FixturePkg:       pkgFixture,
-				ARPkg:            pkg,
-				ARPkgTitle:       cl.Namespace.PublicName,
-				FieldList:        cl.Fields,
-				FieldMap:         cl.FieldsMap,
-				FieldObject:      cl.FieldsObjectMap,
-				ProcInFieldList:  cl.ProcInFields,
-				ProcOutFieldList: cl.ProcOutFields.List(),
-				Container:        cl.Namespace,
-				Indexes:          cl.Indexes,
-				Serializers:      cl.SerializerMap,
-				Mutators:         cl.MutatorMap,
-				Imports:          cl.Imports,
-				AppInfo:          appInfo,
-			}
-
-			log.Printf("Generate package (%v)", cl)
 
 			var err *arerror.ErrGeneratorPhases
 
@@ -279,24 +280,6 @@ func GenerateFixture(appInfo string, cl ds.RecordPackage, pkg string, pkgFixture
 		case "tarantool16":
 			fallthrough
 		case "tarantool2":
-			params := FixturePkgData{
-				FixturePkg:       pkgFixture,
-				ARPkg:            pkg,
-				ARPkgTitle:       cl.Namespace.PublicName,
-				FieldList:        cl.Fields,
-				FieldMap:         cl.FieldsMap,
-				FieldObject:      cl.FieldsObjectMap,
-				ProcInFieldList:  cl.ProcInFields,
-				ProcOutFieldList: cl.ProcOutFields.List(),
-				Container:        cl.Namespace,
-				Indexes:          cl.Indexes,
-				Serializers:      cl.SerializerMap,
-				Mutators:         cl.MutatorMap,
-				Imports:          cl.Imports,
-				AppInfo:          appInfo,
-			}
-
-			log.Printf("Generate package (%v)", cl)
 
 			var err *arerror.ErrGeneratorPhases
 

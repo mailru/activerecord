@@ -78,7 +78,7 @@ func MarshalFixtures(objs []*{{$PublicStructName}}) ([]byte, error) {
 	return yaml.Marshal(fts)
 }
 
-func UnmarshalFixtures(source []byte) []*{{$PublicStructName}} {
+func UnmarshalFromYaml(source []byte) []*{{$PublicStructName}} {
     var fixtures []{{$PublicStructName}}FT
 
     if err := yaml.Unmarshal(source, &fixtures); err != nil {
@@ -108,7 +108,7 @@ func UnmarshalFixtures(source []byte) []*{{$PublicStructName}} {
     return objs
 }
 
-func UnmarshalFixturesFromJSON(source []byte) ([]{{$PublicStructName}}FT, error) {
+func UnmarshalFixtures(source []byte) ([]{{$PublicStructName}}FT, error) {
 	source = bytes.TrimLeft(source, " \t\r\n")
 
 	if  len(source) > 0 && source[0] == '{' {
@@ -187,7 +187,7 @@ func MarshalFixtures(objs []*{{$PublicStructName}}) ([]byte, error) {
 	return yaml.Marshal(fts)
 }
 
-func UnmarshalFixtures(source []byte) []*{{$PublicStructName}} {
+func UnmarshalFromYaml(source []byte) []*{{$PublicStructName}} {
     var fixtures []{{$PublicStructName}}FT
 
     if err := yaml.Unmarshal(source, &fixtures); err != nil {
@@ -296,7 +296,7 @@ func UnmarshalUpdateFixtures(source []byte) []*{{$PublicStructName}} {
 }
 
 func UnmarshalInsertReplaceFixtures(source []byte) []*{{$PublicStructName}} {
-    return UnmarshalFixtures(source)
+    return UnmarshalFromYaml(source)
 }
 
 func SetFixtureUpdateOptions(obj *{{$PublicStructName}}, updateOptions  []{{$PublicStructName}}UpdateFixtureOptions) {
@@ -317,5 +317,5 @@ func SetFixtureUpdateOptions(obj *{{$PublicStructName}}, updateOptions  []{{$Pub
 {{ end }}
 
 func UnmarshalDeleteFixtures(source []byte) []*{{$PublicStructName}} {
-	return UnmarshalFixtures(source)
+	return UnmarshalFromYaml(source)
 }

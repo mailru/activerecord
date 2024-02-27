@@ -33,7 +33,7 @@ type {{ $PublicStructName }}FT struct {
     {{- end }}
 }
 
-func UnmarshalFixturesFromMessagePack(source []byte) ([]{{$PublicStructName}}FT, error) {
+func UnmarshalFixtures(source []byte) ([]{{$PublicStructName}}FT, error) {
     var fts []{{$PublicStructName}}FT
     if err := msgpack.Unmarshal(source, &fts); err != nil {
         return nil, err
@@ -42,7 +42,41 @@ func UnmarshalFixturesFromMessagePack(source []byte) ([]{{$PublicStructName}}FT,
     return fts, nil
 }
 
-func UnmarshalFixtures(source []byte) []*{{$PublicStructName}} {
+func (obj *{{ $PublicStructName }}FT) DecodeMsgpack(dec *msgpack.Decoder) error {
+    l, err := dec.DecodeArrayLen()
+    if err != nil {
+        return err
+    }
+
+    if l != {{ len .FieldList }} {
+        return fmt.Errorf("unexpected count of fields")
+    }
+
+    {{ range $ind, $fstruct := .FieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $sname := $fstruct.Serializer.Name -}}
+    {{ if ne $sname "" -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $serparams := $fstruct.Serializer.Params }}
+    var v{{ $fstruct.Name }}  {{ $rtype }}
+    if err := dec.Decode(&v{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't decode '{{ $fstruct.Name }}' field: %w", err)
+    }
+
+    if err := {{ $serializer.ImportName }}.{{ $serializer.Unmarshaler }}({{ $serparams }}v{{ $fstruct.Name }}, &obj.{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't unpack '{{ $fstruct.Name }}' field: %w", err)
+    }
+    {{- else }}
+    if err := dec.Decode(&obj.{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't decode field '{{ $fstruct.Name }}': %w", err)
+    }
+    {{ end }}
+    {{ end }}
+
+    return nil
+}
+
+func UnmarshalFromYaml(source []byte) []*{{$PublicStructName}} {
     var fixtures []{{$PublicStructName}}FT
 
     if err := yaml.Unmarshal(source, &fixtures); err != nil {
