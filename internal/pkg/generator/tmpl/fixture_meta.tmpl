@@ -17,6 +17,7 @@ type NSFixtures map[string]FixtureMeta
 {{ $nss := .Namespaces }}
 var NamespaceFixtures = NSFixtures{
     {{ range $_, $ns := $nss -}}
+    {{- if $ns.Fields }}
     "{{ $ns.Namespace.ObjectName }}": FixtureMeta{
         StoreIterator:{{ $ns.Namespace.PublicName }}StoreIterator(),
         Unpacker: func(ctx context.Context, source []byte) (res []any, err error) {
@@ -41,5 +42,6 @@ var NamespaceFixtures = NSFixtures{
             {{ end -}}
         },
     },
+    {{ end }}
     {{ end }}
 }

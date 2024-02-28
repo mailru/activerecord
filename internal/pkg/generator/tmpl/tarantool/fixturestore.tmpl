@@ -1,5 +1,9 @@
 package {{ .FixturePkg }}
 
+{{ $fields := .FieldList }}
+
+{{ if $fields }}
+
 import (
     _ "embed"
     "context"
@@ -19,11 +23,8 @@ import (
 {{ $serializers := .Serializers -}}
 {{ $PackageName := .ARPkg -}}
 {{ $PublicStructName := .ARPkgTitle -}}
-{{ $fields := .FieldList }}
 {{ $typePK := "" -}}
 {{ $fieldNamePK := "" -}}
-
-{{ if $fields }}
 
 {{ range $num, $ind := .Indexes -}}
 {{ $lenfld := len $ind.Fields -}}
