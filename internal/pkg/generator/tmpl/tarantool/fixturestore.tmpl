@@ -23,6 +23,8 @@ import (
 {{ $typePK := "" -}}
 {{ $fieldNamePK := "" -}}
 
+{{ if $fields }}
+
 {{ range $num, $ind := .Indexes -}}
 {{ $lenfld := len $ind.Fields -}}
     {{ if $ind.Primary }}
@@ -84,3 +86,5 @@ func {{$PublicStructName}}StoreIterator() func(it func(any) error) error {
         return nil
     }
 }
+
+{{ end }}
