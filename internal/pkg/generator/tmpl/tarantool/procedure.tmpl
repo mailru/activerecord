@@ -72,12 +72,21 @@ var cfgName = "{{.Server.Conf }}"
 {{ end }}
 
 func (obj *{{ $PublicStructName }}) DecodeMsgpack(dec *msgpack.Decoder) error {
-    l, err := dec.DecodeArrayLen()
+    rowCnt, err := dec.DecodeArrayLen()
     if err != nil {
         return err
     }
 
-    if l != int(cntOutFields) {
+    if rowCnt != 1 {
+        return fmt.Errorf("unexpected response rows count: %d", rowCnt)
+    }
+
+    rowFieldCount, err := dec.DecodeArrayLen()
+    if err != nil {
+        return err
+    }
+
+    if rowFieldCount != int(cntOutFields) {
         return fmt.Errorf("unexpected count of fields")
     }
 
