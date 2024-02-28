@@ -18,9 +18,9 @@ type NSFixtures map[string]FixtureMeta
 var NamespaceFixtures = NSFixtures{
     {{ range $_, $ns := $nss -}}
     "{{ $ns.Namespace.ObjectName }}": FixtureMeta{
-        StoreIterator:{{ $ns.Namespace.PublicName }}Iterator(),
+        StoreIterator:{{ $ns.Namespace.PublicName }}StoreIterator(),
         Unpacker: func(ctx context.Context, source []byte) (res []any, err error) {
-            fxts, err := {{ $ns.Namespace.ObjectName }}.UnmarshalFixtures(source)
+            fxts, err := {{ $ns.Namespace.PackageName }}.UnmarshalFixtures(source)
             if err != nil {
                 return nil, fmt.Errorf("can't decode tuple: %s", err)
             }

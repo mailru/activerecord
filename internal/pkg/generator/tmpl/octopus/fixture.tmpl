@@ -159,7 +159,7 @@ type {{ $PublicStructName }}FT struct {
 {{- end }}
 }
 
-func UnmarshalFixturesFromJSON(source []byte) ([]{{$PublicStructName}}FT, error) {
+func UnmarshalFixtures(source []byte) ([]{{$PublicStructName}}FT, error) {
 	source = bytes.TrimLeft(source, " \t\r\n")
 
 	if  len(source) > 0 && source[0] == '{' {
@@ -262,7 +262,7 @@ type {{ $PublicStructName }}UpdateFixtureOptions struct {
     {{ end }}
 {{- end }}
 
-func UnmarshalUpdateFixtures(source []byte) []*{{$PublicStructName}} {
+func UnmarshalUpdateFromYaml(source []byte) []*{{$PublicStructName}} {
     var fixtures []{{$PublicStructName}}UpdateFT
 
     if err := yaml.Unmarshal(source, &fixtures); err != nil {
@@ -295,7 +295,7 @@ func UnmarshalUpdateFixtures(source []byte) []*{{$PublicStructName}} {
     return objs
 }
 
-func UnmarshalInsertReplaceFixtures(source []byte) []*{{$PublicStructName}} {
+func UnmarshalInsertReplaceFromYaml(source []byte) []*{{$PublicStructName}} {
     return UnmarshalFromYaml(source)
 }
 
@@ -316,6 +316,6 @@ func SetFixtureUpdateOptions(obj *{{$PublicStructName}}, updateOptions  []{{$Pub
 }
 {{ end }}
 
-func UnmarshalDeleteFixtures(source []byte) []*{{$PublicStructName}} {
+func UnmarshalDeleteFromYaml(source []byte) []*{{$PublicStructName}} {
 	return UnmarshalFromYaml(source)
 }

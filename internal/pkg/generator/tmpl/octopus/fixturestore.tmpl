@@ -128,7 +128,7 @@ var {{$PackageName}}{{ $mockOperation }}Source []byte
 
 func init{{$mockOperation}}{{$PublicStructName}}() {
     {{$PackageName}}{{ $mockOperation }}Once.Do(func() {
-        {{$PackageName}}{{$mockOperation}}Fixtures = {{$PackageName}}.Unmarshal{{$mockOperation}}Fixtures({{$PackageName}}{{ $mockOperation }}Source)
+        {{$PackageName}}{{$mockOperation}}Fixtures = {{$PackageName}}.Unmarshal{{$mockOperation}}FromYaml({{$PackageName}}{{ $mockOperation }}Source)
 
         {{$PackageName}}{{$mockOperation}}Store = map[{{$typePK}}]int{}
         for i, f := range {{$PackageName}}{{$mockOperation}}Fixtures {
