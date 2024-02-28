@@ -27,8 +27,9 @@ var tarantoolProcRepositoryTmpl string
 var tarantoolFixtureRepositoryTmpl string
 
 func GenerateTarantool(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGeneratorPhases) {
+	ret := map[string]bytes.Buffer{}
+
 	mainWriter := bytes.Buffer{}
-	fixtureWriter := bytes.Buffer{}
 
 	var repositoryTmpl string
 	if len(params.FieldList) > 0 {
@@ -48,18 +49,21 @@ func GenerateTarantool(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGen
 
 	octopusFile.Flush()
 
-	fixtureFile := bufio.NewWriter(&fixtureWriter)
+	ret["tarantool"] = mainWriter
 
-	err = GenerateByTmpl(fixtureFile, params, "tarantool", tarantoolFixtureRepositoryTmpl, Tarantool2TmplFunc)
-	if err != nil {
-		return nil, err
-	}
+	if len(params.FieldList) > 0 {
+		fixtureWriter := bytes.Buffer{}
 
-	fixtureFile.Flush()
+		fixtureFile := bufio.NewWriter(&fixtureWriter)
 
-	ret := map[string]bytes.Buffer{
-		"tarantool": mainWriter,
-		"fixture":   fixtureWriter,
+		err = GenerateByTmpl(fixtureFile, params, "tarantool", tarantoolFixtureRepositoryTmpl, Tarantool2TmplFunc)
+		if err != nil {
+			return nil, err
+		}
+
+		fixtureFile.Flush()
+
+		ret["fixture"] = fixtureWriter
 	}
 
 	return ret, nil
