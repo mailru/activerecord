@@ -19,6 +19,10 @@ import (
 var tarantoolRootRepositoryTmpl string
 
 //nolint:revive
+//go:embed tmpl/tarantool/procedure.tmpl
+var tarantoolProcRepositoryTmpl string
+
+//nolint:revive
 //go:embed tmpl/tarantool/fixture.tmpl
 var tarantoolFixtureRepositoryTmpl string
 
@@ -26,9 +30,18 @@ func GenerateTarantool(params PkgData) (map[string]bytes.Buffer, *arerror.ErrGen
 	mainWriter := bytes.Buffer{}
 	fixtureWriter := bytes.Buffer{}
 
+	var repositoryTmpl string
+	if len(params.FieldList) > 0 {
+		repositoryTmpl = tarantoolRootRepositoryTmpl
+	} else if len(params.ProcOutFieldList) > 0 {
+		repositoryTmpl = tarantoolProcRepositoryTmpl
+	} else {
+		return nil, &arerror.ErrGeneratorPhases{Backend: "tarantool", Err: arerror.ErrGeneratorTemplateUnkhown}
+	}
+
 	octopusFile := bufio.NewWriter(&mainWriter)
 
-	err := GenerateByTmpl(octopusFile, params, "tarantool", tarantoolRootRepositoryTmpl, Tarantool2TmplFunc)
+	err := GenerateByTmpl(octopusFile, params, "tarantool", repositoryTmpl, Tarantool2TmplFunc)
 	if err != nil {
 		return nil, err
 	}
