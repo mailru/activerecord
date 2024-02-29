@@ -192,9 +192,9 @@ func GetUpdate{{$PublicStructName}}FixtureBy{{ $fieldNamePK }}(ctx context.Conte
 }
 
 func {{$PublicStructName}}StoreIterator() func(it func(any) error) error {
-    init{{$PublicStructName}}()
-
     return func(it func(e any) error) error {
+        init{{$PublicStructName}}()
+
         for _, e := range {{$PackageName}}Fixtures {
             if err := it(e); err != nil {
                 return err
