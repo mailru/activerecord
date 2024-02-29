@@ -61,15 +61,18 @@ const (
 var boxOption, _ = tarantool.NewOptions(
     "{{ .Server.Host }}:{{ .Server.Port }}",
     activerecord.ModeMaster,
-    tarantool.WithTimeout(time.Millisecond * {{ .Server.Timeout }}, time.Millisecond * {{ .Server.Timeout }}),
+    tarantool.WithTimeout(time.Millisecond * {{ .Server.Timeout }}),
 )
+
+var optionCreator = func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
+    return boxOption, nil
+}
 
 var clusterInfo = activerecord.NewClusterInfo(
     activerecord.WithShard([]activerecord.OptionInterface{boxOption}, []activerecord.OptionInterface{}),
 )
-{{ else}}
-var cfgName = "{{.Server.Conf }}"
 {{ end }}
+var cfgName = "{{.Server.Conf }}"
 
 func (obj *{{ $PublicStructName }}) DecodeMsgpack(dec *msgpack.Decoder) error {
     rowCnt, err := dec.DecodeArrayLen()
@@ -196,7 +199,7 @@ func call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructNa
 
     metricTimer.Timing(ctx, "call_proc")
 
-    connection, err := tarantool.Box(ctx, 0, instanceType, cfgName, nil)
+    connection, err := tarantool.Box(ctx, 0, instanceType, cfgName, {{ if eq .Server.Conf "" -}}optionCreator{{ else }}nil{{ end -}})
     if err != nil {
         metricErrCnt.Inc(ctx, "call_proc_preparebox", 1)
         logger.Error(ctx, fmt.Sprintf("Error get box '%s'", err))

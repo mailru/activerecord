@@ -36,6 +36,8 @@ func TestGetClusterInfoFromCfg(t *testing.T) {
 				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/master").Return("", false)
 				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig").Return("host1,host2", true)
 				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/replica").Return("", false)
+				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/user").Return("", false)
+				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/password").Return("", false)
 			},
 			args: args{
 				ctx:   ctx,
@@ -80,6 +82,8 @@ func TestGetClusterInfoFromCfg(t *testing.T) {
 				mockConfig.EXPECT().GetDurationIfExists(mock.Anything, mock.Anything).Return(0, false)
 				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/master").Return("host2", true)
 				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/replica").Return("host1", true)
+				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/user").Return("", false)
+				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/password").Return("", false)
 			},
 			args: args{
 				ctx:   ctx,
@@ -126,6 +130,8 @@ func TestGetClusterInfoFromCfg(t *testing.T) {
 				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/master").Return("", false)
 				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig").Return("host1", true)
 				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/replica").Return("host2", true)
+				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/user").Return("", false)
+				mockConfig.EXPECT().GetStringIfExists(mock.Anything, "testconfig/password").Return("", false)
 			},
 			args: args{
 				ctx:   ctx,

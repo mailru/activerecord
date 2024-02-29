@@ -43,6 +43,8 @@ type ShardInstanceConfig struct {
 	Mode     ServerModeType
 	PoolSize int
 	Addr     string
+	User     string
+	Password string
 }
 
 // Структура описывающая инстанс в кластере
@@ -322,7 +324,10 @@ func getShardInfoFromCfg(ctx context.Context, path string, globParam MapGlobPara
 	shardTimeout := cfg.GetDuration(ctx, path+"/Timeout", globParam.Timeout)
 	shardPoolSize := cfg.GetInt(ctx, path+"/PoolSize", globParam.PoolSize)
 
-	// информация по местерам
+	user, _ := cfg.GetStringIfExists(ctx, path+"/user")
+	password, _ := cfg.GetStringIfExists(ctx, path+"/password")
+
+	// информация по мастерам
 	master, exMaster := cfg.GetStringIfExists(ctx, path+"/master")
 	if !exMaster {
 		master, exMaster = cfg.GetStringIfExists(ctx, path)
@@ -342,6 +347,8 @@ func getShardInfoFromCfg(ctx context.Context, path string, globParam MapGlobPara
 				Mode:     ModeMaster,
 				PoolSize: shardPoolSize,
 				Timeout:  shardTimeout,
+				User:     user,
+				Password: password,
 			}
 
 			opt, err := optionCreator(shardCfg)
@@ -370,6 +377,8 @@ func getShardInfoFromCfg(ctx context.Context, path string, globParam MapGlobPara
 				Mode:     ModeReplica,
 				PoolSize: shardPoolSize,
 				Timeout:  shardTimeout,
+				User:     user,
+				Password: password,
 			}
 
 			opt, err := optionCreator(shardCfg)

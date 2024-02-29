@@ -8,7 +8,7 @@ import (
 )
 
 var DefaultOptionCreator = func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
-	return NewOptions(sic.Addr, sic.Mode, WithTimeout(sic.Timeout))
+	return NewOptions(sic.Addr, sic.Mode, WithTimeout(sic.Timeout), WithCredential(sic.User, sic.Password))
 }
 
 func Box(ctx context.Context, shard int, instType activerecord.ShardInstanceType, configPath string, optionCreator func(activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error)) (*Connection, error) {
