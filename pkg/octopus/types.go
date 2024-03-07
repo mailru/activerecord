@@ -16,18 +16,18 @@ type TupleData struct {
 	Data [][]byte
 }
 
-type Ops struct {
-	Field uint32
-	Op    OpCode
-	Value []byte
-}
-
 type ModelStruct interface {
 	Insert(ctx context.Context) error
 	Replace(ctx context.Context) error
 	InsertOrReplace(ctx context.Context) error
 	Update(ctx context.Context) error
 	Delete(ctx context.Context) error
+}
+
+type Ops struct {
+	Field uint32
+	Op    OpCode
+	Value []byte
 }
 
 type BaseField struct {

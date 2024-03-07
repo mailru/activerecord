@@ -1,0 +1,47 @@
+package {{ .FixturePkg }}
+
+import (
+    "context"
+    "fmt"
+)
+
+type FixtureMeta struct {
+    StoreIterator    func(it func(any) error) error
+    Unpacker         func(ctx context.Context, source []byte) (res []any, err error)
+    PrimaryKeyFields []string
+}
+
+// NSFixtures Репозиторий сторов фикстур
+type NSFixtures map[string]FixtureMeta
+
+{{ $nss := .Namespaces }}
+var NamespaceFixtures = NSFixtures{
+    {{ range $_, $ns := $nss -}}
+    {{- if $ns.Fields }}
+    "{{ $ns.Namespace.ObjectName }}": FixtureMeta{
+        StoreIterator:{{ $ns.Namespace.PublicName }}StoreIterator(),
+        Unpacker: func(ctx context.Context, source []byte) (res []any, err error) {
+            fxts, err := {{ $ns.Namespace.PackageName }}.UnmarshalFixtures(source)
+            if err != nil {
+                return nil, fmt.Errorf("can't decode tuple: %s", err)
+            }
+
+            for _, v := range fxts {
+                res = append(res, v)
+            }
+
+            return
+        },
+        PrimaryKeyFields: []string{
+            {{- if $ns.Indexes }}
+            {{- $pk := index $ns.Indexes 0 }}
+            {{- range $_, $fieldNum := $pk.Fields }}
+            {{- $ifield := index $ns.Fields $fieldNum }}
+            "{{$ifield.Name}}",
+            {{- end }}
+            {{ end -}}
+        },
+    },
+    {{ end }}
+    {{ end }}
+}

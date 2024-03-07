@@ -209,9 +209,6 @@ func (a *ArGen) saveGenerateResult(name, dst string, genRes []generator.Generate
 
 // Процесс генерации пакетов по подготовленным данным
 func (a *ArGen) generate() error {
-	metadata := generator.MetaData{
-		AppInfo: a.appInfo.String(),
-	}
 	// Запускаем цикл с проходом по всем полученным файлам для генерации
 	// результирующих пакетов
 	for name, cl := range a.packagesParsed {
@@ -230,17 +227,22 @@ func (a *ArGen) generate() error {
 		if err := a.saveGenerateResult(name, a.dst, genRes); err != nil {
 			return fmt.Errorf("error save result: %w", err)
 		}
-
-		metadata.Namespaces = append(metadata.Namespaces, cl)
 	}
 
-	genRes, genErr := generator.GenerateMeta(metadata)
-	if genErr != nil {
-		return fmt.Errorf("generate meta error: %s", genErr)
+	metadata, err := a.prepareMetaData()
+	if err != nil {
+		return fmt.Errorf("prepare metadata generate error: %s", err)
 	}
 
-	if err := a.saveGenerateResult("meta", a.dst, genRes); err != nil {
-		return fmt.Errorf("error save meta result: %w", err)
+	if len(metadata.Namespaces) > 0 {
+		genRes, genErr := generator.GenerateMeta(metadata)
+		if genErr != nil {
+			return fmt.Errorf("generate meta error: %s", genErr)
+		}
+
+		if genErr := a.saveGenerateResult("meta", a.dst, genRes); genErr != nil {
+			return fmt.Errorf("error save meta result: %w", err)
+		}
 	}
 
 	if a.skipGenerateFixture() {
@@ -248,12 +250,12 @@ func (a *ArGen) generate() error {
 	}
 
 	// Генерация пакета со сторами фикстур для тестов
-	err := a.prepareFixturesStorage()
+	err = a.prepareFixturesStorage()
 	if err != nil {
 		return fmt.Errorf("prepare fixture store error: %s", err)
 	}
 
-	dir, pkg := filepath.Split(a.dstFixture)
+	fixtureDir, fxtPkg := filepath.Split(a.dstFixture)
 
 	for name, cl := range a.packagesParsed {
 		// Подготовка информации по ссылкам на другие пакеты
@@ -263,14 +265,31 @@ func (a *ArGen) generate() error {
 		}
 
 		// Процесс генерации
-		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, pkg)
+		genRes, genErr := generator.GenerateFixture(a.appInfo.String(), *cl, name, fxtPkg)
 		if genErr != nil {
 			return fmt.Errorf("generate %s fixture store error: %w", name, genErr)
 		}
 
-		if err := a.saveGenerateResult(name, dir, genRes); err != nil {
+		if err := a.saveGenerateResult(name, fixtureDir, genRes); err != nil {
 			return fmt.Errorf("error save generated %s fixture result: %w", name, err)
 		}
+	}
+
+	namespaces := map[string][]*ds.RecordPackage{}
+
+	for _, cl := range a.packagesParsed {
+		for _, backend := range cl.Backends {
+			namespaces[backend] = append(namespaces[backend], cl)
+		}
+	}
+
+	genRes, genErr := generator.GenerateFixtureMeta(namespaces, a.appInfo.String(), fxtPkg)
+	if genErr != nil {
+		return fmt.Errorf("generate fixture meta error: %s", genErr)
+	}
+
+	if err := a.saveGenerateResult("fixture_meta", fixtureDir, genRes); err != nil {
+		return fmt.Errorf("error save fixture meta result: %w", err)
 	}
 
 	return nil
@@ -516,4 +535,23 @@ func (a *ArGen) getExists() ([]string, error) {
 	}
 
 	return existsFile, nil
+}
+
+func (a *ArGen) prepareMetaData() (generator.MetaData, error) {
+	metadata := generator.MetaData{
+		AppInfo: a.appInfo.String(),
+	}
+
+	for _, cl := range a.packagesParsed {
+		for _, backend := range cl.Backends {
+			switch backend {
+			case "tarantool15":
+				fallthrough
+			case "octopus":
+				metadata.Namespaces = append(metadata.Namespaces, cl)
+			}
+		}
+	}
+
+	return metadata, nil
 }

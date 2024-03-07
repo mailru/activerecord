@@ -1,0 +1,252 @@
+package {{ .ARPkg }}
+
+import (
+    "bytes"
+    "context"
+    "fmt"
+    "log"
+{{ if eq .Server.Conf "" -}}
+    "time"
+{{ end }}
+    "strings"
+
+    "github.com/mailru/activerecord/pkg/activerecord"
+    "github.com/mailru/activerecord/pkg/tarantool"
+    tarantool2 "github.com/tarantool/go-tarantool"
+    "gopkg.in/vmihailenco/msgpack.v2"
+
+{{- range $ind, $imp := .Imports }}
+{{ if ne $imp.ImportName "" }}{{ $imp.ImportName }} {{ end }}"{{ $imp.Path }}"
+{{- end }}
+{{- range $i, $imp := addImport .FieldList }}
+    "{{ $imp }}"
+{{- end }}
+)
+
+{{ $pkgName := .ARPkg }}
+{{ $serializers := .Serializers -}}
+{{ $mutators := .Mutators -}}
+{{ $PublicStructName := .ARPkgTitle -}}
+{{ $LinkedObject := .LinkedObject }}
+{{ $flags := .Flags }}
+{{ $fields := .FieldList }}
+{{ $procfields := .ProcOutFieldList }}
+{{ $procInLen := len .ProcInFieldList }}
+{{ $mutatorLen := len .Mutators }}
+
+{{ if $procfields }}
+// proc struct
+type {{ $PublicStructName }} struct {
+params {{ $PublicStructName }}Params
+{{- range $ind, $fstruct := .ProcOutFieldList }}
+{{ $rtype := $fstruct.Format -}}
+{{ $serlen := len $fstruct.Serializer -}}
+{{ if ne $serlen 0 -}}
+{{ $sname := index $fstruct.Serializer 0 -}}
+{{ $serializer := index $serializers $sname -}}
+{{ $rtype = $serializer.Type -}}
+{{ end -}}
+field{{- $fstruct.Name }} {{ $rtype -}}
+{{ end }}
+}
+
+type {{ $PublicStructName }}List []*{{ $PublicStructName }}
+
+const (
+    procName string = "{{ .Container.ObjectName }}"
+    cntOutFields uint32 = {{ len .ProcOutFieldList }}
+)
+
+{{ if eq .Server.Conf "" -}}
+var boxOption, _ = tarantool.NewOptions(
+    "{{ .Server.Host }}:{{ .Server.Port }}",
+    activerecord.ModeMaster,
+    tarantool.WithTimeout(time.Millisecond * {{ .Server.Timeout }}),
+)
+
+var optionCreator = func(sic activerecord.ShardInstanceConfig) (activerecord.OptionInterface, error) {
+    return boxOption, nil
+}
+
+var clusterInfo = activerecord.NewClusterInfo(
+    activerecord.WithShard([]activerecord.OptionInterface{boxOption}, []activerecord.OptionInterface{}),
+)
+{{ end }}
+var cfgName = "{{.Server.Conf }}"
+
+func (obj *{{ $PublicStructName }}) DecodeMsgpack(dec *msgpack.Decoder) error {
+    rowCnt, err := dec.DecodeArrayLen()
+    if err != nil {
+        return err
+    }
+
+    if rowCnt != 1 {
+        return fmt.Errorf("unexpected response rows count: %d", rowCnt)
+    }
+
+    rowFieldCount, err := dec.DecodeArrayLen()
+    if err != nil {
+        return err
+    }
+
+    if rowFieldCount != int(cntOutFields) {
+        return fmt.Errorf("unexpected count of fields")
+    }
+
+    {{ range $ind, $fstruct := .ProcOutFieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $sname := $fstruct.Serializer.Name -}}
+    {{ if ne $sname "" -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $serparams := $fstruct.Serializer.Params }}
+    var v{{ $fstruct.Name }}  {{ $rtype }}
+    if err := dec.Decode(&v{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't decode '{{ $fstruct.Name }}' field: %w", err)
+    }
+
+    if err := {{ $serializer.ImportName }}.{{ $serializer.Unmarshaler }}({{ $serparams }}v{{ $fstruct.Name }}, &obj.field{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't unpack '{{ $fstruct.Name }}' field: %w", err)
+    }
+    {{- else }}
+    if err := dec.Decode(&obj.field{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't decode field '{{ $fstruct.Name }}': %w", err)
+    }
+    {{ end }}
+    {{ end }}
+
+    return nil
+}
+
+{{- range $ind, $fstruct := .ProcOutFieldList -}}
+{{ $rtype := $fstruct.Format -}}
+{{ $sname := $fstruct.Serializer.Name -}}
+{{ if ne $sname "" -}}
+{{ $serializer := index $serializers $sname -}}
+{{ $rtype = $serializer.Type -}}
+{{ end }}
+func (obj *{{ $PublicStructName }}) Get{{ $fstruct.Name }}() {{ $rtype }} {
+    return obj.field{{ $fstruct.Name }}
+}
+{{ end }}
+
+type {{ $PublicStructName }}Params struct {
+    {{- range $ind, $fstruct := .ProcInFieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $serlen := len $fstruct.Serializer -}}
+    {{ if ne $serlen 0 -}}
+    {{ $sname := index $fstruct.Serializer 0 -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $rtype = $serializer.Type -}}
+    {{ end }}
+    {{ $fstruct.Name }} {{ $rtype -}}
+    {{ end }}
+}
+
+func (obj *{{ $PublicStructName }}) GetParams() {{ $PublicStructName }}Params {
+    return obj.params
+}
+
+func  (obj *{{ $PublicStructName }}) setParams(params {{ $PublicStructName }}Params) error {
+    obj.params = params
+
+    return nil
+}
+
+{{ if ne $procInLen 0 }}
+func (obj *{{ $PublicStructName }}Params) arrayValues() ([]string, error)  {
+    ret := []string{}
+    {{ range $ind, $fstruct := .ProcInFieldList -}}
+    {{ $sname := $fstruct.Serializer.Name -}}
+    {{ $bvar :=  $fstruct.Name -}}
+    {{ if ne $sname "" -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $serparams := $fstruct.Serializer.Params -}}
+    pvar{{ $fstruct.Name }}, err := {{ $serializer.ImportName }}.{{ $serializer.Marshaler }}({{ $serparams }}obj.{{ $bvar }})
+    if err != nil {
+        return nil, fmt.Errorf("error marshal param field {{ $fstruct.Name }}: %w", err)
+    }
+
+    {{ if eq $fstruct.Format "[]string" }}
+    ret = append(ret, pvar{{ $fstruct.Name }}...)
+    {{ else }}
+    ret = append(ret, string(pvar{{ $fstruct.Name }}))
+    {{- end }}
+    {{- else -}}
+    ret = append(ret, string(obj.{{ $fstruct.Name }}))
+    {{- end }}
+    {{ end }}
+    return ret, nil
+}
+{{ end }}
+
+func (obj {{ $PublicStructName }}Params) PK() string {
+    return fmt.Sprint({{ if ne $procInLen 0 }}obj.arrayValues(){{ end }})
+}
+
+func Call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) (*{{ $PublicStructName }}, error) {
+    return call(ctx{{ if ne $procInLen 0 }}, params{{ end }}, activerecord.ReplicaOrMasterInstanceType)
+}
+
+func CallOnMaster(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}) (*{{ $PublicStructName }}, error) {
+    return call(ctx{{ if ne $procInLen 0 }}, params{{ end }}, activerecord.MasterInstanceType)
+}
+
+func call(ctx context.Context{{ if ne $procInLen 0 }}, params {{ $PublicStructName }}Params{{ end }}, instanceType activerecord.ShardInstanceType) (*{{ $PublicStructName }}, error) {
+    logger := activerecord.Logger()
+    ctx = logger.SetLoggerValueToContext(ctx, map[string]interface{}{"LuaProc": procName})
+    metricTimer := activerecord.Metric().Timer("octopus", "{{ $PublicStructName }}")
+    metricErrCnt := activerecord.Metric().ErrorCount("octopus", "{{ $PublicStructName }}")
+
+    metricTimer.Timing(ctx, "call_proc")
+
+    connection, err := tarantool.Box(ctx, 0, instanceType, cfgName, {{ if eq .Server.Conf "" -}}optionCreator{{ else }}nil{{ end -}})
+    if err != nil {
+        metricErrCnt.Inc(ctx, "call_proc_preparebox", 1)
+        logger.Error(ctx, fmt.Sprintf("Error get box '%s'", err))
+
+        return nil, err
+    }
+
+    var args []string
+
+    args, err = params.arrayValues()
+    if err != nil {
+        metricErrCnt.Inc(ctx, "call_proc_preparebox", 1)
+
+        return nil, fmt.Errorf("Error parse args of procedure %s: %w", procName, err)
+    }
+
+    var res *{{ $PublicStructName }}
+
+    errCall := connection.Call17Typed(procName, args, &res)
+    if errCall != nil {
+        metricErrCnt.Inc(ctx, "call_proc", 1)
+        logger.Error(ctx, "Error execute from box", errCall, connection.Info())
+
+        return nil, fmt.Errorf("call lua procedure %s: %w", procName, errCall)
+    }
+
+
+    metricTimer.Finish(ctx, "call_proc")
+
+    return res, nil
+}
+
+{{ range $ind, $fstruct := .ProcOutFieldList -}}
+{{ $packerparam := packerParam $fstruct.Format -}}
+{{ $rtype := $fstruct.Format -}}
+{{ $sname := $fstruct.Serializer.Name -}}
+{{ if ne $sname "" -}}
+{{ $serializer := index $serializers $sname -}}
+{{ $rtype = $serializer.Type -}}
+{{ end -}}
+func (obj *{{ $PublicStructName }}) Set{{ $fstruct.Name }}({{ $fstruct.Name }} {{ $rtype }}) error {
+    obj.field{{ $fstruct.Name }} = {{ $fstruct.Name}}
+
+    return nil
+}
+
+{{ end }}
+// end proc struct
+
+{{end}}

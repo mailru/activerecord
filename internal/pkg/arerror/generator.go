@@ -7,6 +7,7 @@ var ErrGeneratorBackendNotImplemented = errors.New("backend not implemented")
 var ErrGeneragorGetTmplLine = errors.New("can't get error lines")
 var ErrGeneragorEmptyTmplLine = errors.New("tmpl lines not set")
 var ErrGeneragorErrorLineNotFound = errors.New("template lines not found in error")
+var ErrGeneratorTemplateUnkhown = errors.New("template unknown")
 
 // Описание ошибки генерации
 type ErrGeneratorPkg struct {

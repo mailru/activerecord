@@ -1,0 +1,101 @@
+package {{ .ARPkg }}
+
+import (
+    "context"
+    "log"
+
+    "gopkg.in/vmihailenco/msgpack.v2"
+    "gopkg.in/yaml.v3"
+{{- range $ind, $imp := .Imports }}
+{{ if ne $imp.ImportName "" }}{{ $imp.ImportName }} {{ end }}"{{ $imp.Path }}"
+{{- end }}
+{{- range $i, $imp := addImport .FieldList }}
+    "{{ $imp }}"
+{{- end }}
+)
+
+{{ $PublicStructName := .ARPkgTitle -}}
+{{ $serializers := .Serializers -}}
+{{ $fields := .FieldList }}
+{{ $procfields := .ProcOutFieldList }}
+
+
+type {{ $PublicStructName }}FT struct {
+    {{- range $ind, $fstruct := .FieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $serlen := len $fstruct.Serializer -}}
+    {{ if ne $serlen 0 -}}
+    {{ $sname := index $fstruct.Serializer 0 -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $rtype = $serializer.Type -}}
+    {{ end }}
+    {{ $fstruct.Name }} {{ $rtype -}} `yaml:"{{ $fstruct.Name | snakeCase -}}" mapstructure:"{{ $fstruct.Name | snakeCase -}}" json:"{{ $fstruct.Name | snakeCase -}}"`
+    {{- end }}
+}
+
+func UnmarshalFixtures(source []byte) ([]{{$PublicStructName}}FT, error) {
+    var fts []{{$PublicStructName}}FT
+    if err := msgpack.Unmarshal(source, &fts); err != nil {
+        return nil, err
+    }
+
+    return fts, nil
+}
+
+func (obj *{{ $PublicStructName }}FT) DecodeMsgpack(dec *msgpack.Decoder) error {
+    l, err := dec.DecodeArrayLen()
+    if err != nil {
+        return err
+    }
+
+    if l != {{ len .FieldList }} {
+        return fmt.Errorf("unexpected count of fields")
+    }
+
+    {{ range $ind, $fstruct := .FieldList -}}
+    {{ $rtype := $fstruct.Format -}}
+    {{ $sname := $fstruct.Serializer.Name -}}
+    {{ if ne $sname "" -}}
+    {{ $serializer := index $serializers $sname -}}
+    {{ $serparams := $fstruct.Serializer.Params }}
+    var v{{ $fstruct.Name }}  {{ $rtype }}
+    if err := dec.Decode(&v{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't decode '{{ $fstruct.Name }}' field: %w", err)
+    }
+
+    if err := {{ $serializer.ImportName }}.{{ $serializer.Unmarshaler }}({{ $serparams }}v{{ $fstruct.Name }}, &obj.{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't unpack '{{ $fstruct.Name }}' field: %w", err)
+    }
+    {{- else }}
+    if err := dec.Decode(&obj.{{ $fstruct.Name }}); err != nil {
+        return fmt.Errorf("can't decode field '{{ $fstruct.Name }}': %w", err)
+    }
+    {{ end }}
+    {{ end }}
+
+    return nil
+}
+
+func UnmarshalFromYaml(source []byte) []*{{$PublicStructName}} {
+    var fixtures []{{$PublicStructName}}FT
+
+    if err := yaml.Unmarshal(source, &fixtures); err != nil {
+        log.Fatalf("unmarshal {{$PublicStructName}}FT fixture: %v", err)
+    }
+
+    objs := make([]*{{$PublicStructName}}, 0, len(fixtures))
+
+    for _, ft := range fixtures {
+
+        o := New(context.Background())
+        {{- range $ind, $fstruct := .FieldList }}
+        if err := o.Set{{$fstruct.Name}}(ft.{{$fstruct.Name}}); err != nil {
+            log.Fatalf("can't set value %v to field {{$fstruct.Name}} of {{$PublicStructName}} fixture: %s", ft.{{$fstruct.Name}}, err)
+        }
+        {{- end }}
+
+        objs = append(objs, o)
+    }
+
+    return objs
+}
