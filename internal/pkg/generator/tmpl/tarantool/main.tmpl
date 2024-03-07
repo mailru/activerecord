@@ -841,6 +841,7 @@ func selectBox(ctx context.Context, indexnum uint32, keys []interface{}, iterTyp
     }
 
     for _, r := range res {
+        r.BaseField.Objects = map[string][]tarantool.ModelStruct{}
         r.BaseField.Exists = true
     }
 
@@ -876,6 +877,7 @@ func executeSQL(ctx context.Context, sqlText string, args []any) ([]*{{ $PublicS
 
     for _, r := range res {
         r.BaseField.Exists = true
+        r.BaseField.Objects = map[string][]tarantool.ModelStruct{}
     }
 
     metricStatCnt.Inc(ctx, "execute_tuples_res", float64(len(res)))
